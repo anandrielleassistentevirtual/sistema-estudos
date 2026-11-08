@@ -270,7 +270,7 @@ export default function Lectio() {
                   ))}
                 </div>
                 <div className="mt-6 font-sans text-base">
-                  <button className="btn btn-primary" onClick={iniciar}><Play size={15} /> Amém, começar a Leitura</button>
+                  <button className="btn btn-primary w-11 h-11 p-0 justify-center rounded-full" onClick={iniciar} title="Começar a Leitura" aria-label="Começar a Leitura"><Play size={18} /></button>
                 </div>
               </section>
             )}
