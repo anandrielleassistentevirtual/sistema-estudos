@@ -12,6 +12,7 @@ import { addBasicNote } from "@/lib/anki";
 import { ReadingTracker } from "@/lib/reading-tracker";
 import { supabase } from "@/lib/supabase/client";
 import type { Annotation, Book } from "@/lib/types";
+import { useTimer } from "@/components/timer-context";
 
 const PREFS_KEY = "leitor-prefs";
 const defaultPrefs: ReaderPrefs = { theme: "claro", fontSize: 105, serif: true };
@@ -37,6 +38,9 @@ export default function Ler() {
   const lastSave = useRef(0);
   const bookRef = useRef<Book | null>(null);
   bookRef.current = book;
+  const timer = useTimer();
+  const timerOn = useRef(false);
+  timerOn.current = timer.running && timer.phase === "foco";
 
   useEffect(() => {
     try {
@@ -59,7 +63,7 @@ export default function Ler() {
       setAnns((a.data as Annotation[]) ?? []);
       try { setBlob(await downloadBook(data as Book)); } catch (e) { setError((e as Error).message); }
     })();
-    const t = new ReadingTracker(id);
+    const t = new ReadingTracker(id, () => timerOn.current);
     t.onChange = () => setSession({ ...t.session });
     tracker.current = t;
     return () => { void t.close(); };
@@ -172,7 +176,7 @@ export default function Ler() {
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
               onAnnotationClick={() => setShowAnns(true)} />
           ) : (
-            <TextReader ref={reader} data={blob} format={book.format} startAt={book.last_location} prefs={prefs} annotations={anns}
+            <TextReader ref={reader} data={blob} format={book.format as "txt" | "md"} startAt={book.last_location} prefs={prefs} annotations={anns}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
               onAnnotationClick={() => setShowAnns(true)} />
           )

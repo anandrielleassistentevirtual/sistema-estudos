@@ -15,20 +15,36 @@ interface TimerState {
   focusMin: number;
   breakMin: number;
   category: string;
-  label: string;
-  language: string;
+  label: string; // texto livre (categorias sem lista)
+  language: string; // Idiomas
+  bookId: string; // Leitura
+  bookTitle: string;
+  bookPhysical: boolean;
+  noteId: string; // Estudos (transcrição de aula)
+  noteTitle: string;
   cycles: number;
 }
 
+/** Sessão de livro físico esperando a página onde você parou. */
+export interface PendingPages {
+  seconds: number;
+  startedAt: string;
+  state: TimerState;
+}
+
 interface TimerApi extends TimerState {
-  seconds: number; // decorrido na fase atual
-  remaining: number; // pomodoro: restante
+  seconds: number;
+  remaining: number;
   start: () => void;
   pause: () => void;
   stop: () => Promise<void>;
   reset: () => void;
   set: (p: Partial<TimerState>) => void;
   lastSaved: number;
+  pending: PendingPages | null;
+  resolvePending: (page: number | null) => Promise<void>;
+  /** rótulo do que está sendo estudado */
+  what: string;
 }
 
 const KEY = "timer-estado";
@@ -43,12 +59,24 @@ const initial: TimerState = {
   category: "Leitura",
   label: "",
   language: "",
+  bookId: "",
+  bookTitle: "",
+  bookPhysical: false,
+  noteId: "",
+  noteTitle: "",
   cycles: 0,
 };
 
 const Ctx = createContext<TimerApi | null>(null);
 
 export const CATEGORIAS = ["Leitura", "Idiomas", "Estudos", "Anki", "Escrita", "Outro"];
+
+export function describe(st: TimerState): string {
+  if (st.category === "Leitura" && st.bookTitle) return st.bookTitle;
+  if (st.category === "Estudos" && st.noteTitle) return st.noteTitle;
+  if (st.category === "Idiomas" && st.language) return st.label ? `${st.language} · ${st.label}` : st.language;
+  return st.label;
+}
 
 function beep() {
   try {
@@ -68,12 +96,15 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [s, setS] = useState<TimerState>(initial);
   const [now, setNow] = useState(() => Date.now());
   const [lastSaved, setLastSaved] = useState(0);
+  const [pending, setPending] = useState<PendingPages | null>(null);
   const loaded = useRef(false);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) setS({ ...initial, ...JSON.parse(raw) });
+      const p = localStorage.getItem(KEY + "-pendente");
+      if (p) setPending(JSON.parse(p));
     } catch {}
     loaded.current = true;
   }, []);
@@ -82,8 +113,10 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     if (!loaded.current) return;
     try {
       localStorage.setItem(KEY, JSON.stringify(s));
+      if (pending) localStorage.setItem(KEY + "-pendente", JSON.stringify(pending));
+      else localStorage.removeItem(KEY + "-pendente");
     } catch {}
-  }, [s]);
+  }, [s, pending]);
 
   useEffect(() => {
     if (!s.running) return;
@@ -95,17 +128,60 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const target = (s.phase === "foco" ? s.focusMin : s.breakMin) * 60;
   const remaining = Math.max(0, target - seconds);
 
-  const save = useCallback(async (secs: number, st: TimerState) => {
-    if (secs < 30) return;
-    const started = new Date(Date.now() - secs * 1000);
-    await supabase()
-      .from("study_sessions")
-      .insert({
-        day: dayKey(started), started_at: started.toISOString(), seconds: Math.round(secs), category: st.category, label: st.label,
-        language: st.category === "Idiomas" && st.language ? st.language : null,
-      });
+  const insert = useCallback(async (secs: number, st: TimerState, startedIso: string) => {
+    await supabase().from("study_sessions").insert({
+      day: dayKey(new Date(startedIso)),
+      started_at: startedIso,
+      seconds: Math.round(secs),
+      category: st.category,
+      label: describe(st),
+      language: st.category === "Idiomas" && st.language ? st.language : null,
+      book_id: st.category === "Leitura" && st.bookId ? st.bookId : null,
+      note_id: st.category === "Estudos" && st.noteId ? st.noteId : null,
+    });
     setLastSaved(Date.now());
   }, []);
+
+  const save = useCallback(async (secs: number, st: TimerState) => {
+    if (secs < 30) return;
+    const startedIso = new Date(Date.now() - secs * 1000).toISOString();
+    // livro físico: pergunta a página antes de salvar (para medir páginas/palavras)
+    if (st.category === "Leitura" && st.bookId && st.bookPhysical) {
+      setPending({ seconds: secs, startedAt: startedIso, state: st });
+      return;
+    }
+    await insert(secs, st, startedIso);
+  }, [insert]);
+
+  const resolvePending = useCallback(async (page: number | null) => {
+    const p = pending;
+    if (!p) return;
+    setPending(null);
+    await insert(p.seconds, p.state, p.startedAt);
+    if (page === null) return;
+    const sb = supabase();
+    const { data: book } = await sb.from("books").select("current_page,total_pages,words_per_page,status,started_at").eq("id", p.state.bookId).single();
+    if (!book) return;
+    const before = book.current_page ?? 0;
+    const pages = Math.max(0, page - before);
+    const words = pages * (book.words_per_page ?? 300);
+    if (pages > 0) {
+      await sb.from("reading_sessions").insert({
+        book_id: p.state.bookId, day: dayKey(new Date(p.startedAt)), started_at: p.startedAt,
+        ended_at: new Date().toISOString(), seconds: Math.round(p.seconds), words, pages, during_timer: true,
+      });
+    }
+    const total = book.total_pages ?? 0;
+    const finished = total > 0 && page >= total;
+    await sb.from("books").update({
+      current_page: page,
+      progress: total > 0 ? Math.min(1, page / total) : 0,
+      status: finished ? "lido" : book.status === "aguardando" || book.status === "pausado" ? "lendo" : book.status,
+      started_at: book.started_at ?? p.startedAt,
+      ...(finished ? { finished_at: new Date().toISOString(), queue_position: null } : {}),
+    }).eq("id", p.state.bookId);
+    setLastSaved(Date.now());
+  }, [pending, insert]);
 
   // fim de fase do pomodoro
   useEffect(() => {
@@ -127,6 +203,9 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     seconds,
     remaining,
     lastSaved,
+    pending,
+    resolvePending,
+    what: describe(s),
     start: () => {
       if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
       setNow(Date.now());

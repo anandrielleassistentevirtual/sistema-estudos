@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  BookOpen, ChevronDown, ChevronRight, Folder, FolderOpen, ListOrdered, Pencil, Plus, Search, Trash2, Upload,
+  BookOpen, ChevronDown, ChevronRight, Folder, FolderOpen, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
-import { ACCEPT, deleteBook, enqueue, uploadBook } from "@/lib/books";
+import { ACCEPT, addPhysicalBook, deleteBook, enqueue, uploadBook } from "@/lib/books";
+import { useTimer } from "@/components/timer-context";
 import { fmtDuration, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { Book, BookStatus, Folder as F, STATUS_LABEL } from "@/lib/types";
@@ -26,6 +27,16 @@ export default function Biblioteca() {
   const [drag, setDrag] = useState(false);
   const [wpm, setWpm] = useState(DEFAULT_WPM);
   const fileRef = useRef<HTMLInputElement>(null);
+  const timer = useTimer();
+  const [physical, setPhysical] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => { if (toast) { const x = setTimeout(() => setToast(null), 3000); return () => clearTimeout(x); } }, [toast]);
+
+  function readPhysical(b: Book) {
+    timer.set({ category: "Leitura", bookId: b.id, bookTitle: b.title, bookPhysical: true });
+    if (!timer.running) timer.start();
+    setToast(`Timer ligado para “${b.title}”. Ao encerrar, informe a página onde parou.`);
+  }
 
   const load = useCallback(async () => {
     const sb = supabase();
@@ -171,6 +182,7 @@ export default function Biblioteca() {
       actions={
         <>
           <button className="btn" onClick={newFolder}><Plus size={15} /> {currentFolderId ? "Subpasta" : "Pasta"}</button>
+          <button className="btn" onClick={() => setPhysical(true)}><Plus size={15} /> Livro físico</button>
           <button className="btn btn-primary" onClick={() => fileRef.current?.click()} disabled={!!uploading}>
             <Upload size={15} /> {uploading ? "Enviando…" : "Enviar livros"}
           </button>
@@ -265,13 +277,15 @@ export default function Biblioteca() {
             <div className="card divide-y divide-line">
               {visible.map((b) => (
                 <div key={b.id} className="p-3 flex flex-wrap items-center gap-3">
-                  <Link href={`/ler/${b.id}`} className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="grid place-items-center w-9 h-11 rounded bg-surface-2 text-[10px] font-semibold uppercase text-muted shrink-0">{b.format}</span>
+                  <Link href={b.format === "fisico" ? "#" : `/ler/${b.id}`} onClick={(e) => { if (b.format === "fisico") { e.preventDefault(); readPhysical(b); } }}
+                    className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="grid place-items-center w-9 h-11 rounded bg-surface-2 text-[10px] font-semibold uppercase text-muted shrink-0">{b.format === "fisico" ? "📖" : b.format}</span>
                     <span className="min-w-0">
                       <span className="block font-medium truncate">{b.title}</span>
                       <span className="block text-xs text-muted truncate">
                         {b.author ?? "Autor desconhecido"}
                         {b.word_count ? ` · ${nf.format(b.word_count)} palavras · ≈ ${fmtDuration((b.word_count / wpm) * 60)}` : ""}
+                        {b.format === "fisico" ? ` · físico${b.total_pages ? ` · p. ${b.current_page ?? 0}/${b.total_pages}` : ""}` : ""}
                         {b.progress > 0 ? ` · ${Math.round(b.progress * 100)}%` : ""}
                       </span>
                     </span>
@@ -284,7 +298,11 @@ export default function Biblioteca() {
                     {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
                   </select>
                   <div className="flex gap-1">
-                    <Link className="btn btn-ghost px-2" href={`/ler/${b.id}`} title="Ler"><BookOpen size={15} /></Link>
+                    {b.format === "fisico" ? (
+                      <button className="btn btn-ghost px-2" title="Ler (liga o timer)" onClick={() => readPhysical(b)}><Timer size={15} /></button>
+                    ) : (
+                      <Link className="btn btn-ghost px-2" href={`/ler/${b.id}`} title="Ler"><BookOpen size={15} /></Link>
+                    )}
                     <button className="btn btn-ghost px-2" title={b.queue_position ? "Já está na fila" : "Adicionar à fila"} disabled={!!b.queue_position}
                       onClick={async () => { const p = await enqueue(b); setBooks((all) => all.map((x) => (x.id === b.id ? { ...x, queue_position: p } : x))); }}>
                       <ListOrdered size={15} />
@@ -300,6 +318,71 @@ export default function Biblioteca() {
           )}
         </div>
       </div>
+      {physical && (
+        <PhysicalModal folders={folders} folderId={currentFolderId} onClose={() => setPhysical(false)}
+          onSaved={(b) => { setPhysical(false); setBooks((all) => [...all, b].sort((x, y) => x.title.localeCompare(y.title, "pt-BR"))); }} />
+      )}
+      {toast && (
+        <div className="fixed left-1/2 -translate-x-1/2 top-4 z-50 rounded-lg px-4 py-2 text-sm shadow-lg" style={{ background: "var(--text)", color: "var(--bg)" }}>{toast}</div>
+      )}
     </Page>
+  );
+}
+
+function PhysicalModal({ folders, folderId, onClose, onSaved }: { folders: F[]; folderId: string | null; onClose: () => void; onSaved: (b: Book) => void }) {
+  const [f, setF] = useState({ title: "", author: "", total_pages: "", current_page: "", words_per_page: "300", folder_id: folderId ?? "" });
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      onSaved(await addPhysicalBook({
+        title: f.title.trim(), author: f.author.trim(), total_pages: Number(f.total_pages) || 0,
+        current_page: Number(f.current_page) || 0, words_per_page: Number(f.words_per_page) || 300, folder_id: f.folder_id || null,
+      }));
+    } catch (x) { setErr((x as Error).message); setBusy(false); }
+  }
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
+      <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3">
+        <div className="flex justify-between items-center">
+          <h2 className="font-semibold">Livro físico</h2>
+          <button type="button" onClick={onClose}><X size={18} /></button>
+        </div>
+        <label className="block space-y-1"><span className="label">Título</span>
+          <input className="input" required autoFocus value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
+        </label>
+        <label className="block space-y-1"><span className="label">Autor</span>
+          <input className="input" value={f.author} onChange={(e) => setF({ ...f, author: e.target.value })} />
+        </label>
+        <div className="grid grid-cols-3 gap-3">
+          <label className="space-y-1"><span className="label">Páginas</span>
+            <input className="input" type="number" min={1} required value={f.total_pages} onChange={(e) => setF({ ...f, total_pages: e.target.value })} />
+          </label>
+          <label className="space-y-1"><span className="label">Estou na p.</span>
+            <input className="input" type="number" min={0} value={f.current_page} placeholder="0" onChange={(e) => setF({ ...f, current_page: e.target.value })} />
+          </label>
+          <label className="space-y-1"><span className="label">Palavras/pág.</span>
+            <input className="input" type="number" min={50} max={1000} value={f.words_per_page} onChange={(e) => setF({ ...f, words_per_page: e.target.value })} />
+          </label>
+        </div>
+        <p className="text-xs text-muted">
+          Palavras por página: ~250 em livros de bolso, ~300 no padrão, ~400 em páginas densas. Para afinar, conte as palavras de
+          3 linhas, divida por 3 e multiplique pelo número de linhas da página.
+        </p>
+        <label className="block space-y-1"><span className="label">Pasta</span>
+          <select className="input" value={f.folder_id} onChange={(e) => setF({ ...f, folder_id: e.target.value })}>
+            <option value="">Sem pasta</option>
+            {folders.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        </label>
+        {err && <p className="text-sm text-critical">{err}</p>}
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" disabled={busy}>Salvar</button>
+        </div>
+      </form>
+    </div>
   );
 }

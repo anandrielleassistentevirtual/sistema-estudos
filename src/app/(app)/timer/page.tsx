@@ -1,19 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Pause, Play, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { Page } from "@/components/page";
-import { CATEGORIAS, useTimer } from "@/components/timer-context";
-import { dayKey, fmtClock, fmtDuration } from "@/lib/dates";
+import { useTimer } from "@/components/timer-context";
+import { TimerControls } from "@/components/timer-controls";
+import { dayKey, fmtDuration } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
-import { Language, loadLanguages } from "@/lib/languages";
 
 interface Session { id: string; started_at: string; seconds: number; category: string; label: string }
 
 export default function TimerPage() {
   const t = useTimer();
   const [today, setToday] = useState<Session[]>([]);
-  const [langs, setLangs] = useState<Language[]>([]);
-  useEffect(() => { void loadLanguages().then(setLangs); }, []);
 
   const load = () =>
     supabase()
@@ -26,95 +24,13 @@ export default function TimerPage() {
     void load();
   }, [t.lastSaved]);
 
-  const display = t.mode === "pomodoro" ? t.remaining : t.seconds;
-  const total = (t.phase === "foco" ? t.focusMin : t.breakMin) * 60;
-  const pct = t.mode === "pomodoro" ? 1 - t.remaining / total : (t.seconds % 3600) / 3600;
-  const R = 110;
-  const C = 2 * Math.PI * R;
   const byCat = today.reduce<Record<string, number>>((a, s) => ((a[s.category] = (a[s.category] ?? 0) + s.seconds), a), {});
 
   return (
     <Page title="Timer" subtitle="Cada sessão de foco entra no calendário e no dashboard.">
       <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-        <div className="card p-6 flex flex-col items-center">
-          <div className="inline-flex rounded-lg bg-surface-2 p-1 text-sm mb-6">
-            {(["pomodoro", "livre"] as const).map((m) => (
-              <button
-                key={m}
-                disabled={t.running}
-                onClick={() => t.set({ mode: m, phase: "foco", elapsed: 0 })}
-                className={`px-4 py-1.5 rounded-md ${t.mode === m ? "bg-surface shadow-sm font-medium" : "text-muted"}`}
-              >
-                {m === "pomodoro" ? "Pomodoro" : "Cronômetro"}
-              </button>
-            ))}
-          </div>
-          <div className="relative w-[260px] h-[260px]">
-            <svg viewBox="0 0 260 260" className="w-full h-full -rotate-90">
-              <circle cx="130" cy="130" r={R} fill="none" stroke="var(--surface-2)" strokeWidth="10" />
-              <circle
-                cx="130" cy="130" r={R} fill="none"
-                stroke={t.phase === "foco" ? "var(--accent)" : "var(--good)"}
-                strokeWidth="10" strokeLinecap="round"
-                strokeDasharray={C} strokeDashoffset={C * (1 - Math.max(0, Math.min(1, pct)))}
-                style={{ transition: "stroke-dashoffset 0.5s linear" }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="text-xs uppercase tracking-wider text-muted">
-                {t.mode === "pomodoro" ? (t.phase === "foco" ? "Foco" : "Pausa") : "Decorrido"}
-              </div>
-              <div className="text-5xl font-semibold font-mono tabular-nums mt-1">{fmtClock(display)}</div>
-              {t.mode === "pomodoro" && <div className="text-xs text-faint mt-1">ciclos hoje: {t.cycles}</div>}
-            </div>
-          </div>
-          <div className="flex gap-2 mt-6">
-            {t.running ? (
-              <button className="btn btn-primary px-5" onClick={t.pause}><Pause size={16} /> Pausar</button>
-            ) : (
-              <button className="btn btn-primary px-5" onClick={t.start}><Play size={16} /> {t.seconds > 0 ? "Continuar" : "Iniciar"}</button>
-            )}
-            <button className="btn" onClick={() => void t.stop()} disabled={t.seconds === 0} title="Encerrar e salvar">
-              <Square size={15} /> Encerrar e salvar
-            </button>
-            <button className="btn btn-ghost" onClick={t.reset} title="Zerar sem salvar"><RotateCcw size={15} /></button>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-3 w-full max-w-md mt-8">
-            <label className="space-y-1">
-              <span className="label">Categoria</span>
-              <select className="input" value={t.category} onChange={(e) => t.set({ category: e.target.value })}>
-                {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </label>
-            {t.category === "Idiomas" && (
-              <label className="space-y-1 sm:col-span-2">
-                <span className="label">Idioma</span>
-                <select className="input" value={t.language} onChange={(e) => t.set({ language: e.target.value })}>
-                  <option value="">Escolha o idioma…</option>
-                  {langs.map((l) => <option key={l.id} value={l.name}>{l.name}</option>)}
-                </select>
-                {langs.length === 0 && <span className="text-xs text-muted">Cadastre seus idiomas na tela Idiomas.</span>}
-              </label>
-            )}
-            <label className="space-y-1">
-              <span className="label">O que está estudando</span>
-              <input className="input" value={t.label} placeholder="ex.: Divina Comédia, canto V" onChange={(e) => t.set({ label: e.target.value })} />
-            </label>
-            {t.mode === "pomodoro" && (
-              <>
-                <label className="space-y-1">
-                  <span className="label">Foco (min)</span>
-                  <input className="input" type="number" min={1} max={180} value={t.focusMin} disabled={t.running}
-                    onChange={(e) => t.set({ focusMin: Number(e.target.value) || 25 })} />
-                </label>
-                <label className="space-y-1">
-                  <span className="label">Pausa (min)</span>
-                  <input className="input" type="number" min={1} max={60} value={t.breakMin} disabled={t.running}
-                    onChange={(e) => t.set({ breakMin: Number(e.target.value) || 5 })} />
-                </label>
-              </>
-            )}
-          </div>
+        <div className="card p-6">
+          <TimerControls />
         </div>
 
         <div className="card p-5">

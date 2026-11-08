@@ -12,8 +12,11 @@ export interface Book {
   folder_id: string | null;
   title: string;
   author: string | null;
-  format: "epub" | "txt" | "md";
-  file_path: string;
+  format: "epub" | "txt" | "md" | "fisico";
+  file_path: string | null;
+  total_pages: number | null;
+  current_page: number | null;
+  words_per_page: number;
   status: BookStatus;
   queue_position: number | null;
   word_count: number | null;

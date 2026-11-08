@@ -10,6 +10,7 @@ import { dayKey } from "./dates";
 export class ReadingTracker {
   private rowId: string | null = null;
   private rowDay = "";
+  private rowTimer = false;
   private pending = { seconds: 0, words: 0 };
   private saved = { seconds: 0, words: 0 };
   private pageStart = performance.now();
@@ -19,7 +20,7 @@ export class ReadingTracker {
   public session = { seconds: 0, words: 0 };
   public onChange?: () => void;
 
-  constructor(private bookId: string) {
+  constructor(private bookId: string, private timerOn: () => boolean = () => false) {
     this.timer = setInterval(() => void this.flush(), 20000);
     document.addEventListener("visibilitychange", this.onVis);
   }
@@ -56,15 +57,17 @@ export class ReadingTracker {
     const sb = supabase();
     const add = { ...this.pending };
     this.pending = { seconds: 0, words: 0 };
-    if (!this.rowId || this.rowDay !== today) {
+    const withTimer = this.timerOn();
+    if (!this.rowId || this.rowDay !== today || this.rowTimer !== withTimer) {
       this.saved = { seconds: 0, words: 0 };
       const { data } = await sb
         .from("reading_sessions")
-        .insert({ book_id: this.bookId, day: today, seconds: 0, words: 0 })
+        .insert({ book_id: this.bookId, day: today, seconds: 0, words: 0, during_timer: withTimer })
         .select("id")
         .single();
       this.rowId = data?.id ?? null;
       this.rowDay = today;
+      this.rowTimer = withTimer;
     }
     if (!this.rowId) return;
     this.saved.seconds += add.seconds;

@@ -63,6 +63,7 @@ export async function uploadBook(file: File, folderId: string | null): Promise<B
 }
 
 export async function downloadBook(book: Book): Promise<Blob> {
+  if (!book.file_path) throw new Error("Este é um livro físico: use o Timer (categoria Leitura) para registrar a leitura.");
   const { data, error } = await supabase().storage.from("livros").download(book.file_path);
   if (error || !data) throw new Error(error?.message ?? "Arquivo não encontrado");
   return data;
@@ -70,8 +71,26 @@ export async function downloadBook(book: Book): Promise<Blob> {
 
 export async function deleteBook(book: Book) {
   const sb = supabase();
-  await sb.storage.from("livros").remove([book.file_path]);
+  if (book.file_path) await sb.storage.from("livros").remove([book.file_path]);
   await sb.from("books").delete().eq("id", book.id);
+}
+
+export async function addPhysicalBook(input: {
+  title: string; author: string; total_pages: number; current_page: number; words_per_page: number; folder_id: string | null;
+}): Promise<Book> {
+  const { data, error } = await supabase()
+    .from("books")
+    .insert({
+      title: input.title, author: input.author || null, format: "fisico", file_path: null, folder_id: input.folder_id,
+      total_pages: input.total_pages || null, current_page: input.current_page || null, words_per_page: input.words_per_page || 300,
+      word_count: input.total_pages ? input.total_pages * (input.words_per_page || 300) : null,
+      progress: input.total_pages && input.current_page ? Math.min(1, input.current_page / input.total_pages) : 0,
+      status: input.current_page ? "lendo" : "aguardando",
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Book;
 }
 
 export async function enqueue(book: Book) {

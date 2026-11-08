@@ -3,21 +3,22 @@ import { supabase } from "./supabase/client";
 
 export interface DayStats {
   study: number; // segundos no timer
-  reading: number; // segundos lendo
+  reading: number; // segundos lendo fora do timer (para não contar duas vezes)
+  readingAll: number; // todo o tempo de leitura medido (para palavras/minuto)
   words: number; // palavras lidas
   reads: number; // frases lidas (idiomas)
   listens: number; // escutas completas (idiomas)
   anki: number; // revisões no Anki
 }
 
-export const emptyDay = (): DayStats => ({ study: 0, reading: 0, words: 0, reads: 0, listens: 0, anki: 0 });
+export const emptyDay = (): DayStats => ({ study: 0, reading: 0, readingAll: 0, words: 0, reads: 0, listens: 0, anki: 0 });
 
 /** Agrega tudo por dia a partir de `from` (AAAA-MM-DD). */
 export async function loadDaily(from: string): Promise<Map<string, DayStats>> {
   const sb = supabase();
   const [study, reading, lang, anki] = await Promise.all([
     sb.from("study_sessions").select("day,seconds").gte("day", from).limit(20000),
-    sb.from("reading_sessions").select("day,seconds,words").gte("day", from).limit(20000),
+    sb.from("reading_sessions").select("day,seconds,words,during_timer").gte("day", from).limit(20000),
     sb.from("language_daily").select("day,reads,listens").gte("day", from),
     sb.from("anki_daily").select("day,reviews").gte("day", from),
   ]);
@@ -30,7 +31,8 @@ export async function loadDaily(from: string): Promise<Map<string, DayStats>> {
   for (const r of study.data ?? []) get(r.day).study += r.seconds;
   for (const r of reading.data ?? []) {
     const v = get(r.day);
-    v.reading += r.seconds;
+    if (!r.during_timer) v.reading += r.seconds;
+    v.readingAll += r.seconds;
     v.words += r.words;
   }
   for (const r of lang.data ?? []) {

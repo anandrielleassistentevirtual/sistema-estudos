@@ -68,14 +68,6 @@ export function Sidebar() {
           {label}
         </Link>
       ))}
-      {showTimer && (
-        <Link href="/timer" className="mt-3 mx-1 card px-3 py-2 text-sm flex items-center justify-between">
-          <span className="text-muted">{timer.phase === "foco" ? timer.category : "Pausa"}</span>
-          <span className="font-mono tabular-nums">
-            {fmtClock(timer.mode === "pomodoro" ? timer.remaining : timer.seconds)}
-          </span>
-        </Link>
-      )}
       <div className="mt-auto pt-3 space-y-0.5">
         <ThemeToggle />
         <button

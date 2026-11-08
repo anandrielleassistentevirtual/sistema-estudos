@@ -55,7 +55,7 @@ export default function Dashboard() {
     const avgWeek = past.length ? past.reduce((a, b) => a + b.value, 0) / past.length : 0;
     const from30 = addDays(now, -29);
     const words30 = sum(from30, now, (d) => d.words);
-    const secs30 = sum(from30, now, (d) => d.reading);
+    const secs30 = sum(from30, now, (d) => d.readingAll);
     // sequência de dias com algum estudo
     let streak = 0;
     for (let d = new Date(now); ; d = addDays(d, -1)) {
