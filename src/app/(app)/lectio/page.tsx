@@ -1,10 +1,10 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookHeart, ChevronLeft, ChevronRight, ExternalLink, Pause, Play, RotateCcw, SkipForward } from "lucide-react";
+import { BookHeart, ChevronLeft, ChevronRight, ExternalLink, Pause, Play, RotateCcw, SkipForward, ZoomIn, ZoomOut } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { addDays, dayKey, fmtClock, fmtDuration, parseDay } from "@/lib/dates";
 import { FONTS } from "@/components/reader/types";
-import { useReaderPrefs } from "@/components/reader/prefs";
+import { stepZoom, useReaderPrefs, ZOOM, zoomOf } from "@/components/reader/prefs";
 import { useTimer } from "@/components/timer-context";
 
 interface Versiculo { n: number; texto: string }
@@ -85,7 +85,18 @@ export default function Lectio() {
   const [proposito, setProposito] = useState("");
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [salvo, setSalvo] = useState(false);
-  const [prefs] = useReaderPrefs();
+  const [prefs, setPrefs] = useReaderPrefs();
+  const zoom = zoomOf(prefs);
+  // zoom pelo teclado (+ e −), igual ao leitor
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest("input,textarea,select") || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "+" || e.key === "=") setPrefs((p) => stepZoom(p, 1));
+      if (e.key === "-" || e.key === "_") setPrefs((p) => stepZoom(p, -1));
+    };
+    document.addEventListener("keydown", k);
+    return () => document.removeEventListener("keydown", k);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const timer = useTimer();
   const tick = useRef<number | null>(null);
 
@@ -223,11 +234,18 @@ export default function Lectio() {
         {!carregando && !dado && <p className="text-center text-sm text-muted mt-10">Não consegui carregar a liturgia deste dia.</p>}
 
         {!carregando && dado && !fim && (
-          <div className="mt-6">
+          <div className="mt-6" style={{ fontSize: `${prefs.sizePt}pt` }}>
+            <div className="flex justify-end mb-2 text-base">
+              <div className="flex items-center rounded-lg border border-line text-muted" title="Zoom (teclas + e −)">
+                <button className="p-1.5 hover:text-ink disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, -1))} disabled={zoom <= ZOOM[0]} aria-label="Diminuir"><ZoomOut size={16} /></button>
+                <button className="text-xs tabular-nums w-11 text-center hover:text-ink" onClick={() => setPrefs((p) => ({ ...p, sizePt: 12 }))} title="Voltar a 100%">{zoom}%</button>
+                <button className="p-1.5 hover:text-ink disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, 1))} disabled={zoom >= ZOOM[ZOOM.length - 1]} aria-label="Aumentar"><ZoomIn size={16} /></button>
+              </div>
+            </div>
             {/* LEITURA */}
             {atual.id === "leitura" && (
-              <article className="leading-[1.8] text-[1.12rem] text-justify" style={serif}>
-                <p className="text-sm text-muted mb-3 text-left">{dado.titulo}</p>
+              <article className="leading-[1.8] text-[1.12em] text-justify" style={serif}>
+                <p className="text-[0.85em] text-muted mb-3 text-left">{dado.titulo}</p>
                 {dado.introducao && <span>{dado.introducao} </span>}
                 {dado.versiculos.map((v) => (
                   <span key={v.n}><sup className="text-[0.65em] text-accent font-sans mr-0.5">{v.n}</sup>{v.texto} </span>
@@ -245,8 +263,8 @@ export default function Lectio() {
                   </div>
                 ) : comentarios.map((c, i) => (
                   <figure key={i} className={`card p-5 ${c.destaque ? "border-accent/50" : ""}`}>
-                    <blockquote className="leading-[1.75] text-[1.08rem] text-justify" style={serif}>“{c.texto}”</blockquote>
-                    <figcaption className="mt-3 text-sm flex flex-wrap items-baseline justify-between gap-2">
+                    <blockquote className="leading-[1.75] text-[1.08em] text-justify" style={serif}>“{c.texto}”</blockquote>
+                    <figcaption className="mt-3 text-[0.85em] flex flex-wrap items-baseline justify-between gap-2">
                       <span><span className="font-semibold">{c.autor}</span>{c.fonte && !/^ubi sup/i.test(c.fonte) && <span className="text-muted"> · {c.fonte}</span>}</span>
                       {c.sobre && <span className="text-xs text-faint">sobre {c.sobre}</span>}
                     </figcaption>
@@ -254,7 +272,7 @@ export default function Lectio() {
                 ))}
                 <label className="block">
                   <span className="label">Palavra que tocou o meu coração</span>
-                  <input className="input mt-1" style={serif} value={palavra} onChange={(e) => setPalavra(e.target.value)} placeholder="Uma palavra ou frase do Evangelho" />
+                  <input className="input mt-1 text-[1em]" style={serif} value={palavra} onChange={(e) => setPalavra(e.target.value)} placeholder="Uma palavra ou frase do Evangelho" />
                 </label>
                 {dado.catena_url && curado && (
                   <a className="text-xs text-muted hover:text-accent inline-flex items-center gap-1" href={dado.catena_url} target="_blank" rel="noreferrer">
@@ -267,8 +285,8 @@ export default function Lectio() {
             {/* ORAÇÃO */}
             {atual.id === "oracao" && (
               <div className="space-y-3">
-                {palavra && <p className="text-center italic text-muted" style={serif}>“{palavra}”</p>}
-                <textarea className="input min-h-[220px] leading-relaxed text-[1.05rem]" style={serif} value={oracao} onChange={(e) => setOracao(e.target.value)}
+                {palavra && <p className="text-center italic text-muted text-[1.05em]" style={serif}>“{palavra}”</p>}
+                <textarea className="input min-h-[220px] leading-relaxed text-[1.05em]" style={serif} value={oracao} onChange={(e) => setOracao(e.target.value)}
                   placeholder="Senhor, …" />
                 <p className="text-xs text-faint text-center">Escrever é opcional — pode também rezar em silêncio.</p>
               </div>
@@ -277,7 +295,7 @@ export default function Lectio() {
             {/* CONTEMPLAÇÃO */}
             {atual.id === "contemplacao" && (
               <div className="py-12 md:py-20 text-center">
-                <p className="text-2xl md:text-3xl leading-relaxed px-2" style={serif}>
+                <p className="text-[1.5em] md:text-[1.85em] leading-relaxed px-2" style={serif}>
                   {palavra || dado.chave || dado.versiculos[dado.versiculos.length - 1]?.texto}
                 </p>
                 {!palavra && dado.chave_ref && <p className="text-sm text-muted mt-4">{dado.chave_ref}</p>}
@@ -290,7 +308,7 @@ export default function Lectio() {
         {/* FIM */}
         {fim && dado && (
           <div className="mt-6 space-y-3">
-            <p className="text-center text-xl" style={serif}>{palavra || dado.chave}</p>
+            <p className="text-center leading-relaxed" style={{ ...serif, fontSize: `${prefs.sizePt * 1.25}pt` }}>{palavra || dado.chave}</p>
             <label className="block">
               <span className="label">Propósito para hoje (opcional)</span>
               <input className="input mt-1" value={proposito} onChange={(e) => setProposito(e.target.value)} placeholder="Um gesto concreto que nasce desta oração" />
