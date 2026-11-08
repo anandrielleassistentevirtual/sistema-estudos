@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookHeart, ChevronLeft, ChevronRight, ExternalLink, Pause, Play, RotateCcw, SkipForward, ZoomIn, ZoomOut } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -356,7 +357,7 @@ export default function Lectio() {
         {/* diário */}
         {!rodando && registros.length > 0 && (
           <section className="mt-12">
-            <h2 className="label mb-2">Diário de oração</h2>
+            <div className="flex items-baseline justify-between mb-2"><h2 className="label">Diário de oração</h2><Link href="/notas/diario" className="text-xs text-muted hover:text-ink">Ver tudo em Notas → Diário</Link></div>
             <ul className="space-y-2">
               {registros.slice(0, 10).map((r) => (
                 <li key={r.id} className="card p-3 text-sm">
