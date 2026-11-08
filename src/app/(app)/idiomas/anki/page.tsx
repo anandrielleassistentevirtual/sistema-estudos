@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Play, RefreshCw } from "lucide-react";
 import { Page, Stat } from "@/components/page";
@@ -63,7 +64,7 @@ export default function AnkiPage() {
     <Page
       tabs={<IdiomasTabs />}
       title="Anki"
-      subtitle="As revisões continuam no Anki. Aqui você vê o histórico, abre a revisão e cria cartões a partir das leituras e frases."
+      subtitle="Revise seus baralhos aqui mesmo: as respostas vão direto para o seu Anki (que precisa estar aberto neste computador)."
       actions={<button className="btn" onClick={refresh} disabled={busy}><RefreshCw size={15} className={busy ? "animate-spin" : ""} /> Atualizar</button>}
     >
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -99,7 +100,10 @@ export default function AnkiPage() {
                   <td className="p-3 text-right tabular-nums">{d.learn_count}</td>
                   <td className="p-3 text-right tabular-nums font-medium">{d.review_count}</td>
                   <td className="p-3 text-right">
-                    <button className="btn text-xs py-1" onClick={() => anki("guiDeckReview", { name: d.name }).catch(() => {})}><Play size={12} /> Revisar no Anki</button>
+                    <span className="inline-flex gap-1">
+                      <Link className="btn btn-primary text-xs py-1" href={`/idiomas/anki/revisar?deck=${encodeURIComponent(d.name)}`}><Play size={12} /> Revisar</Link>
+                      <button className="btn btn-ghost text-xs py-1" title="Abrir a revisão na janela do Anki" onClick={() => anki("guiDeckReview", { name: d.name }).catch(() => {})}>no Anki</button>
+                    </span>
                   </td>
                 </tr>
               ))}

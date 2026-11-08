@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  CalendarDays, GraduationCap, Languages, LayoutDashboard, Library, ListOrdered,
+  GraduationCap, Languages, LayoutDashboard, Library, ListOrdered,
   LogOut, Menu, Moon, NotebookPen, Sun, Timer, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -13,7 +13,6 @@ import { fmtClock } from "@/lib/dates";
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/timer", label: "Timer", icon: Timer },
-  { href: "/calendario", label: "Calendário", icon: CalendarDays },
   { href: "/biblioteca", label: "Mapa da Ignorância", icon: Library },
   { href: "/fila", label: "Fila de leitura", icon: ListOrdered },
   { href: "/notas", label: "Notas", icon: NotebookPen },

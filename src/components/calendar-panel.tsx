@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Page, Stat } from "@/components/page";
+import { Stat } from "@/components/page";
 import { Heatmap } from "@/components/heatmap";
 import { addDays, dayKey, fmtDayLong, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { DayStats, loadDaily, Metric, METRICS, metricValue } from "@/lib/stats";
 
-export default function Calendario() {
+export function CalendarPanel() {
   const [year, setYear] = useState<number | "12m">("12m");
   const [metric, setMetric] = useState<Metric>("tempo");
   const [daily, setDaily] = useState<Map<string, DayStats>>(new Map());
@@ -36,8 +36,9 @@ export default function Calendario() {
   const d = sel ? daily.get(sel) : undefined;
 
   return (
-    <Page title="Calendário" subtitle="Cada quadrado é um dia. Quanto mais intensa a cor, mais estudo.">
-      <div className="flex flex-wrap gap-2 mb-4">
+    <section id="calendario" className="mt-4 scroll-mt-4">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <h2 className="font-semibold mr-auto">Calendário</h2>
         <div className="inline-flex rounded-lg bg-surface-2 p-1 text-sm">
           {METRICS.map((m) => (
             <button key={m.id} onClick={() => setMetric(m.id)}
@@ -72,6 +73,6 @@ export default function Calendario() {
           </dl>
         </div>
       )}
-    </Page>
+    </section>
   );
 }

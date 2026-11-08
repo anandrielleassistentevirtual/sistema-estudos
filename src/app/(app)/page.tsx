@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen } from "lucide-react";
 import { Page, Stat } from "@/components/page";
-import { Heatmap } from "@/components/heatmap";
+import { CalendarPanel } from "@/components/calendar-panel";
 import { BarChart } from "@/components/bar-chart";
 import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { DayStats, loadDaily } from "@/lib/stats";
@@ -110,13 +110,7 @@ export default function Dashboard() {
         {loading ? <div className="h-[182px]" /> : <BarChart data={s.weekly} unit="palavras" average={s.avgWeek} />}
       </section>
 
-      <section className="card p-5 mt-4">
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="font-semibold">Tempo de estudo</h2>
-          <Link href="/calendario" className="text-xs text-accent">ver calendário completo →</Link>
-        </div>
-        <Heatmap data={daily} metric="tempo" weeks={26} />
-      </section>
+      <CalendarPanel />
 
       <section className="mt-4 grid md:grid-cols-2 gap-4">
         <div className="card p-5">
