@@ -76,6 +76,20 @@ export async function downloadBook(book: Book): Promise<Blob> {
   return data;
 }
 
+/** Baixa o arquivo original do livro para o computador ("Autor - Título.epub"). */
+export async function saveBookFile(book: Book) {
+  const blob = await downloadBook(book);
+  const base = [book.author, book.title].filter(Boolean).join(" - ").replace(/[\\/:*?"<>|]/g, "-").trim() || "livro";
+  const file = new File([blob], `${base}.${book.format}`, { type: blob.type || "application/octet-stream" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file);
+  a.download = file.name;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 10000);
+}
+
 export async function deleteBook(book: Book) {
   const sb = supabase();
   const files = [book.file_path, book.cover_path].filter(Boolean) as string[];

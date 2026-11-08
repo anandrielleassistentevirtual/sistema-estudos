@@ -6,6 +6,7 @@ import { CATEGORIAS, useTimer } from "./timer-context";
 import { fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { Language, loadLanguages } from "@/lib/languages";
+import { bookName } from "@/lib/folders";
 
 interface BookOpt { id: string; title: string; author: string | null; format: string; status: string; current_page: number | null; total_pages: number | null }
 interface NoteOpt { id: string; title: string; professor: string; course: string }
@@ -19,7 +20,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     const sb = supabase();
-    void sb.from("books").select("id,title,author,format,status,current_page,total_pages").neq("status", "lido").order("title")
+    void sb.from("books").select("id,title,author,format,status,current_page,total_pages").neq("status", "lido").order("author").order("title")
       .then(({ data }) => setBooks((data as BookOpt[]) ?? []));
     void sb.from("notes").select("id,title,professor,course").eq("kind", "estudo").order("professor").order("title")
       .then(({ data }) => setNotes((data as NoteOpt[]) ?? []));
@@ -88,11 +89,11 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
             <span className="label">Livro</span>
             <select className="input" value={t.bookId} onChange={(e) => {
               const b = books.find((x) => x.id === e.target.value);
-              t.set({ bookId: b?.id ?? "", bookTitle: b?.title ?? "", bookPhysical: b?.format === "fisico" });
+              t.set({ bookId: b?.id ?? "", bookTitle: b ? bookName(b) : "", bookPhysical: b?.format === "fisico" });
             }}>
               <option value="">Escolha o livro…</option>
-              {digital.length > 0 && <optgroup label="Na biblioteca digital">{digital.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}</optgroup>}
-              {fisicos.length > 0 && <optgroup label="Livros físicos">{fisicos.map((b) => <option key={b.id} value={b.id}>📖 {b.title}</option>)}</optgroup>}
+              {digital.length > 0 && <optgroup label="Na biblioteca digital">{digital.map((b) => <option key={b.id} value={b.id}>{bookName(b)}</option>)}</optgroup>}
+              {fisicos.length > 0 && <optgroup label="Livros físicos">{fisicos.map((b) => <option key={b.id} value={b.id}>📖 {bookName(b)}</option>)}</optgroup>}
             </select>
             {book && book.format !== "fisico" && (
               <Link href={`/ler/${book.id}`} className="text-xs text-accent inline-flex items-center gap-1"><BookOpen size={12} /> abrir no leitor</Link>

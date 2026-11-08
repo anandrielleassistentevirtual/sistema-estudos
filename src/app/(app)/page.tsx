@@ -130,7 +130,10 @@ export default function Dashboard() {
                   <Link href={`/ler/${b.id}`} className="flex items-center gap-3 rounded-lg p-2 -mx-2 hover:bg-surface-2">
                     <Cover book={b} url={covers[b.id]} className="w-9 h-12" />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium truncate">{b.title}</div>
+                      <div className="text-sm truncate">
+                        {b.author && <><span className="font-semibold">{b.author}</span><span className="text-faint"> — </span></>}
+                        <span className="font-medium">{b.title}</span>
+                      </div>
                       <div className="h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
                         <div className="h-full bg-accent rounded-full" style={{ width: `${Math.round(b.progress * 100)}%` }} />
                       </div>

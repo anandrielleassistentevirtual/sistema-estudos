@@ -4,6 +4,7 @@ export interface Folder {
   id: string;
   parent_id: string | null;
   name: string;
+  code: string | null;
   position: number;
 }
 
@@ -18,6 +19,7 @@ export interface Book {
   current_page: number | null;
   words_per_page: number;
   cover_path?: string | null;
+  position?: number | null;
   status: BookStatus;
   queue_position: number | null;
   word_count: number | null;

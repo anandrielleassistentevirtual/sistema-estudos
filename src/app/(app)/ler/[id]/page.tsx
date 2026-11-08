@@ -2,11 +2,11 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Highlighter, Layers, ListTree, Trash2, Type, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Download, Highlighter, Layers, ListTree, Trash2, Type, X } from "lucide-react";
 import { EpubReader } from "@/components/reader/epub-reader";
 import { TextReader } from "@/components/reader/text-reader";
 import { HL_COLORS, ReaderHandle, ReaderPrefs, THEMES, TocItem } from "@/components/reader/types";
-import { downloadBook } from "@/lib/books";
+import { downloadBook, saveBookFile } from "@/lib/books";
 import { fmtClock, nf } from "@/lib/dates";
 import { addBasicNote } from "@/lib/anki";
 import { ReadingTracker } from "@/lib/reading-tracker";
@@ -165,6 +165,9 @@ export default function Ler() {
         <span className="text-xs opacity-70 tabular-nums w-10 text-right">{Math.round(progress * 100)}%</span>
         {progress > 0.97 && book?.status !== "lido" && (
           <button className="btn text-xs py-1" onClick={markRead}><Check size={14} /> Concluir</button>
+        )}
+        {book && book.format !== "fisico" && (
+          <button className="p-2 opacity-70 hover:opacity-100 hidden sm:block" title="Baixar o arquivo do livro" onClick={() => book && void saveBookFile(book)}><Download size={18} /></button>
         )}
         {toc.length > 0 && (
           <button className="p-2 opacity-70 hover:opacity-100" onClick={() => { setShowToc(!showToc); setShowPrefs(false); setShowAnns(false); }} title="Sumário"><ListTree size={18} /></button>

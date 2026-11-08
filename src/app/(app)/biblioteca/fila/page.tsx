@@ -64,7 +64,10 @@ export default function Fila() {
                 <span className="w-7 text-center text-lg font-semibold text-faint tabular-nums">{i + 1}</span>
                 <Cover book={b} url={covers[b.id]} className="w-10 h-14" />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{b.title}</div>
+                  <div className="truncate">
+                    {b.author && <><span className="font-semibold">{b.author}</span><span className="text-faint"> — </span></>}
+                    <span className="font-medium">{b.title}</span>
+                  </div>
                   <div className="text-xs text-muted">
                     {STATUS_LABEL[b.status]}
                     {b.word_count ? ` · ${nf.format(Math.round(left))} palavras restantes · ≈ ${fmtDuration((left / wpm) * 60)}` : ""}
