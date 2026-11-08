@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BookOpen, ChevronDown, Download, ChevronRight, Folder, FolderOpen, FolderPlus, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
+  BookOpen, ChevronDown, Download, ChevronRight, Folder, FolderOpen, FolderPlus, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { BibliotecaTabs } from "@/components/biblioteca-tabs";
@@ -11,7 +11,7 @@ import { useTimer } from "@/components/timer-context";
 import { Cover } from "@/components/cover";
 import { coverUrls, epubCover, removeCover, setCover, setCoverFromLink } from "@/lib/covers";
 import { downloadBook } from "@/lib/books";
-import { callNumbers, cddCompare, flatTree, folderLabel, shelfOrder } from "@/lib/folders";
+import { cddCompare, flatTree, folderLabel, shelfOrder } from "@/lib/folders";
 import { FolderSelect } from "@/components/folder-select";
 import { fmtDuration, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
@@ -92,7 +92,13 @@ export default function Biblioteca() {
   }, [sel, folders]);
 
   const tree = useMemo(() => flatTree(folders), [folders]);
-  const calls = useMemo(() => callNumbers(books, folders), [books, folders]);
+  const folderById = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
+  /** Nº do livro = posição na fila de leitura (só livros na fila e ainda não lidos). */
+  const queueNo = useMemo(() => {
+    const q = books.filter((b) => b.queue_position != null && b.status !== "lido")
+      .sort((a, b) => (a.queue_position ?? 0) - (b.queue_position ?? 0));
+    return new Map(q.map((b, i) => [b.id, i + 1]));
+  }, [books]);
   const shelfIndex = useMemo(() => new Map(tree.map((t, i) => [t.folder.id, i])), [tree]);
 
   const visible = useMemo(() => {
@@ -101,16 +107,16 @@ export default function Biblioteca() {
     if (q.trim()) {
       const t = q.toLowerCase();
       list = list.filter((b) => b.title.toLowerCase().includes(t) || (b.author ?? "").toLowerCase().includes(t)
-        || (calls[b.id]?.label ?? "").includes(t));
+        || (b.folder_id ? folderById.get(b.folder_id)?.code ?? "" : "").includes(t));
     }
     // ordem de estante: pela pasta (ordem CDD) e, dentro dela, pela numeração
     return [...list].sort((a, b) => {
       const fa = a.folder_id ? shelfIndex.get(a.folder_id) ?? 1e6 : 1e7;
       const fb = b.folder_id ? shelfIndex.get(b.folder_id) ?? 1e6 : 1e7;
       if (fa !== fb) return fa - fb;
-      return (calls[a.id]?.n ?? 0) - (calls[b.id]?.n ?? 0) || (a.author ?? "").localeCompare(b.author ?? "", "pt-BR") || a.title.localeCompare(b.title, "pt-BR");
+      return (queueNo.get(a.id) ?? 1e6) - (queueNo.get(b.id) ?? 1e6) || (a.author ?? "").localeCompare(b.author ?? "", "pt-BR") || a.title.localeCompare(b.title, "pt-BR");
     });
-  }, [books, sel, status, q, inFolder, calls, shelfIndex]);
+  }, [books, sel, status, q, inFolder, folderById, queueNo, shelfIndex]);
 
   const currentFolderId = sel === "todos" || sel === "sem-pasta" ? null : sel;
 
@@ -144,20 +150,6 @@ export default function Biblioteca() {
     }
     setBooks((all) => all.map((x) => (x.id === b.id ? { ...x, ...patch } : x)));
     await supabase().from("books").update(patch).eq("id", b.id);
-  }
-
-  /** Sobe/desce o livro na pasta e renumera a estante (1, 2, 3…). */
-  async function move(b: Book, dir: -1 | 1) {
-    if (!b.folder_id) return;
-    const shelf = shelfOrder(books.filter((x) => x.folder_id === b.folder_id));
-    const i = shelf.findIndex((x) => x.id === b.id);
-    const j = i + dir;
-    if (j < 0 || j >= shelf.length) return;
-    [shelf[i], shelf[j]] = [shelf[j], shelf[i]];
-    const pos = new Map(shelf.map((x, k) => [x.id, k + 1]));
-    setBooks((all) => all.map((x) => (pos.has(x.id) ? { ...x, position: pos.get(x.id)! } : x)));
-    const sb = supabase();
-    await Promise.all(shelf.map((x, k) => sb.from("books").update({ position: k + 1 }).eq("id", x.id)));
   }
 
   const stats = (list: Book[]) => {
@@ -301,17 +293,17 @@ export default function Biblioteca() {
                         <span className="font-medium">{b.title}</span>
                       </span>
                       <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted mt-0.5">
-                        {calls[b.id] ? (
-                          <>
-                            <span className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-1.5 py-0.5 text-[11px]" title={`Pasta: ${folderLabel(calls[b.id].folder)}`}>
-                              {calls[b.id].folder.code && <span className="font-mono font-semibold">{calls[b.id].folder.code}</span>}
-                              <span className="truncate max-w-[180px]">{calls[b.id].folder.name}</span>
-                            </span>
-                            <span className="inline-flex items-center rounded-md border border-accent/40 px-1.5 py-0.5 text-[11px] font-mono font-semibold text-accent"
-                              title={`Número de chamada: ${calls[b.id].label}`}>
-                              Nº {String(calls[b.id].n).padStart(2, "0")}
-                            </span>
-                          </>
+                        {queueNo.has(b.id) && (
+                          <span className="inline-flex items-center rounded-md border border-accent/40 px-1.5 py-0.5 text-[11px] font-mono font-semibold text-accent"
+                            title="Posição na fila de leitura">
+                            Nº {String(queueNo.get(b.id)).padStart(2, "0")}
+                          </span>
+                        )}
+                        {b.folder_id && folderById.get(b.folder_id) ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-1.5 py-0.5 text-[11px]" title={`Pasta: ${folderLabel(folderById.get(b.folder_id)!)}`}>
+                            {folderById.get(b.folder_id)!.code && <span className="font-mono font-semibold">{folderById.get(b.folder_id)!.code}</span>}
+                            <span className="truncate max-w-[180px]">{folderById.get(b.folder_id)!.name}</span>
+                          </span>
                         ) : (
                           <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px]">sem pasta</span>
                         )}
@@ -330,12 +322,6 @@ export default function Biblioteca() {
                   <FolderSelect folders={folders} value={b.folder_id ?? ""} className="input w-auto text-xs py-1 max-w-[170px]" title="Pasta (CDD)"
                     onChange={(id) => update(b, { folder_id: id || null })} />
                   <div className="flex gap-1 ml-auto">
-                    {sel === b.folder_id && (
-                      <>
-                        <button className="btn btn-ghost px-1.5" title="Subir na estante" disabled={calls[b.id]?.n === 1} onClick={() => move(b, -1)}><ArrowUp size={14} /></button>
-                        <button className="btn btn-ghost px-1.5" title="Descer na estante" onClick={() => move(b, 1)}><ArrowDown size={14} /></button>
-                      </>
-                    )}
                     {b.format === "fisico" ? (
                       <button className="btn btn-ghost px-2" title="Ler (liga o timer)" onClick={() => readPhysical(b)}><Timer size={15} /></button>
                     ) : (
@@ -348,7 +334,7 @@ export default function Biblioteca() {
                       </button>
                     )}
                     <button className="btn btn-ghost px-2" title="Editar título e autor" onClick={() => setEditing(b)}><Pencil size={15} /></button>
-                    <button className="btn btn-ghost px-2" title={b.queue_position ? "Já está na fila" : "Adicionar à fila"} disabled={!!b.queue_position}
+                    <button className="btn btn-ghost px-2" title={b.queue_position ? `Já está na fila (Nº ${String(queueNo.get(b.id) ?? "").padStart(2, "0")})` : "Adicionar à fila (ganha o próximo número)"} disabled={!!b.queue_position}
                       onClick={async () => { const p = await enqueue(b); setBooks((all) => all.map((x) => (x.id === b.id ? { ...x, queue_position: p } : x))); }}>
                       <ListOrdered size={15} />
                     </button>

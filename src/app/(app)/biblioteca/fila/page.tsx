@@ -61,7 +61,7 @@ export default function Fila() {
             acc += left;
             return (
               <li key={b.id} className="p-3 flex items-center gap-3">
-                <span className="w-7 text-center text-lg font-semibold text-faint tabular-nums">{i + 1}</span>
+                <span className="w-10 text-center font-mono font-semibold text-accent tabular-nums" title="Nº na fila (aparece no livro, na biblioteca)">{String(i + 1).padStart(2, "0")}</span>
                 <Cover book={b} url={covers[b.id]} className="w-10 h-14" />
                 <div className="flex-1 min-w-0">
                   <div className="truncate">
