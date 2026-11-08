@@ -16,6 +16,7 @@ interface CurrentCard {
   buttons: number[];
   nextReviews: string[];
   css?: string;
+  fields?: Record<string, { value: string; order: number }>;
 }
 
 const EASE: Record<number, { label: string; key: string; color: string }> = {
@@ -25,16 +26,35 @@ const EASE: Record<number, { label: string; key: string; color: string }> = {
   4: { label: "Fácil", key: "4", color: "#2a78d6" },
 };
 
-/** Extrai [sound:arquivo] e troca imagens locais por data URIs vindos do Anki. */
-async function prepare(html: string, cache: Map<string, string>) {
-  const sounds = [...html.matchAll(/\[sound:([^\]]+)\]/g)].map((m) => m[1]);
-  let out = html.replace(/\[sound:[^\]]+\]/g, "");
-  const imgs = [...out.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)].map((m) => m[1]).filter((s) => !/^(https?:|data:)/.test(s));
+/** Arquivos de áudio citados nos campos do cartão, na ordem dos campos. */
+function fieldSounds(c: CurrentCard): string[] {
+  return Object.values(c.fields ?? {})
+    .sort((a, b) => a.order - b.order)
+    .flatMap((f) => [...f.value.matchAll(/\[sound:([^\]]+)\]/g)].map((m) => m[1]));
+}
+
+/**
+ * Prepara o HTML do cartão: tira as marcações de áudio e descobre quais arquivos tocar.
+ * O Anki novo entrega [anki:play:q:0] em vez de [sound:arquivo]; o arquivo vem dos campos.
+ */
+async function prepare(html: string, c: CurrentCard, side: "q" | "a", qCount: number, cache: Map<string, string>) {
+  const all = fieldSounds(c);
+  const sounds: string[] = [...html.matchAll(/\[sound:([^\]]+)\]/g)].map((m) => m[1]);
+  const tags = [...html.matchAll(/\[anki:play:([qa]):(\d+)\]/g)].map((m) => Number(m[2]));
+  for (const i of tags) {
+    let f: string | undefined;
+    if (side === "q") f = all[i];
+    else if (tags.length >= all.length) f = all[i]; // verso repete a frente ({{FrontSide}})
+    else f = all[qCount + i] ?? all[i];
+    if (f) sounds.push(f);
+  }
+  let out = html.replace(/\[sound:[^\]]+\]/g, "").replace(/\[anki:play:[qa]:\d+\]/g, "");
+  const imgs = [...out.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)].map((m) => m[1]).filter((x) => !/^(https?:|data:|blob:)/.test(x));
   for (const src of new Set(imgs)) {
     const url = await media(src, cache);
     if (url) out = out.split(`"${src}"`).join(`"${url}"`).split(`'${src}'`).join(`'${url}'`);
   }
-  return { html: out, sounds };
+  return { html: out, sounds: [...new Set(sounds)], qCount: tags.length };
 }
 
 async function media(file: string, cache: Map<string, string>): Promise<string | null> {
@@ -68,7 +88,7 @@ function srcdoc(html: string, css: string, dark: boolean) {
 export default function RevisarAnki() {
   const [deck, setDeck] = useState("");
   const [card, setCard] = useState<CurrentCard | null>(null);
-  const [view, setView] = useState<{ html: string; sounds: string[] } | null>(null);
+  const [view, setView] = useState<{ html: string; sounds: string[]; qCount: number } | null>(null);
   const [shown, setShown] = useState(false);
   const [state, setState] = useState<"carregando" | "revisando" | "fim" | "erro">("carregando");
   const [err, setErr] = useState("");
@@ -85,15 +105,30 @@ export default function RevisarAnki() {
   const start = useRef(Date.now());
   const busy = useRef(false);
 
+  const [blocked, setBlocked] = useState(false);
+  const [playingAudio, setPlayingAudio] = useState(false);
+  const [autoplay, setAutoplay] = useState(true);
+  const playToken = useRef(0);
+  useEffect(() => { try { setAutoplay(localStorage.getItem("anki-autoplay") !== "0"); } catch {} }, []);
+
   const play = useCallback(async (files: string[]) => {
+    const token = ++playToken.current;
+    if (!audio.current) audio.current = new Audio(); // um único player: o navegador não bloqueia os seguintes
+    const a = audio.current;
+    a.pause();
     for (const f of files) {
       const url = await media(f, cache.current);
-      if (!url) continue;
-      audio.current?.pause();
-      const a = new Audio(url);
-      audio.current = a;
-      await new Promise<void>((res) => { a.onended = () => res(); a.onerror = () => res(); a.play().catch(() => res()); });
+      if (!url || token !== playToken.current) continue;
+      a.src = url;
+      setPlayingAudio(true);
+      const ok = await new Promise<boolean>((res) => {
+        a.onended = () => res(true);
+        a.onerror = () => res(true);
+        a.play().then(() => setBlocked(false)).catch((e: Error) => { if (e.name === "NotAllowedError") setBlocked(true); res(false); });
+      });
+      if (!ok || token !== playToken.current) break;
     }
+    if (token === playToken.current) setPlayingAudio(false);
   }, []);
 
   const load = useCallback(async (first = false) => {
@@ -102,10 +137,13 @@ export default function RevisarAnki() {
       if (!c) { setState("fim"); setCard(null); return; }
       setCard(c);
       setShown(false);
-      const v = await prepare(c.question, cache.current);
+      const v = await prepare(c.question, c, "q", 0, cache.current);
       setView(v);
       setState("revisando");
-      if (!first || v.sounds.length) void play(v.sounds);
+      let auto = true;
+      try { auto = localStorage.getItem("anki-autoplay") !== "0"; } catch {}
+      if (auto && v.sounds.length) void play(v.sounds);
+      void first;
     } catch (e) {
       setErr((e as Error).message || "Não foi possível falar com o Anki.");
       setState("erro");
@@ -166,11 +204,12 @@ export default function RevisarAnki() {
     busy.current = true;
     try {
       await anki("guiShowAnswer");
-      const v = await prepare(card.answer, cache.current);
+      const v = await prepare(card.answer, card, "a", view?.qCount ?? 0, cache.current);
       const qSounds = new Set(view?.sounds ?? []);
-      setView({ html: v.html, sounds: [...new Set([...(view?.sounds ?? []), ...v.sounds])] });
+      setView({ html: v.html, sounds: [...new Set([...(view?.sounds ?? []), ...v.sounds])], qCount: view?.qCount ?? 0 });
       setShown(true);
-      void play(v.sounds.filter((s) => !qSounds.has(s)));
+      const extra = v.sounds.filter((x) => !qSounds.has(x));
+      if (autoplay && extra.length) void play(extra);
     } finally {
       busy.current = false;
     }
@@ -274,10 +313,21 @@ export default function RevisarAnki() {
               onLoad={fit}
             />
           </div>
+          {view.sounds.length > 0 && (
+            <div className="flex flex-col items-center mt-4 gap-1.5">
+              <button onClick={() => play(view.sounds)} title="Ouvir (R)"
+                className={`w-16 h-16 rounded-full grid place-items-center text-white shadow-md transition-transform active:scale-95 ${blocked ? "animate-pulse" : ""}`}
+                style={{ background: "var(--accent)" }}>
+                {playingAudio ? <Volume2 size={26} /> : <Play size={28} className="ml-1" />}
+              </button>
+              <span className="text-xs text-muted">{blocked ? "Toque para ouvir (o navegador bloqueou o som automático)" : "R para ouvir de novo"}</span>
+            </div>
+          )}
           <div className="flex justify-center gap-2 mt-3">
-            {view.sounds.length > 0 && (
-              <button className="btn text-xs py-1" onClick={() => play(view.sounds)} title="Repetir áudio (R)"><Volume2 size={14} /> Ouvir de novo</button>
-            )}
+            <label className="text-xs text-muted flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={autoplay} onChange={(e) => { setAutoplay(e.target.checked); try { localStorage.setItem("anki-autoplay", e.target.checked ? "1" : "0"); } catch {} }} />
+              tocar áudio sozinho
+            </label>
             {canUndo && <button className="btn btn-ghost text-xs py-1" onClick={undo} title="Desfazer última resposta (Z)"><Undo2 size={14} /> Desfazer</button>}
           </div>
 
