@@ -26,6 +26,20 @@ type Etapa = (typeof ETAPAS)[number]["id"];
 /** Cada etapa da Lectio dura 5 minutos. */
 const minutos = 5;
 
+/** Oração inicial ao Espírito Santo, rezada antes de começar a Lectio. */
+const VENI: [string, string][] = [
+  ["℣.", "Veni Sancte Spíritus, reple tuórum corda fidélium,"],
+  ["℟.", "et tu amóris in eis ignem accénde."],
+  ["℣.", "Emítte Spíritum tuum et creabúntur."],
+  ["℟.", "Et renovábis faciem terrae."],
+  ["℣.", "Oremus."],
+  ["", "Deus, qui corda fidélium Sancti Spíritus illustratióne docuisti,"],
+  ["", "da nobis in eódem Spíritu recta sápere,"],
+  ["", "et de eius semper consolatióne gaudére."],
+  ["", "Per Christum Dóminum nostrum."],
+  ["℟.", "Amen."],
+];
+
 const COR: Record<string, string> = { verde: "#1f8a3b", branco: "#d8d2c2", vermelho: "#c0392b", roxo: "#6b3fa0", rosa: "#e58fb0", preto: "#222" };
 
 function sino() {
@@ -171,6 +185,7 @@ export default function Lectio() {
   }
 
   const atual = ETAPAS[etapa];
+  const antesDeComecar = etapa === 0 && total === 0 && !rodando;
   const pct = 1 - Math.max(0, restante) / (minutos * 60);
   const comentarios = useMemo(() => [...(dado?.comentarios ?? [])].sort((a, b) => Number(b.destaque) - Number(a.destaque)), [dado]);
   const dataLonga = parseDay(dia).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
@@ -242,8 +257,26 @@ export default function Lectio() {
                 <button className="p-1.5 hover:text-ink disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, 1))} disabled={zoom >= ZOOM[ZOOM.length - 1]} aria-label="Aumentar"><ZoomIn size={16} /></button>
               </div>
             </div>
+            {/* ORAÇÃO INICIAL — antes de começar */}
+            {antesDeComecar && (
+              <section className="card p-6 md:p-8 text-center" style={serif}>
+                <h2 className="text-[1.25em] mb-1">Veni Sancte Spíritus</h2>
+                <p className="text-[0.8em] text-muted mb-5 font-sans">Reze antes de começar a Lectio.</p>
+                <div className="inline-block text-left leading-[1.8] text-[1.08em]">
+                  {VENI.map(([r, t], i) => (
+                    <p key={i} className={r === "" ? "pl-[1.6em]" : ""}>
+                      {r && <span className="text-accent inline-block w-[1.6em]">{r}</span>}{t}
+                    </p>
+                  ))}
+                </div>
+                <div className="mt-6 font-sans text-base">
+                  <button className="btn btn-primary" onClick={iniciar}><Play size={15} /> Amém, começar a Leitura</button>
+                </div>
+              </section>
+            )}
+
             {/* LEITURA */}
-            {atual.id === "leitura" && (
+            {atual.id === "leitura" && !antesDeComecar && (
               <article className="leading-[1.8] text-[1.12em] text-justify" style={serif}>
                 <p className="text-[0.85em] text-muted mb-3 text-left">{dado.titulo}</p>
                 {dado.introducao && <span>{dado.introducao} </span>}
