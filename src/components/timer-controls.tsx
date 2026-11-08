@@ -7,6 +7,7 @@ import { fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { Language, loadLanguages } from "@/lib/languages";
 import { bookName } from "@/lib/folders";
+import { Combobox } from "./combobox";
 
 interface BookOpt { id: string; title: string; author: string | null; format: string; status: string; current_page: number | null; total_pages: number | null }
 interface NoteOpt { id: string; title: string; professor: string; course: string }
@@ -22,8 +23,9 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
     const sb = supabase();
     void sb.from("books").select("id,title,author,format,status,current_page,total_pages").neq("status", "lido").order("author").order("title")
       .then(({ data }) => setBooks((data as BookOpt[]) ?? []));
-    void sb.from("notes").select("id,title,professor,course").eq("kind", "estudo").order("professor").order("title")
-      .then(({ data }) => setNotes((data as NoteOpt[]) ?? []));
+    void sb.from("notes").select("id,title,professor,course").eq("kind", "estudo")
+      .then(({ data }) => setNotes(((data as NoteOpt[]) ?? []).sort((a, b) =>
+        a.course.localeCompare(b.course, "pt-BR") || a.title.localeCompare(b.title, "pt-BR", { numeric: true }))));
     void loadLanguages().then(setLangs);
   }, [t.lastSaved]);
 
@@ -87,14 +89,20 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         {t.category === "Leitura" && (
           <label className="space-y-1">
             <span className="label">Livro</span>
-            <select className="input" value={t.bookId} onChange={(e) => {
-              const b = books.find((x) => x.id === e.target.value);
-              t.set({ bookId: b?.id ?? "", bookTitle: b ? bookName(b) : "", bookPhysical: b?.format === "fisico" });
-            }}>
-              <option value="">Escolha o livro…</option>
-              {digital.length > 0 && <optgroup label="Na biblioteca digital">{digital.map((b) => <option key={b.id} value={b.id}>{bookName(b)}</option>)}</optgroup>}
-              {fisicos.length > 0 && <optgroup label="Livros físicos">{fisicos.map((b) => <option key={b.id} value={b.id}>📖 {bookName(b)}</option>)}</optgroup>}
-            </select>
+            <Combobox
+              value={t.bookId}
+              placeholder="Digite o título ou o autor…"
+              emptyText="Nenhum livro com esse nome"
+              options={[...digital, ...fisicos].map((b) => ({
+                value: b.id,
+                label: `${b.format === "fisico" ? "📖 " : ""}${bookName(b)}`,
+                hint: b.format === "fisico" ? `livro físico${b.current_page ? ` · p. ${b.current_page}` : ""}` : b.status === "lendo" ? "lendo" : undefined,
+              }))}
+              onChange={(id) => {
+                const b = books.find((x) => x.id === id);
+                t.set({ bookId: b?.id ?? "", bookTitle: b ? bookName(b) : "", bookPhysical: b?.format === "fisico" });
+              }}
+            />
             {book && book.format !== "fisico" && (
               <Link href={`/ler/${book.id}`} className="text-xs text-accent inline-flex items-center gap-1"><BookOpen size={12} /> abrir no leitor</Link>
             )}
@@ -108,13 +116,16 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         {t.category === "Estudos" && (
           <label className="space-y-1">
             <span className="label">Aula / transcrição</span>
-            <select className="input" value={t.noteId} onChange={(e) => {
-              const n = notes.find((x) => x.id === e.target.value);
-              t.set({ noteId: n?.id ?? "", noteTitle: n?.title ?? "" });
-            }}>
-              <option value="">Escolha a aula…</option>
-              {notes.map((n) => <option key={n.id} value={n.id}>{[n.professor, n.title].filter(Boolean).join(" · ")}</option>)}
-            </select>
+            <Combobox
+              value={t.noteId}
+              placeholder="Digite o nome da aula ou do curso…"
+              emptyText="Nenhuma aula com esse nome"
+              options={notes.map((n) => ({ value: n.id, label: n.title, hint: [n.course, n.professor].filter(Boolean).join(" · ") || undefined }))}
+              onChange={(id) => {
+                const n = notes.find((x) => x.id === id);
+                t.set({ noteId: n?.id ?? "", noteTitle: n?.title ?? "" });
+              }}
+            />
             {notes.length === 0 && <span className="text-xs text-muted">Suas transcrições aparecem aqui (menu Estudos).</span>}
           </label>
         )}
