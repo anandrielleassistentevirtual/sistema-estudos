@@ -69,7 +69,7 @@ const initial: TimerState = {
 
 const Ctx = createContext<TimerApi | null>(null);
 
-export const CATEGORIAS = ["Leitura", "Idiomas", "Estudos", "Anki", "Escrita", "Outro"];
+export const CATEGORIAS = ["Leitura", "Idiomas", "Estudos", "Anki", "Oração", "Escrita", "Outro"];
 
 export function describe(st: TimerState): string {
   if (st.category === "Leitura" && st.bookTitle) return st.bookTitle;

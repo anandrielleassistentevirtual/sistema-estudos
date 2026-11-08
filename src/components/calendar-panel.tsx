@@ -9,7 +9,6 @@ export function CalendarPanel() {
   const [year, setYear] = useState<number | "12m">("12m");
   const [metric, setMetric] = useState<Metric>("tempo");
   const [daily, setDaily] = useState<Map<string, DayStats>>(new Map());
-  const [sel, setSel] = useState<string | null>(dayKey());
 
   useEffect(() => {
     void loadDaily(dayKey(addDays(weekStart(new Date()), -6 * 53 * 7))).then(setDaily);
@@ -33,7 +32,6 @@ export function CalendarPanel() {
 
   const unit = METRICS.find((m) => m.id === metric)!.unit;
   const fmt = (v: number) => (metric === "tempo" ? fmtDuration(v * 60) : `${nf.format(Math.round(v))} ${unit}`);
-  const d = sel ? daily.get(sel) : undefined;
 
   return (
     <section id="calendario" className="mt-4 scroll-mt-4">
@@ -53,7 +51,7 @@ export function CalendarPanel() {
         </select>
       </div>
       <div className="card p-5">
-        <Heatmap data={daily} metric={metric} weeks={weeks} end={end} onSelect={setSel} selected={sel} />
+        <Heatmap data={daily} metric={metric} weeks={weeks} end={end} />
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
         <Stat label="Total no período" value={fmt(summary.total)} />
@@ -61,18 +59,6 @@ export function CalendarPanel() {
         <Stat label="Maior sequência" value={`${summary.longest} dias`} />
         <Stat label="Melhor dia" value={summary.best ? fmt(summary.best) : "—"} hint={summary.bestDay ? fmtDayLong(summary.bestDay) : undefined} />
       </div>
-      {sel && (
-        <div className="card p-5 mt-4">
-          <h2 className="font-semibold first-letter:uppercase">{fmtDayLong(sel)}</h2>
-          <dl className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3 text-sm">
-            <div><dt className="text-muted">Timer</dt><dd className="font-medium">{fmtDuration(d?.study ?? 0)}</dd></div>
-            <div><dt className="text-muted">Leitura</dt><dd className="font-medium">{fmtDuration(d?.reading ?? 0)}</dd></div>
-            <div><dt className="text-muted">Palavras</dt><dd className="font-medium">{nf.format(d?.words ?? 0)}</dd></div>
-            <div><dt className="text-muted">Frases / escutas</dt><dd className="font-medium">{nf.format(d?.reads ?? 0)} / {nf.format(d?.listens ?? 0)}</dd></div>
-            <div><dt className="text-muted">Anki</dt><dd className="font-medium">{nf.format(d?.anki ?? 0)} revisões</dd></div>
-          </dl>
-        </div>
-      )}
     </section>
   );
 }

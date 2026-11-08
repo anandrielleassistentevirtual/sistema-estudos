@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "importar": "node --env-file-if-exists=.env.local scripts/importar.mjs"
+    "importar": "node --env-file-if-exists=.env.local scripts/importar.mjs",
+    "lectio:publicar": "node --env-file-if-exists=.env.local scripts/lectio/publicar_semana.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

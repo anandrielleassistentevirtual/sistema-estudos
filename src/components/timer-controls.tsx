@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, Pause, Play, RotateCcw, Square } from "lucide-react";
+import { BookHeart, BookOpen, Pause, Play, RotateCcw, Square } from "lucide-react";
 import { CATEGORIAS, useTimer } from "./timer-context";
 import { fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
@@ -158,7 +158,22 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
           </>
         )}
 
-        {!["Leitura", "Estudos", "Idiomas"].includes(t.category) && (
+        {t.category === "Oração" && (
+          <div className="space-y-1">
+            <span className="label">Oração</span>
+            <button type="button" className="btn btn-primary w-full justify-center" onClick={() => {
+              try { localStorage.setItem("menu-oculto", "1"); } catch {}
+              window.dispatchEvent(new CustomEvent("modo-foco", { detail: { oculto: true } }));
+              router.push("/lectio");
+            }}>
+              <BookHeart size={15} /> Rezar a Lectio Divina
+            </button>
+            <span className="text-xs text-muted block">A Lectio tem o próprio relógio das 4 etapas e registra o tempo sozinha.</span>
+            <input className="input mt-2" value={t.label} placeholder="ou outra oração com o timer (ex.: Terço)" onChange={(e) => t.set({ label: e.target.value })} />
+          </div>
+        )}
+
+        {!["Leitura", "Estudos", "Idiomas", "Oração"].includes(t.category) && (
           <label className="space-y-1">
             <span className="label">O que está estudando</span>
             <input className="input" value={t.label} placeholder="ex.: redação do capítulo 2" onChange={(e) => t.set({ label: e.target.value })} />
