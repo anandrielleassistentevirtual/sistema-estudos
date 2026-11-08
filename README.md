@@ -27,10 +27,17 @@ Anki via AnkiConnect.
 
 ## Como as leituras são medidas
 
-Cada página que você **avança** credita as palavras daquela página e o tempo que
-você passou nela. Não contam: tempo com a aba escondida, páginas viradas em menos
-de 2 segundos, e o excesso acima de um teto por página (para não contar quando
-você deixa o livro aberto e sai). Velocidade = palavras ÷ minutos creditados.
+Livros e aulas são lidos em páginas. Cada página que você **avança** credita as
+palavras daquela página e o tempo que você passou nela; a velocidade (ppm) é
+palavras ÷ minutos creditados. Enquanto você está numa página nada é contado —
+não dá para saber se já leu. Regras:
+
+- **Página folheada não conta** (nem palavras, nem tempo): se o tempo na página
+  corresponde a mais de 900 ppm.
+- **A última página conta ao sair** do livro/aula, se houve tempo de lê-la.
+- Não contam o tempo com a aba escondida nem o excesso acima de um teto por página
+  (quando você deixa o livro aberto e sai).
+- Leitura com o timer ligado conta palavras e ppm, mas o tempo entra uma vez só.
 
 ## Configuração
 

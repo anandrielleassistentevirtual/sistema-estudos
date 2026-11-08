@@ -58,4 +58,6 @@ export interface ReaderProps {
   onWordCount: (total: number) => void;
   onAnnotationClick: (id: string) => void;
   onToc?: (items: TocItem[]) => void;
+  /** página na tela: palavras e se é a última */
+  onView?: (words: number, last: boolean) => void;
 }

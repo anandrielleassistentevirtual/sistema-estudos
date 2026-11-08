@@ -219,11 +219,11 @@ export default function Ler() {
           book.format === "epub" ? (
             <EpubReader ref={reader} data={blob} format="epub" startAt={book.last_location} prefs={prefs} annotations={anns}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
-              onAnnotationClick={() => setShowAnns(true)} onToc={setToc} />
+              onAnnotationClick={() => setShowAnns(true)} onToc={setToc} onView={(w, last) => tracker.current?.see(w, last)} />
           ) : (
             <TextReader ref={reader} data={blob} format={book.format as "txt" | "md"} startAt={book.last_location} prefs={prefs} annotations={anns}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
-              onAnnotationClick={() => setShowAnns(true)} onToc={setToc} />
+              onAnnotationClick={() => setShowAnns(true)} onToc={setToc} onView={(w, last) => tracker.current?.see(w, last)} />
           )
         )}
         {!blob && <div className="p-10 opacity-60 text-sm">Baixando o livro…</div>}

@@ -52,6 +52,7 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
           cb.current.onTurn(pageWords(prev), forward);
         }
         pos.current = next;
+        cb.current.onView?.(pageWords(next), !!loc.atEnd);
         const label = b.navigation?.get?.(loc.start.href)?.label?.trim?.() ?? "";
         cb.current.onLocation(loc.start.cfi, progressOf(next), label);
       });

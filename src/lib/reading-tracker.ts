@@ -4,9 +4,11 @@ import { dayKey } from "./dates";
 
 /**
  * Mede a leitura: cada página avançada credita as palavras daquela página e o tempo
- * que você passou nela. Tempo com a aba escondida não conta, e cada página tem um
- * teto de tempo (para não contar quando você levanta e deixa o livro aberto).
+ * que você passou nela. Não contam: tempo com a aba escondida, páginas folheadas
+ * (mais rápido que 900 ppm) e o excesso acima de um teto por página (quando você
+ * deixa o livro aberto e sai). A última página conta ao sair, se houve tempo de lê-la.
  */
+const MAX_PPM = 900;
 export class ReadingTracker {
   private rowId: string | null = null;
   private rowDay = "";
@@ -18,6 +20,8 @@ export class ReadingTracker {
   private hiddenTotal = 0;
   private timer: ReturnType<typeof setInterval>;
   public session = { seconds: 0, words: 0 };
+  /** página que está na tela agora (para creditar a última página ao sair) */
+  private view = { words: 0, last: false };
   public onChange?: () => void;
 
   /** bookId para livros; para aulas (Estudos), bookId = null e noteId = id da aula. */
@@ -42,6 +46,8 @@ export class ReadingTracker {
     this.pageStart = now;
     this.hiddenTotal = 0;
     if (!forward || dwell < 2 || words <= 0) return;
+    // folheada: rápido demais para ter sido lida
+    if (dwell < (words / MAX_PPM) * 60) return;
     // teto: o tempo de ler a página a 40 ppm, entre 1 e 6 minutos
     const cap = Math.min(360, Math.max(60, (words / 40) * 60));
     const secs = Math.min(dwell, cap);
@@ -50,6 +56,11 @@ export class ReadingTracker {
     this.session.seconds += secs;
     this.session.words += words;
     this.onChange?.();
+  }
+
+  /** Chamar sempre que uma página aparece na tela. */
+  see(words: number, last: boolean) {
+    this.view = { words, last };
   }
 
   async flush() {
@@ -80,6 +91,9 @@ export class ReadingTracker {
   }
 
   async close() {
+    // a última página não tem "próxima": conta ao sair, se deu tempo de lê-la
+    if (this.view.last && this.view.words > 0) this.turn(this.view.words, true);
+    this.view = { words: 0, last: false };
     clearInterval(this.timer);
     document.removeEventListener("visibilitychange", this.onVis);
     await this.flush();

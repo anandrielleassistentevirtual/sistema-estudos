@@ -76,6 +76,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
   function report(p: number) {
     const total = pages.reduce((a, x) => a + x.words, 0) || 1;
     const before = pages.slice(0, p + 1).reduce((a, x) => a + x.words, 0);
+    cb.current.onView?.(pages[p]?.words ?? 0, p === pages.length - 1);
     const chapter = [...toc].reverse().find((t) => Number(t.location.slice(2)) <= p);
     cb.current.onLocation(`p:${p}`, before / total, `${chapter ? chapter.label + " · " : ""}Página ${p + 1} de ${pages.length}`);
   }
