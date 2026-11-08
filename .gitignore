@@ -11,3 +11,4 @@ conteudo-local/
 
 # áudios gerados (ficam no Supabase Storage, não no git)
 conteudo/**/audio.*
+conteudo/**/versos/

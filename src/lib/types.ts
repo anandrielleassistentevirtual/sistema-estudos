@@ -68,6 +68,7 @@ export interface Sentence {
   start_s: number | null;
   end_s: number | null;
   read_count: number;
+  audio_path?: string | null;
 }
 
 export const STATUS_LABEL: Record<BookStatus, string> = {

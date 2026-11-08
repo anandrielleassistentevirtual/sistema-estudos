@@ -5,9 +5,10 @@ Gera lições de leitura e escuta da Divina Comédia (texto + tradução + áudi
 Cada canto é dividido em lições de ~30 versos (sempre fechando um terceto). Para cada
 lição sai uma pasta no padrão de conteudo/README.md:
 
-    licao.json  texto.txt  traducao.txt  audio.mp3  tempos.vtt
+    licao.json  texto.txt  traducao.txt  audio.mp3  tempos.vtt  versos/v001.mp3 …
 
-O áudio é gerado verso a verso com uma voz neural italiana (Piper), então os tempos de
+O áudio é gerado verso a verso com uma voz neural italiana (Piper): cada verso ganha o
+seu próprio arquivo (versos/vNNN.mp3) e a lição um áudio corrido; os tempos de
 cada verso são exatos — clicar no verso no site toca exatamente aquele verso.
 
 Uso:
@@ -131,9 +132,12 @@ def main():
                 silencio(tmp / "inicio.wav", 0.5, taxa)
                 lista.append(tmp / "inicio.wav")
                 t += 0.5
+                (pasta / "versos").mkdir(exist_ok=True)
                 for k, verso in enumerate(trecho):
                     w = tmp / f"v{k:03d}.wav"
                     d = falar(voz, verso, w, cfg)
+                    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(w), "-af", "apad=pad_dur=0.25",
+                                    "-ac", "1", "-b:a", "64k", str(pasta / "versos" / f"v{k + 1:03d}.mp3")], check=True)
                     lista.append(w)
                     cues.append((t, t + d + 0.15, verso))
                     t += d

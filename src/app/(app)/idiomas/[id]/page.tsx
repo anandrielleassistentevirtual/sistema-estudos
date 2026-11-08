@@ -6,7 +6,7 @@ import {
   Check, ChevronLeft, Eye, EyeOff, Layers, Minus, Pause, Play, Plus, Repeat, RotateCcw, SkipBack, SkipForward, Timer, Trash2,
 } from "lucide-react";
 import { audioUrl, fullReads, registerListen, registerRead, undoRead } from "@/lib/lessons";
-import { addBasicNote } from "@/lib/anki";
+import { addBasicNote, toBase64 } from "@/lib/anki";
 import { dayKey, fmtClock, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import type { Lesson, Sentence } from "@/lib/types";
@@ -38,6 +38,10 @@ export default function LessonPage() {
   const fullPlay = useRef(false);
   const listened = useRef(0);
   const lastTick = useRef<number | null>(null);
+  const [verseUrls, setVerseUrls] = useState<Record<string, string>>({});
+  const [verseIdx, setVerseIdx] = useState(-1);
+  const verse = useRef<HTMLAudioElement | null>(null);
+  const verseTick = useRef<number | null>(null);
 
   useEffect(() => {
     const sb = supabase();
@@ -48,8 +52,16 @@ export default function LessonPage() {
       ]);
       if (!l.data) return;
       setLesson(l.data as Lesson);
-      setSents((s.data as Sentence[]) ?? []);
+      const list = (s.data as Sentence[]) ?? [];
+      setSents(list);
       if ((l.data as Lesson).audio_path) setSrc(await audioUrl((l.data as Lesson).audio_path!));
+      const withAudio = list.filter((x) => x.audio_path);
+      if (withAudio.length) {
+        const { data } = await sb.storage.from("audios").createSignedUrls(withAudio.map((x) => x.audio_path!), 60 * 60 * 6);
+        const map: Record<string, string> = {};
+        (Array.isArray(data) ? data : []).forEach((d, k) => { if (d.signedUrl) map[withAudio[k].id] = d.signedUrl; });
+        setVerseUrls(map);
+      }
     })();
     try {
       const p = JSON.parse(localStorage.getItem("licao-prefs") || "{}");
@@ -62,11 +74,13 @@ export default function LessonPage() {
   useEffect(() => {
     try { localStorage.setItem("licao-prefs", JSON.stringify({ layout, showTr, rate })); } catch {}
     if (audio.current) audio.current.playbackRate = rate;
+    if (verse.current) verse.current.playbackRate = rate;
   }, [layout, showTr, rate]);
 
   // tempo de escuta vai para o timer como "Idiomas"
   useEffect(() => {
     return () => {
+      verse.current?.pause();
       const secs = Math.round(listened.current);
       if (secs >= 30 && lesson) {
         void supabase().from("study_sessions").insert({ day: dayKey(), seconds: secs, category: "Idiomas", language: lesson.language, label: `Lição: ${lesson.title}` });
@@ -80,7 +94,7 @@ export default function LessonPage() {
     return () => clearTimeout(x);
   }, [toast]);
 
-  const timed = sents.some((s) => s.start_s !== null);
+  const timed = sents.some((s) => s.start_s !== null || verseUrls[s.id]);
   const currentIdx = useMemo(() => {
     if (!timed) return -1;
     for (let i = sents.length - 1; i >= 0; i--) {
@@ -117,10 +131,41 @@ export default function LessonPage() {
     return { start: s.start_s, end };
   }
 
+  // áudio próprio do verso (um arquivo por verso)
+  function playVerse(i: number, url: string, loop: boolean) {
+    audio.current?.pause();
+    stopAt.current = null;
+    if (!verse.current) {
+      const v = new Audio();
+      v.ontimeupdate = () => {
+        const now = performance.now();
+        if (verseTick.current !== null && !v.paused) listened.current += Math.min(2, (now - verseTick.current) / 1000);
+        verseTick.current = now;
+      };
+      v.onplay = () => { verseTick.current = performance.now(); };
+      v.onpause = () => { verseTick.current = null; };
+      v.onended = () => setVerseIdx(-1);
+      verse.current = v;
+    }
+    const v = verse.current;
+    v.src = url;
+    v.loop = loop;
+    v.playbackRate = rate;
+    setVerseIdx(i);
+    void v.play();
+  }
+
   const playSentence = useCallback((i: number, loop = false) => {
     const a = audio.current;
-    const seg = segmentOf(i);
+    const own = sents[i] && verseUrls[sents[i].id];
     setFocus(i);
+    document.getElementById(`s-${i}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (own) {
+      playVerse(i, own, loop);
+      setLoopId(loop ? sents[i].id : null);
+      return;
+    }
+    const seg = segmentOf(i);
     if (!a || !seg) return;
     fullPlay.current = false;
     stopAt.current = seg;
@@ -128,12 +173,14 @@ export default function LessonPage() {
     void a.play();
     if (loop) setLoopId(sents[i].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sents, dur, loopId]);
+  }, [sents, dur, loopId, verseUrls, rate]);
 
   function togglePlay() {
     const a = audio.current;
     if (!a) return;
     if (a.paused) {
+      verse.current?.pause();
+      setVerseIdx(-1);
       if (!stopAt.current) fullPlay.current = fullPlay.current || a.currentTime < 1;
       void a.play();
     } else a.pause();
@@ -241,8 +288,12 @@ export default function LessonPage() {
     if (!lesson) return;
     const deck = `Idiomas::${lesson.language}`;
     try {
-      await addBasicNote(deck, s.text, s.translation || "", [lesson.language.toLowerCase(), "frase"]);
-      setToast(`Frase enviada ao baralho “${deck}”.`);
+      const url = verseUrls[s.id];
+      const audioFile = url
+        ? { data: await toBase64(url), filename: `sistema-estudos-${s.id}.mp3` }
+        : undefined;
+      await addBasicNote(deck, s.text, s.translation || "", [lesson.language.toLowerCase(), "frase"], audioFile);
+      setToast(`Frase${verseUrls[s.id] ? " com áudio" : ""} enviada ao baralho “${deck}”.`);
     } catch (e) {
       setToast(`Anki: ${(e as Error).message || "abra o Anki com o AnkiConnect."}`);
     }
@@ -251,7 +302,8 @@ export default function LessonPage() {
   async function removeLesson() {
     if (!lesson || !confirm(`Apagar a lição “${lesson.title}” e suas contagens?`)) return;
     const sb = supabase();
-    if (lesson.audio_path) await sb.storage.from("audios").remove([lesson.audio_path]);
+    const files = [lesson.audio_path, ...sents.map((x) => x.audio_path)].filter(Boolean) as string[];
+    if (files.length) await sb.storage.from("audios").remove(files);
     await sb.from("lessons").delete().eq("id", lesson.id);
     router.push("/idiomas");
   }
@@ -315,7 +367,7 @@ export default function LessonPage() {
 
       <div className="card divide-y divide-line">
         {sents.map((s, i) => {
-          const active = i === currentIdx || (sync ? i === sync.idx : false);
+          const active = i === currentIdx || i === verseIdx || (sync ? i === sync.idx : false);
           const focused = i === focus;
           return (
             <div key={s.id} id={`s-${i}`}
@@ -336,7 +388,7 @@ export default function LessonPage() {
                   <>
                     <button className="p-1.5 rounded-md text-muted hover:bg-surface-2" title="Ouvir frase" onClick={(e) => { e.stopPropagation(); playSentence(i); }}><Play size={15} /></button>
                     <button className={`p-1.5 rounded-md hover:bg-surface-2 ${loopId === s.id ? "text-accent" : "text-muted"}`} title="Repetir frase em loop (R)"
-                      onClick={(e) => { e.stopPropagation(); if (loopId === s.id) { setLoopId(null); stopAt.current = null; audio.current?.pause(); } else playSentence(i, true); }}>
+                      onClick={(e) => { e.stopPropagation(); if (loopId === s.id) { setLoopId(null); stopAt.current = null; audio.current?.pause(); verse.current?.pause(); setVerseIdx(-1); } else playSentence(i, true); }}>
                       <Repeat size={15} />
                     </button>
                   </>

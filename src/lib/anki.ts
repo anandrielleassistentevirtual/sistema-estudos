@@ -32,7 +32,11 @@ export async function ankiOnline(): Promise<boolean> {
   }
 }
 
-export async function addBasicNote(deck: string, front: string, back: string, tags: string[] = []) {
+export async function addBasicNote(
+  deck: string, front: string, back: string, tags: string[] = [],
+  audio?: { data: string; filename: string },
+) {
+  await anki("createDeck", { deck }).catch(() => {});
   return anki<number>("addNote", {
     note: {
       deckName: deck,
@@ -40,6 +44,15 @@ export async function addBasicNote(deck: string, front: string, back: string, ta
       fields: { Front: front, Back: back },
       options: { allowDuplicate: false, duplicateScope: "deck" },
       tags: ["sistema-estudos", ...tags],
+      ...(audio ? { audio: [{ data: audio.data, filename: audio.filename, fields: ["Front"] }] } : {}),
     },
   });
+}
+
+/** Baixa um arquivo e devolve em base64 (para mandar áudio ao Anki). */
+export async function toBase64(url: string): Promise<string> {
+  const buf = new Uint8Array(await (await fetch(url)).arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return btoa(bin);
 }

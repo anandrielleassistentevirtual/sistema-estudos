@@ -119,10 +119,22 @@ async function importLesson(uid, dir) {
     start_s: cues[idx]?.start ?? null, end_s: cues[idx]?.end ?? null,
     read_count: keep.get(idx)?.text === t ? keep.get(idx).read_count : 0,
   }));
+  // áudio individual de cada frase: versos/v001.mp3, v002.mp3… (na ordem do texto)
+  const versosDir = join(dir, "versos");
+  if (existsSync(versosDir)) {
+    const files = readdirSync(versosDir).filter((n) => MIME[extname(n).toLowerCase()]).sort();
+    for (let k = 0; k < Math.min(files.length, rows.length); k++) {
+      const ext = extname(files[k]).toLowerCase();
+      const p = `${uid}/${id}/v${String(k + 1).padStart(3, "0")}${ext}`;
+      const up = await sb.storage.from("audios").upload(p, readFileSync(join(versosDir, files[k])), { contentType: MIME[ext], upsert: true });
+      if (up.error) throw up.error;
+      rows[k].audio_path = p;
+    }
+  }
   await sb.from("lesson_sentences").delete().eq("lesson_id", id).gte("idx", rows.length);
   const s = await sb.from("lesson_sentences").upsert(rows, { onConflict: "lesson_id,idx" });
   if (s.error) throw s.error;
-  console.log(`  ✓ ${meta.idioma} · ${meta.colecao ?? ""} · ${meta.titulo} — ${rows.length} frases${audioFile ? " + áudio" : ""}${cues.length ? " + tempos" : ""}`);
+  console.log(`  ✓ ${meta.idioma} · ${meta.colecao ?? ""} · ${meta.titulo} — ${rows.length} frases${audioFile ? " + áudio" : ""}${cues.length ? " + tempos" : ""}${rows.some((r) => r.audio_path) ? " + áudio por verso" : ""}`);
 }
 
 async function folderPath(uid, path) {
