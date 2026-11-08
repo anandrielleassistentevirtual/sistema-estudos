@@ -21,7 +21,13 @@ if (!url || !key || !email) {
   console.error("Defina NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e DONO_EMAIL (ex.: em .env.local).");
   process.exit(1);
 }
-const sb = createClient(url, key, { auth: { persistSession: false } });
+// Chaves novas (sb_secret_…) não são JWT: vão só no cabeçalho apikey, nunca em Authorization.
+const fetchSemBearer = (input, init = {}) => {
+  const h = new Headers(init.headers);
+  if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
+  return fetch(input, { ...init, headers: h });
+};
+const sb = createClient(url, key, { auth: { persistSession: false }, global: { fetch: fetchSemBearer } });
 
 const [cmd, ...rest] = process.argv.slice(2);
 const flags = {};
