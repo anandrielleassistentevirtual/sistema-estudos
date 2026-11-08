@@ -8,3 +8,6 @@ out/
 next-env.d.ts
 .DS_Store
 conteudo-local/
+
+# áudios gerados (ficam no Supabase Storage, não no git)
+conteudo/**/audio.*

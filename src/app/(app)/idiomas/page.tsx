@@ -214,7 +214,7 @@ export default function Idiomas() {
                       <Link key={l.id} href={`/idiomas/${l.id}`} className="card p-4 hover:border-accent transition-colors">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="text-xs text-faint">#{l.position}{l.level ? ` · ${l.level}` : ""}</div>
+                            {l.level && <div className="text-xs text-faint">{l.level}</div>}
                             <div className="font-medium truncate">{l.title}</div>
                           </div>
                           {l.audio_path && <Headphones size={15} className="text-faint shrink-0 mt-1" />}

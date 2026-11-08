@@ -39,6 +39,15 @@ conteudo/idiomas/<idioma>/<coleção>/<NN-nome-da-licao>/
 npm run importar -- licao conteudo/idiomas/italiano
 ```
 
+### Divina Comédia (gerada automaticamente)
+
+`scripts/dante/gerar_licoes.py` monta as lições a partir do texto do Project
+Gutenberg (#1012, domínio público), das traduções literais em
+`conteudo/idiomas/italiano/traducoes/inferno-NN.txt` e de uma voz neural
+italiana (Piper, `it_IT-paola-medium`). Cada canto vira lições de ~30 versos;
+o áudio é gerado verso a verso, então os tempos são exatos. Os `audio.mp3`
+não vão para o git (ficam no Supabase Storage).
+
 ## Livros
 
 - **EPUB** é o formato preferido (melhor paginação, capítulos, metadados).
