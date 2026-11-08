@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Download, Highlighter, Layers, ListTree, Trash2, Type, X, ZoomIn, ZoomOut } from "lucide-react";
 import { EpubReader } from "@/components/reader/epub-reader";
 import { TextReader } from "@/components/reader/text-reader";
@@ -10,7 +10,7 @@ import { downloadBook, saveBookFile } from "@/lib/books";
 import { fmtClock, nf } from "@/lib/dates";
 import { addBasicNote } from "@/lib/anki";
 import { ReadingTracker } from "@/lib/reading-tracker";
-import { supabase } from "@/lib/supabase/client";
+import { supabase, fire } from "@/lib/supabase/client";
 import type { Annotation, Book } from "@/lib/types";
 import { useTimer } from "@/components/timer-context";
 import { literaryFromHighlight } from "@/lib/zettel";
@@ -41,7 +41,26 @@ export default function Ler() {
   const [toast, setToast] = useState<string | null>(null);
   const reader = useRef<ReaderHandle>(null);
   const tracker = useRef<ReadingTracker | null>(null);
-  const lastSave = useRef(0);
+  // posição: guarda sempre a última (com atraso curto) e grava na hora ao sair
+  const pendingPos = useRef<{ location: string; progress: number } | null>(null);
+  const posTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savePos = useCallback(() => {
+    if (posTimer.current) { clearTimeout(posTimer.current); posTimer.current = null; }
+    const p = pendingPos.current;
+    if (!p) return;
+    pendingPos.current = null;
+    fire(supabase().from("books").update({ last_location: p.location, ...(p.progress > 0 ? { progress: p.progress } : {}) }).eq("id", id));
+  }, [id]);
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === "hidden") savePos(); };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", savePos);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", savePos);
+      savePos();
+    };
+  }, [savePos]);
   const bookRef = useRef<Book | null>(null);
   bookRef.current = book;
   const timer = useTimer();
@@ -87,7 +106,7 @@ export default function Ler() {
     if (forward && b && (b.status === "aguardando" || b.status === "pausado")) {
       const patch = { status: "lendo" as const, started_at: b.started_at ?? new Date().toISOString() };
       setBook({ ...b, ...patch });
-      void supabase().from("books").update(patch).eq("id", b.id);
+      fire(supabase().from("books").update(patch).eq("id", b.id));
     }
   }
 
@@ -95,17 +114,17 @@ export default function Ler() {
     if (location) setLocation(location);
     if (p > 0) setProgress(p);
     if (l) setLabel(l);
-    const now = Date.now();
-    if (now - lastSave.current < 2500 || !location) return;
-    lastSave.current = now;
-    void supabase().from("books").update({ last_location: location, progress: p || undefined }).eq("id", id);
+    if (!location) return;
+    pendingPos.current = { location, progress: p };
+    if (posTimer.current) clearTimeout(posTimer.current);
+    posTimer.current = setTimeout(savePos, 1200);
   }
 
   function onWordCount(total: number) {
     const b = bookRef.current;
     if (b && total > 0 && b.word_count !== total) {
       setBook({ ...b, word_count: total });
-      void supabase().from("books").update({ word_count: total }).eq("id", b.id);
+      fire(supabase().from("books").update({ word_count: total }).eq("id", b.id));
     }
   }
 
@@ -334,7 +353,7 @@ export default function Ler() {
                       const note = e.target.value;
                       if (note === a.note) return;
                       setAnns((all) => all.map((x) => (x.id === a.id ? { ...x, note } : x)));
-                      void supabase().from("annotations").update({ note }).eq("id", a.id);
+                      fire(supabase().from("annotations").update({ note }).eq("id", a.id));
                     }} />
                   <div className="flex justify-end gap-1 mt-1.5">
                     <button className="btn btn-ghost text-xs px-2 py-1" onClick={() => toAnki(a)} title="Criar cartão no Anki"><Layers size={13} /> Anki</button>

@@ -8,7 +8,7 @@ import {
 import { audioUrl, fullReads, registerListen, registerRead, undoRead } from "@/lib/lessons";
 import { addBasicNote, toBase64 } from "@/lib/anki";
 import { dayKey, fmtClock, nf } from "@/lib/dates";
-import { supabase } from "@/lib/supabase/client";
+import { supabase, fire } from "@/lib/supabase/client";
 import type { Lesson, Sentence } from "@/lib/types";
 
 type Layout = "lado" | "texto" | "intercalado";
@@ -83,7 +83,7 @@ export default function LessonPage() {
       verse.current?.pause();
       const secs = Math.round(listened.current);
       if (secs >= 30 && lesson) {
-        void supabase().from("study_sessions").insert({ day: dayKey(), seconds: secs, category: "Idiomas", language: lesson.language, label: `Lição: ${lesson.title}` });
+        fire(supabase().from("study_sessions").insert({ day: dayKey(), seconds: secs, category: "Idiomas", language: lesson.language, label: `Lição: ${lesson.title}` }));
       }
     };
   }, [lesson]);

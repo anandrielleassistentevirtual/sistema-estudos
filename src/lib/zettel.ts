@@ -26,14 +26,14 @@ export function locationLabel(loc?: string | null) {
 /** Cria a nota literária na Inbox a partir de um destaque do leitor. */
 export async function literaryFromHighlight(input: { bookId: string; bookTitle: string; annotationId: string; quote: string; note: string; location: string }) {
   const title = input.quote.length > 70 ? input.quote.slice(0, 70).trim() + "…" : input.quote;
-  return supabase().from("notes").insert({
+  return await supabase().from("notes").insert({
     kind: "literaria", status: "a_tratar", title, book_id: input.bookId, annotation_id: input.annotationId,
     quote: input.quote, content: input.note, location: input.location,
   });
 }
 
 export async function setStatus(n: Pick<Note, "id">, status: NoteStatus) {
-  return supabase().from("notes").update({ status, concluded_at: status === "concluida" ? new Date().toISOString() : null }).eq("id", n.id);
+  return await supabase().from("notes").update({ status, concluded_at: status === "concluida" ? new Date().toISOString() : null }).eq("id", n.id);
 }
 
 /** Modelo de nota atômica (anatomia: ID, título, corpo, links com o porquê, referências). */

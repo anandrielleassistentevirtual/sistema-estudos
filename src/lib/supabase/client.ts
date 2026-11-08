@@ -20,3 +20,12 @@ export async function userId(): Promise<string> {
   if (!id) throw new Error("Sessão expirada. Entre novamente.");
   return id;
 }
+
+/**
+ * Envia um pedido ao Supabase sem esperar a resposta.
+ * (As consultas do supabase-js só são enviadas quando alguém chama .then/await —
+ * `void supabase().from(...)...` sozinho NÃO envia nada.)
+ */
+export function fire(query: PromiseLike<unknown>) {
+  Promise.resolve(query).then(undefined, () => {});
+}

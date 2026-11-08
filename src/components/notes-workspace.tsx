@@ -449,7 +449,8 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                 />
               )}
               {isStudy && view === "ler" ? (
-                <LessonReader key={current.id} note={current} prefs={prefs} onProgress={setLessonProgress} />
+                <LessonReader key={current.id} note={current} prefs={prefs} onProgress={setLessonProgress}
+                  onPosition={(loc) => { const id = current.id; setNotes((all) => all.map((x) => (x.id === id ? { ...x, location: loc } : x))); }} />
               ) : view !== "editar" && (
                 <div className="overflow-y-auto p-4 md:p-8"
                   style={isStudy ? { background: THEMES[prefs.theme].bg, color: THEMES[prefs.theme].fg } : undefined}>

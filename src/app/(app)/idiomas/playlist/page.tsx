@@ -6,7 +6,7 @@ import { Empty } from "@/components/page";
 import { IdiomasTabs } from "@/components/idiomas-tabs";
 import { audioUrl, registerListen } from "@/lib/lessons";
 import { dayKey, fmtClock } from "@/lib/dates";
-import { supabase } from "@/lib/supabase/client";
+import { supabase, fire } from "@/lib/supabase/client";
 import type { Lesson } from "@/lib/types";
 
 const KEY = "playlist-selecao";
@@ -44,7 +44,7 @@ export default function Playlist() {
       const rows = Object.entries(listened.current)
         .filter(([, secs]) => secs >= 30)
         .map(([language, secs]) => ({ day: dayKey(), seconds: Math.round(secs), category: "Idiomas", language, label: "Playlist" }));
-      if (rows.length) void supabase().from("study_sessions").insert(rows);
+      if (rows.length) fire(supabase().from("study_sessions").insert(rows));
     };
   }, []);
 

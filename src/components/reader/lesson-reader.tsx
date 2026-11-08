@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TextReader } from "./text-reader";
 import { THEMES, type ReaderHandle, type ReaderPrefs } from "./types";
@@ -7,12 +7,15 @@ import { ReadingTracker } from "@/lib/reading-tracker";
 import { useTimer } from "@/components/timer-context";
 import { fmtClock, nf } from "@/lib/dates";
 import type { Note } from "@/lib/types";
+import { supabase, fire } from "@/lib/supabase/client";
 
 /**
  * Leitura de uma aula (Estudos) igual à dos livros: páginas, palavras por minuto,
  * tempo e progresso. A sessão vai para reading_sessions com note_id da aula.
  */
-export function LessonReader({ note, prefs, onProgress }: { note: Note; prefs: ReaderPrefs; onProgress?: (p: number) => void }) {
+export function LessonReader({ note, prefs, onProgress, onPosition }: {
+  note: Note; prefs: ReaderPrefs; onProgress?: (p: number) => void; onPosition?: (location: string) => void;
+}) {
   const reader = useRef<ReaderHandle>(null);
   const tracker = useRef<ReadingTracker | null>(null);
   const timer = useTimer();
@@ -24,7 +27,33 @@ export function LessonReader({ note, prefs, onProgress }: { note: Note; prefs: R
   const key = `aula-pos-${note.id}`;
 
   const blob = useMemo(() => new Blob([note.content], { type: "text/markdown" }), [note.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const startAt = useMemo(() => { try { return localStorage.getItem(key); } catch { return null; } }, [key]);
+  // posição salva no banco (notes.location) — vale em qualquer aparelho; localStorage como reserva
+  const startAt = useMemo(() => {
+    if (note.location && /^p:\d+$/.test(note.location)) return note.location;
+    try { return localStorage.getItem(key); } catch { return null; }
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pendingPos = useRef<string | null>(null);
+  const onPositionRef = useRef(onPosition);
+  onPositionRef.current = onPosition;
+  const posTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savePos = useCallback(() => {
+    if (posTimer.current) { clearTimeout(posTimer.current); posTimer.current = null; }
+    const loc = pendingPos.current;
+    if (!loc) return;
+    pendingPos.current = null;
+    fire(supabase().from("notes").update({ location: loc }).eq("id", note.id));
+    onPositionRef.current?.(loc);
+  }, [note.id]);
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === "hidden") savePos(); };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", savePos);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", savePos);
+      savePos();
+    };
+  }, [savePos]);
 
   useEffect(() => {
     const t = new ReadingTracker(null, () => timerOn.current, note.id);
@@ -63,6 +92,11 @@ export function LessonReader({ note, prefs, onProgress }: { note: Note; prefs: R
             onProgress?.(p);
             if (l) setLabel(l);
             try { localStorage.setItem(key, loc); } catch {}
+            if (loc !== note.location) {
+              pendingPos.current = loc;
+              if (posTimer.current) clearTimeout(posTimer.current);
+              posTimer.current = setTimeout(savePos, 1200);
+            }
           }}
           onSelect={() => {}}
           onWordCount={() => {}}

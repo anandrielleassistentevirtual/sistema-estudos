@@ -5,7 +5,7 @@ import { ChevronLeft, Play, RotateCcw, Undo2, Volume2 } from "lucide-react";
 import { anki } from "@/lib/anki";
 import { Language, loadLanguages } from "@/lib/languages";
 import { dayKey, fmtClock } from "@/lib/dates";
-import { supabase } from "@/lib/supabase/client";
+import { supabase, fire } from "@/lib/supabase/client";
 
 interface CurrentCard {
   cardId: number;
@@ -188,13 +188,13 @@ export default function RevisarAnki() {
       audio.current?.pause();
       const s = Math.round((Date.now() - start.current) / 1000);
       if (s >= 30 && doneRef.current > 0) {
-        void supabase().from("study_sessions").insert({
+        fire(supabase().from("study_sessions").insert({
           day: dayKey(), seconds: s, category: "Idiomas", language: langRef.current || null, label: `Anki · ${doneRef.current} cartões`,
-        });
+        }));
       }
       void anki<[string, number][]>("getNumCardsReviewedByDay").then((rows) => {
         const today = rows.filter(([d]) => d >= dayKey(new Date(Date.now() - 7 * 864e5)));
-        if (today.length) void supabase().from("anki_daily").upsert(today.map(([day, reviews]) => ({ day, reviews })));
+        if (today.length) fire(supabase().from("anki_daily").upsert(today.map(([day, reviews]) => ({ day, reviews }))));
       }).catch(() => {});
     };
   }, []);
