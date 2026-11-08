@@ -23,6 +23,9 @@ const ETAPAS = [
 ] as const;
 type Etapa = (typeof ETAPAS)[number]["id"];
 
+/** Cada etapa da Lectio dura 5 minutos. */
+const minutos = 5;
+
 const COR: Record<string, string> = { verde: "#1f8a3b", branco: "#d8d2c2", vermelho: "#c0392b", roxo: "#6b3fa0", rosa: "#e58fb0", preto: "#222" };
 
 function sino() {
@@ -72,7 +75,6 @@ export default function Lectio() {
   const [dado, setDado] = useState<Dia | null>(null);
   const [curado, setCurado] = useState(false);
   const [carregando, setCarregando] = useState(true);
-  const [minutos, setMinutos] = useState(5);
   const [etapa, setEtapa] = useState(0);
   const [rodando, setRodando] = useState(false);
   const [restante, setRestante] = useState(5 * 60);
@@ -87,9 +89,6 @@ export default function Lectio() {
   const timer = useTimer();
   const tick = useRef<number | null>(null);
 
-  useEffect(() => {
-    try { const m = Number(localStorage.getItem("lectio-minutos")); if (m >= 1 && m <= 30) { setMinutos(m); setRestante(m * 60); } } catch {}
-  }, []);
 
   const carregar = useCallback(async (d: string) => {
     setCarregando(true);
@@ -127,7 +126,7 @@ export default function Lectio() {
       return e + 1;
     });
     setRestante(minutos * 60);
-  }, [minutos]);
+  }, []);
 
   useEffect(() => { if (rodando && restante <= 0) avancar(); }, [restante, rodando, avancar]);
 
@@ -219,15 +218,6 @@ export default function Lectio() {
             <button className="btn btn-ghost px-2" onClick={recomecar} title="Recomeçar"><RotateCcw size={15} /></button>
           </div>
         </div>
-        {!rodando && total === 0 && (
-          <div className="flex items-center justify-center gap-2 text-xs text-muted mt-2">
-            Minutos por etapa:
-            {[3, 5, 7, 10].map((m) => (
-              <button key={m} onClick={() => { setMinutos(m); setRestante(m * 60); try { localStorage.setItem("lectio-minutos", String(m)); } catch {} }}
-                className={`px-2 py-0.5 rounded-md ${minutos === m ? "bg-accent-soft text-ink font-medium" : "hover:bg-surface-2"}`}>{m}</button>
-            ))}
-          </div>
-        )}
 
         {carregando && <p className="text-center text-sm text-muted mt-10">Carregando o Evangelho do dia…</p>}
         {!carregando && !dado && <p className="text-center text-sm text-muted mt-10">Não consegui carregar a liturgia deste dia.</p>}
