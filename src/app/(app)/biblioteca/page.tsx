@@ -5,6 +5,7 @@ import {
   BookOpen, ChevronDown, ChevronRight, Folder, FolderOpen, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
+import { BibliotecaTabs } from "@/components/biblioteca-tabs";
 import { ACCEPT, addPhysicalBook, deleteBook, enqueue, uploadBook } from "@/lib/books";
 import { useTimer } from "@/components/timer-context";
 import { Cover } from "@/components/cover";
@@ -183,6 +184,7 @@ export default function Biblioteca() {
   return (
     <Page
       wide
+      tabs={<BibliotecaTabs />}
       title="Mapa da Ignorância"
       subtitle={`${all.waiting} livros aguardando · ≈ ${fmtDuration((all.left / wpm) * 60)} de leitura pela frente a ${wpm} ppm`}
       actions={

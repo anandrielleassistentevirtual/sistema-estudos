@@ -1,8 +1,10 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, BookOpen, X } from "lucide-react";
+import { ArrowDown, ArrowUp, BookOpen, Timer, X } from "lucide-react";
+import { useTimer } from "@/components/timer-context";
 import { Empty, Page } from "@/components/page";
+import { BibliotecaTabs } from "@/components/biblioteca-tabs";
 import { fmtDuration, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { Book, STATUS_LABEL } from "@/lib/types";
@@ -12,6 +14,9 @@ import { coverUrls } from "@/lib/covers";
 export default function Fila() {
   const [queue, setQueue] = useState<Book[]>([]);
   const [covers, setCovers] = useState<Record<string, string>>({});
+  const timer = useTimer();
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => { if (toast) { const x = setTimeout(() => setToast(null), 3000); return () => clearTimeout(x); } }, [toast]);
   const [wpm, setWpm] = useState(220);
 
   const load = async () => {
@@ -44,10 +49,10 @@ export default function Fila() {
 
   let acc = 0;
   return (
-    <Page title="Fila de leitura" subtitle="A ordem em que você vai atacar o Mapa da Ignorância. Adicione livros pela biblioteca.">
+    <Page tabs={<BibliotecaTabs />} title="Fila de leitura" subtitle="A ordem em que você vai atacar o Mapa da Ignorância. Adicione livros pela biblioteca.">
       {queue.length === 0 ? (
         <Empty>
-          A fila está vazia. Na <Link href="/biblioteca" className="text-accent">biblioteca</Link>, use o ícone de lista em um livro para enfileirá-lo.
+          A fila está vazia. Na aba <Link href="/biblioteca" className="text-accent">Biblioteca</Link>, use o ícone de lista em um livro para enfileirá-lo.
         </Empty>
       ) : (
         <ol className="card divide-y divide-line">
@@ -68,12 +73,23 @@ export default function Fila() {
                 </div>
                 <button className="btn btn-ghost px-2" onClick={() => move(i, -1)} disabled={i === 0} title="Subir"><ArrowUp size={15} /></button>
                 <button className="btn btn-ghost px-2" onClick={() => move(i, 1)} disabled={i === queue.length - 1} title="Descer"><ArrowDown size={15} /></button>
-                <Link href={`/ler/${b.id}`} className="btn"><BookOpen size={15} /> Ler</Link>
+                {b.format === "fisico" ? (
+                  <button className="btn" title="Livro físico: liga o timer" onClick={() => {
+                    timer.set({ category: "Leitura", bookId: b.id, bookTitle: b.title, bookPhysical: true });
+                    if (!timer.running) timer.start();
+                    setToast(`Timer ligado para “${b.title}”. Ao encerrar, informe a página onde parou.`);
+                  }}><Timer size={15} /> Ler</button>
+                ) : (
+                  <Link href={`/ler/${b.id}`} className="btn"><BookOpen size={15} /> Ler</Link>
+                )}
                 <button className="btn btn-ghost px-2" onClick={() => remove(b)} title="Tirar da fila"><X size={15} /></button>
               </li>
             );
           })}
         </ol>
+      )}
+      {toast && (
+        <div className="fixed left-1/2 -translate-x-1/2 top-4 z-50 rounded-lg px-4 py-2 text-sm shadow-lg" style={{ background: "var(--text)", color: "var(--bg)" }}>{toast}</div>
       )}
     </Page>
   );

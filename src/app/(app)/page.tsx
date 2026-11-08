@@ -121,7 +121,7 @@ export default function Dashboard() {
           <h2 className="font-semibold mb-3">Continuar lendo</h2>
           {reading.length === 0 ? (
             <p className="text-sm text-muted">
-              Nada em andamento. Escolha algo na <Link className="text-accent" href="/fila">fila de leitura</Link>.
+              Nada em andamento. Escolha algo na <Link className="text-accent" href="/biblioteca/fila">fila de leitura</Link>.
             </p>
           ) : (
             <ul className="space-y-2">

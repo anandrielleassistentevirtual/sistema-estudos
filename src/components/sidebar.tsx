@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  GraduationCap, Languages, LayoutDashboard, Library, ListOrdered,
+  GraduationCap, Languages, LayoutDashboard, Library,
   LogOut, Menu, Moon, NotebookPen, Sun, Timer, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -14,7 +14,6 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/timer", label: "Timer", icon: Timer },
   { href: "/biblioteca", label: "Mapa da Ignorância", icon: Library },
-  { href: "/fila", label: "Fila de leitura", icon: ListOrdered },
   { href: "/notas", label: "Notas", icon: NotebookPen },
   { href: "/estudos", label: "Estudos", icon: GraduationCap },
   { href: "/idiomas", label: "Idiomas", icon: Languages },

@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/anki", destination: "/idiomas/anki", permanent: true },
       { source: "/calendario", destination: "/#calendario", permanent: true },
+      { source: "/fila", destination: "/biblioteca/fila", permanent: true },
     ];
   },
 };
