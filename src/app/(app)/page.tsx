@@ -6,7 +6,7 @@ import { Page, Stat } from "@/components/page";
 import { CalendarPanel } from "@/components/calendar-panel";
 import { Cover } from "@/components/cover";
 import { coverUrls } from "@/lib/covers";
-import { BarChart } from "@/components/bar-chart";
+import { TimeBreakdown } from "@/components/time-breakdown";
 import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { DayStats, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
@@ -106,13 +106,7 @@ export default function Dashboard() {
         />
       </div>
 
-      <section className="card p-5 mt-4">
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="font-semibold">Palavras lidas por semana</h2>
-          <span className="text-xs text-muted">últimas {WEEKS} semanas</span>
-        </div>
-        {loading ? <div className="h-[182px]" /> : <BarChart data={s.weekly} unit="palavras" average={s.avgWeek} />}
-      </section>
+      <TimeBreakdown />
 
       <CalendarPanel />
 
