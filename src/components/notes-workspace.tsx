@@ -32,6 +32,17 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
   const [source, setSource] = useState<{ id: string; label: string; bookId: string | null } | null>(null);
   const [preview, setPreview] = useState<null | { files: File[]; level: 0 | 1 }>(null);
   const [importing, setImporting] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
+
+  async function rename(n: Note, value: string) {
+    setRenaming(null);
+    const title = value.trim();
+    if (!title || title === n.title) return;
+    const content = syncHeading(n.content, n.title, title);
+    setNotes((all) => all.map((x) => (x.id === n.id ? { ...x, title, content } : x)));
+    setCurrent((c) => (c?.id === n.id ? { ...c, title, content } : c));
+    await supabase().from("notes").update({ title, content }).eq("id", n.id);
+  }
 
   const load = useCallback(async () => {
     const { data } = await supabase().from("notes").select("*").eq("kind", kind).order("title");
@@ -102,6 +113,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
 
   function patch(p: Partial<Note>) {
     if (!current) return;
+    if (p.title !== undefined && p.content === undefined) p = { ...p, content: syncHeading(current.content, current.title, p.title) };
     const next = { ...current, ...p };
     setCurrent(next);
     setNotes((all) => all.map((n) => (n.id === next.id ? next : n)));
@@ -287,13 +299,29 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                 </button>
               )}
               {!collapsed.has(g) &&
-                list.map((n) => (
-                  <button key={n.id} onClick={() => setCurrent(n)}
-                    className={`flex items-center gap-2 w-full text-left rounded-md px-2 py-1.5 text-sm ${g ? "pl-5" : ""} ${current?.id === n.id ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
-                    <FileText size={14} className="text-faint shrink-0" />
-                    <span className="truncate">{n.title}</span>
-                  </button>
-                ))}
+                list.map((n) =>
+                  renaming?.id === n.id ? (
+                    <form key={n.id} className={`flex items-center gap-1 px-1 py-0.5 ${g ? "pl-4" : ""}`}
+                      onSubmit={(e) => { e.preventDefault(); void rename(n, renaming.value); }}>
+                      <input className="input py-1 text-sm" autoFocus value={renaming.value}
+                        onChange={(e) => setRenaming({ id: n.id, value: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === "Escape") setRenaming(null); }}
+                        onBlur={() => void rename(n, renaming.value)} />
+                    </form>
+                  ) : (
+                    <div key={n.id} className={`group/item flex items-center rounded-md ${current?.id === n.id ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
+                      <button onClick={() => setCurrent(n)} onDoubleClick={() => setRenaming({ id: n.id, value: n.title })}
+                        className={`flex items-center gap-2 flex-1 min-w-0 text-left px-2 py-1.5 text-sm ${g ? "pl-5" : ""}`} title="Dois cliques para renomear">
+                        <FileText size={14} className="text-faint shrink-0" />
+                        <span className="truncate">{n.title}</span>
+                      </button>
+                      <button className="p-1 mr-1 text-faint hover:text-ink opacity-0 group-hover/item:opacity-100" title="Renomear"
+                        onClick={() => setRenaming({ id: n.id, value: n.title })}>
+                        <Pencil size={13} />
+                      </button>
+                    </div>
+                  ),
+                )}
             </div>
           ))}
         </div>
@@ -306,8 +334,12 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
           <>
             <div className="border-b border-line px-4 md:px-6 py-3 space-y-2">
               <div className="flex items-center gap-2">
-                <input className="flex-1 bg-transparent text-xl font-semibold outline-none min-w-0" value={current.title}
-                  onChange={(e) => patch({ title: e.target.value })} />
+                <label className="group/titulo flex-1 min-w-0 flex items-center gap-1.5 rounded-md border border-transparent hover:border-line focus-within:border-accent px-1.5 -mx-1.5 cursor-text"
+                  title={isStudy ? "Clique para renomear a aula" : "Clique para renomear"}>
+                  <input className="flex-1 bg-transparent text-xl font-semibold outline-none min-w-0 py-0.5" value={current.title}
+                    placeholder={isStudy ? "Nome da aula" : "Título"} onChange={(e) => patch({ title: e.target.value })} />
+                  <Pencil size={15} className="text-faint opacity-50 group-hover/titulo:opacity-100 shrink-0" />
+                </label>
                 <span className="text-xs text-faint hidden sm:inline">{saving === "salvo" ? "salvo" : "salvando…"}</span>
                 <div className="inline-flex rounded-lg bg-surface-2 p-0.5">
                   {([["editar", Pencil], ["dividir", LinkIcon], ["ler", Eye]] as const).map(([v, Icon]) => (
@@ -434,6 +466,13 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     )}
     </div>
   );
+}
+
+/** Se o texto começa com "# <nome antigo>", troca pelo nome novo. */
+function syncHeading(content: string, oldTitle: string, newTitle: string) {
+  const m = content.match(/^([ \t]*#[ \t]+)(.+?)[ \t]*$/m);
+  if (!m || m.index === undefined || content.slice(0, m.index).trim() !== "" || m[2].trim() !== oldTitle.trim()) return content;
+  return content.slice(0, m.index) + m[1] + newTitle + content.slice(m.index + m[0].length);
 }
 
 function safe(s: string) {

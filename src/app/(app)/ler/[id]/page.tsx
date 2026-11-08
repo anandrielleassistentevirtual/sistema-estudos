@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Download, Highlighter, Layers, ListTree, Trash2, Type, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Download, Highlighter, Layers, ListTree, Trash2, Type, X, ZoomIn, ZoomOut } from "lucide-react";
 import { EpubReader } from "@/components/reader/epub-reader";
 import { TextReader } from "@/components/reader/text-reader";
 import { DEFAULT_PREFS, FONTS, HL_COLORS, ReaderFont, ReaderHandle, ReaderPrefs, THEMES, TocItem } from "@/components/reader/types";
@@ -16,6 +16,8 @@ import { useTimer } from "@/components/timer-context";
 import { literaryFromHighlight } from "@/lib/zettel";
 
 const PREFS_KEY = "leitor-prefs-v2";
+/** Níveis de zoom (100% = Times 12 pt). */
+const ZOOM = [75, 90, 100, 110, 125, 150, 175, 200, 250];
 const defaultPrefs: ReaderPrefs = DEFAULT_PREFS;
 
 export default function Ler() {
@@ -148,6 +150,23 @@ export default function Ler() {
     }
   }
 
+  const zoom = Math.round((prefs.sizePt / 12) * 100);
+  function setZoom(dir: 1 | -1) {
+    const next = dir > 0 ? ZOOM.find((z) => z > zoom + 1) : [...ZOOM].reverse().find((z) => z < zoom - 1);
+    if (next) setPrefs((p) => ({ ...p, sizePt: Math.round((12 * next) / 100 * 10) / 10 }));
+  }
+  const zoomRef = useRef(setZoom);
+  zoomRef.current = setZoom;
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest("input,textarea,select") || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "+" || e.key === "=") zoomRef.current(1);
+      if (e.key === "-" || e.key === "_") zoomRef.current(-1);
+    };
+    document.addEventListener("keydown", k);
+    return () => document.removeEventListener("keydown", k);
+  }, []);
+
   const t = THEMES[prefs.theme];
   const wpm = session.seconds > 30 ? Math.round(session.words / (session.seconds / 60)) : 0;
 
@@ -173,7 +192,12 @@ export default function Ler() {
           <span>{nf.format(session.words)} pal.</span>
           <span>{wpm ? `${wpm} ppm` : "— ppm"}</span>
         </div>
-        <span className="text-xs opacity-70 tabular-nums w-10 text-right">{Math.round(progress * 100)}%</span>
+        <span className="text-xs opacity-70 tabular-nums w-10 text-right" title="Progresso no livro">{Math.round(progress * 100)}%</span>
+        <div className="flex items-center rounded-lg border mx-1" style={{ borderColor: prefs.theme === "escuro" ? "#2f2f2c" : "#00000018" }} title="Zoom (teclas + e −)">
+          <button className="p-1.5 opacity-70 hover:opacity-100 disabled:opacity-30" onClick={() => setZoom(-1)} disabled={zoom <= ZOOM[0]} aria-label="Diminuir"><ZoomOut size={16} /></button>
+          <button className="text-xs tabular-nums w-11 text-center opacity-80 hover:opacity-100" onClick={() => setPrefs((p) => ({ ...p, sizePt: 12 }))} title="Voltar a 100%">{zoom}%</button>
+          <button className="p-1.5 opacity-70 hover:opacity-100 disabled:opacity-30" onClick={() => setZoom(1)} disabled={zoom >= ZOOM[ZOOM.length - 1]} aria-label="Aumentar"><ZoomIn size={16} /></button>
+        </div>
         {progress > 0.97 && book?.status !== "lido" && (
           <button className="btn text-xs py-1" onClick={markRead}><Check size={14} /> Concluir</button>
         )}
@@ -260,9 +284,9 @@ export default function Ler() {
               <div className="label mb-2 flex justify-between"><span>Tamanho</span><span className="normal-case">{prefs.sizePt} pt</span></div>
               <div className="flex items-center gap-2">
                 <button className="btn px-2.5" onClick={() => setPrefs({ ...prefs, sizePt: Math.max(9, prefs.sizePt - 1) })}>A−</button>
-                <input type="range" min={9} max={22} step={1} value={prefs.sizePt} className="flex-1"
+                <input type="range" min={9} max={30} step={0.5} value={prefs.sizePt} className="flex-1"
                   onChange={(e) => setPrefs({ ...prefs, sizePt: Number(e.target.value) })} />
-                <button className="btn px-2.5" onClick={() => setPrefs({ ...prefs, sizePt: Math.min(22, prefs.sizePt + 1) })}>A+</button>
+                <button className="btn px-2.5" onClick={() => setPrefs({ ...prefs, sizePt: Math.min(30, prefs.sizePt + 1) })}>A+</button>
               </div>
             </div>
             <div>
