@@ -2,6 +2,7 @@
 import { supabase, userId } from "./supabase/client";
 import { countWords } from "./text";
 import type { Book } from "./types";
+import { epubCover, setCover } from "./covers";
 
 export const ACCEPT = ".epub,.txt,.md,.markdown";
 
@@ -59,6 +60,12 @@ export async function uploadBook(file: File, folderId: string | null): Promise<B
     .select()
     .single();
   if (error) throw new Error(error.message);
+  if (format === "epub") {
+    const img = await epubCover(file);
+    if (img) {
+      try { (data as Book).cover_path = await setCover(data as Book, img); } catch {}
+    }
+  }
   return data as Book;
 }
 
@@ -71,7 +78,8 @@ export async function downloadBook(book: Book): Promise<Blob> {
 
 export async function deleteBook(book: Book) {
   const sb = supabase();
-  if (book.file_path) await sb.storage.from("livros").remove([book.file_path]);
+  const files = [book.file_path, book.cover_path].filter(Boolean) as string[];
+  if (files.length) await sb.storage.from("livros").remove(files);
   await sb.from("books").delete().eq("id", book.id);
 }
 

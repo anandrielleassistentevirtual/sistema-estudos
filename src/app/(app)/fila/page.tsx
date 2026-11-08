@@ -6,9 +6,12 @@ import { Empty, Page } from "@/components/page";
 import { fmtDuration, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { Book, STATUS_LABEL } from "@/lib/types";
+import { Cover } from "@/components/cover";
+import { coverUrls } from "@/lib/covers";
 
 export default function Fila() {
   const [queue, setQueue] = useState<Book[]>([]);
+  const [covers, setCovers] = useState<Record<string, string>>({});
   const [wpm, setWpm] = useState(220);
 
   const load = async () => {
@@ -18,6 +21,7 @@ export default function Fila() {
       sb.from("reading_sessions").select("seconds,words").order("started_at", { ascending: false }).limit(200),
     ]);
     setQueue((data as Book[]) ?? []);
+    void coverUrls((data as Book[]) ?? []).then(setCovers);
     const secs = (r.data ?? []).reduce((a, x) => a + x.seconds, 0);
     if (secs > 300) setWpm(Math.round((r.data ?? []).reduce((a, x) => a + x.words, 0) / (secs / 60)));
   };
@@ -53,6 +57,7 @@ export default function Fila() {
             return (
               <li key={b.id} className="p-3 flex items-center gap-3">
                 <span className="w-7 text-center text-lg font-semibold text-faint tabular-nums">{i + 1}</span>
+                <Cover book={b} url={covers[b.id]} className="w-10 h-14" />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{b.title}</div>
                   <div className="text-xs text-muted">

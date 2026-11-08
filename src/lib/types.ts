@@ -17,6 +17,7 @@ export interface Book {
   total_pages: number | null;
   current_page: number | null;
   words_per_page: number;
+  cover_path?: string | null;
   status: BookStatus;
   queue_position: number | null;
   word_count: number | null;

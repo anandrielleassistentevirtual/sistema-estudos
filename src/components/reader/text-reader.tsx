@@ -3,9 +3,23 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { countWords } from "@/lib/text";
-import { ReaderHandle, ReaderProps, THEMES } from "./types";
+import { ReaderHandle, ReaderProps, THEMES, TocItem } from "./types";
 
 const WORDS_PER_PAGE = 320;
+
+const TXT_HEADING = /^(cap[ií]tulo|parte|livro|canto|se[cç][aã]o|pr[oó]logo|ep[ií]logo|introdu[cç][aã]o|pref[aá]cio|chapter|part|book|prologue|epilogue)\b/i;
+
+/** Título de um parágrafo, se ele for um título (# do Markdown ou "Capítulo X" no TXT). */
+function headingOf(par: string, md: boolean): { label: string; level: number } | null {
+  const first = par.split("\n")[0].trim();
+  const m = first.match(/^(#{1,3})\s+(.+?)\s*#*$/);
+  if (m) return { label: m[2].replace(/[*_`]/g, ""), level: m[1].length };
+  if (md) return null;
+  if (first.length <= 80 && TXT_HEADING.test(first)) return { label: first, level: 1 };
+  if (first.length >= 3 && first.length <= 60 && first === first.toUpperCase() && /\p{L}/u.test(first) && !/[.!?,;]$/.test(first) && par.split("\n").length === 1)
+    return { label: first, level: 2 };
+  return null;
+}
 
 /** Leitor paginado para TXT e Markdown: páginas de ~320 palavras, quebrando em parágrafos. */
 export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextReader(props, ref) {
@@ -19,10 +33,11 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     void props.data.text().then(setText);
   }, [props.data]);
 
-  const pages = useMemo(() => {
-    if (text === null) return [];
+  const { pages, toc } = useMemo(() => {
+    if (text === null) return { pages: [], toc: [] as TocItem[] };
     const paras = text.replace(/\r/g, "").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
     const out: { text: string; words: number }[] = [];
+    const toc: TocItem[] = [];
     let cur: string[] = [];
     let n = 0;
     for (const p of paras) {
@@ -32,12 +47,19 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
         cur = [];
         n = 0;
       }
+      const h = headingOf(p, props.format === "md");
+      if (h) toc.push({ ...h, location: `p:${out.length}` });
       cur.push(p);
       n += w;
     }
     if (cur.length) out.push({ text: cur.join("\n\n"), words: n });
-    return out;
+    return { pages: out, toc };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
+
+  useEffect(() => {
+    if (pages.length) cb.current.onToc?.(toc);
+  }, [pages, toc]);
 
   // posição inicial
   useEffect(() => {
@@ -54,7 +76,8 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
   function report(p: number) {
     const total = pages.reduce((a, x) => a + x.words, 0) || 1;
     const before = pages.slice(0, p + 1).reduce((a, x) => a + x.words, 0);
-    cb.current.onLocation(`p:${p}`, before / total, `Página ${p + 1} de ${pages.length}`);
+    const chapter = [...toc].reverse().find((t) => Number(t.location.slice(2)) <= p);
+    cb.current.onLocation(`p:${p}`, before / total, `${chapter ? chapter.label + " · " : ""}Página ${p + 1} de ${pages.length}`);
   }
 
   function go(to: number) {

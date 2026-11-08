@@ -2,10 +2,10 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Highlighter, Layers, Trash2, Type, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Highlighter, Layers, ListTree, Trash2, Type, X } from "lucide-react";
 import { EpubReader } from "@/components/reader/epub-reader";
 import { TextReader } from "@/components/reader/text-reader";
-import { HL_COLORS, ReaderHandle, ReaderPrefs, THEMES } from "@/components/reader/types";
+import { HL_COLORS, ReaderHandle, ReaderPrefs, THEMES, TocItem } from "@/components/reader/types";
 import { downloadBook } from "@/lib/books";
 import { fmtClock, nf } from "@/lib/dates";
 import { addBasicNote } from "@/lib/anki";
@@ -26,6 +26,9 @@ export default function Ler() {
   const [prefs, setPrefs] = useState<ReaderPrefs>(defaultPrefs);
   const [showPrefs, setShowPrefs] = useState(false);
   const [showAnns, setShowAnns] = useState(false);
+  const [showToc, setShowToc] = useState(false);
+  const [toc, setToc] = useState<TocItem[]>([]);
+  const [location, setLocation] = useState("");
   const [sel, setSel] = useState<{ location: string; quote: string } | null>(null);
   const [selNote, setSelNote] = useState("");
   const [selColor, setSelColor] = useState("amarelo");
@@ -86,6 +89,7 @@ export default function Ler() {
   }
 
   function onLocation(location: string, p: number, l: string) {
+    if (location) setLocation(location);
     if (p > 0) setProgress(p);
     if (l) setLabel(l);
     const now = Date.now();
@@ -162,8 +166,11 @@ export default function Ler() {
         {progress > 0.97 && book?.status !== "lido" && (
           <button className="btn text-xs py-1" onClick={markRead}><Check size={14} /> Concluir</button>
         )}
-        <button className="p-2 opacity-70 hover:opacity-100" onClick={() => { setShowPrefs(!showPrefs); setShowAnns(false); }} title="Aparência"><Type size={18} /></button>
-        <button className="p-2 opacity-70 hover:opacity-100 relative" onClick={() => { setShowAnns(!showAnns); setShowPrefs(false); }} title="Anotações">
+        {toc.length > 0 && (
+          <button className="p-2 opacity-70 hover:opacity-100" onClick={() => { setShowToc(!showToc); setShowPrefs(false); setShowAnns(false); }} title="Sumário"><ListTree size={18} /></button>
+        )}
+        <button className="p-2 opacity-70 hover:opacity-100" onClick={() => { setShowPrefs(!showPrefs); setShowAnns(false); setShowToc(false); }} title="Aparência"><Type size={18} /></button>
+        <button className="p-2 opacity-70 hover:opacity-100 relative" onClick={() => { setShowAnns(!showAnns); setShowPrefs(false); setShowToc(false); }} title="Anotações">
           <Highlighter size={18} />
           {anns.length > 0 && <span className="absolute top-1 right-0.5 text-[9px] font-bold">{anns.length}</span>}
         </button>
@@ -174,14 +181,40 @@ export default function Ler() {
           book.format === "epub" ? (
             <EpubReader ref={reader} data={blob} format="epub" startAt={book.last_location} prefs={prefs} annotations={anns}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
-              onAnnotationClick={() => setShowAnns(true)} />
+              onAnnotationClick={() => setShowAnns(true)} onToc={setToc} />
           ) : (
             <TextReader ref={reader} data={blob} format={book.format as "txt" | "md"} startAt={book.last_location} prefs={prefs} annotations={anns}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
-              onAnnotationClick={() => setShowAnns(true)} />
+              onAnnotationClick={() => setShowAnns(true)} onToc={setToc} />
           )
         )}
         {!blob && <div className="p-10 opacity-60 text-sm">Baixando o livro…</div>}
+
+        {showToc && (
+          <aside className="absolute left-0 top-0 bottom-0 z-30 w-full sm:w-80 bg-surface text-ink border-r border-line flex flex-col shadow-xl">
+            <div className="flex items-center justify-between px-4 h-12 border-b border-line">
+              <span className="font-semibold text-sm">Sumário</span>
+              <button onClick={() => setShowToc(false)}><X size={18} /></button>
+            </div>
+            <nav className="overflow-y-auto flex-1 py-2">
+              {toc.map((item, i) => {
+                const pageOf = (l: string) => (l.startsWith("p:") ? Number(l.slice(2)) : -1);
+                const curPage = pageOf(location);
+                const next = toc[i + 1];
+                const here = curPage >= 0
+                  ? pageOf(item.location) <= curPage && (!next || pageOf(next.location) > curPage)
+                  : false;
+                return (
+                  <button key={i} onClick={() => { reader.current?.goTo(item.location); setShowToc(false); }}
+                    className={`block w-full text-left text-sm py-1.5 pr-3 hover:bg-surface-2 ${here ? "text-accent font-medium" : ""}`}
+                    style={{ paddingLeft: 16 + (item.level - 1) * 16 }}>
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+        )}
 
         {showPrefs && (
           <div className="absolute right-3 top-3 z-30 card p-4 w-72 space-y-4 text-ink shadow-xl">

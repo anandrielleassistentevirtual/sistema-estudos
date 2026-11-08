@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { BookOpen } from "lucide-react";
 import { Page, Stat } from "@/components/page";
 import { CalendarPanel } from "@/components/calendar-panel";
+import { Cover } from "@/components/cover";
+import { coverUrls } from "@/lib/covers";
 import { BarChart } from "@/components/bar-chart";
 import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { DayStats, loadDaily } from "@/lib/stats";
@@ -15,6 +17,7 @@ const WEEKS = 12;
 export default function Dashboard() {
   const [daily, setDaily] = useState<Map<string, DayStats>>(new Map());
   const [books, setBooks] = useState<Book[]>([]);
+  const [covers, setCovers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,6 +28,7 @@ export default function Dashboard() {
     ]).then(([d, b]) => {
       setDaily(d);
       setBooks((b.data as Book[]) ?? []);
+      void coverUrls((b.data as Book[]) ?? []).then(setCovers);
       setLoading(false);
     });
   }, []);
@@ -124,7 +128,7 @@ export default function Dashboard() {
               {reading.map((b) => (
                 <li key={b.id}>
                   <Link href={`/ler/${b.id}`} className="flex items-center gap-3 rounded-lg p-2 -mx-2 hover:bg-surface-2">
-                    <BookOpen size={18} className="text-muted shrink-0" />
+                    <Cover book={b} url={covers[b.id]} className="w-9 h-12" />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium truncate">{b.title}</div>
                       <div className="h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">

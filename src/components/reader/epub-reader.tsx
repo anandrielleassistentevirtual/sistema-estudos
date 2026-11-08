@@ -63,6 +63,18 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
       r.on("click", () => cb.current.onSelect(null));
       r.on("keyup", onKey);
 
+      try {
+        const nav = await b.loaded.navigation;
+        const flat: { label: string; location: string; level: number }[] = [];
+        const walk = (items: any[], level: number) => {
+          for (const it of items ?? []) {
+            flat.push({ label: String(it.label ?? "").trim(), location: it.href, level });
+            if (it.subitems?.length) walk(it.subitems, Math.min(3, level + 1));
+          }
+        };
+        walk(nav?.toc ?? [], 1);
+        cb.current.onToc?.(flat.filter((x) => x.label && x.location));
+      } catch {}
       await r.display(props.startAt || undefined);
       drawAnnotations();
       void countSections();

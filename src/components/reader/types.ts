@@ -21,6 +21,12 @@ export const HL_COLORS: Record<string, string> = {
   rosa: "#e87ba4",
 };
 
+export interface TocItem {
+  label: string;
+  location: string; // "p:N" (TXT/MD) ou href (EPUB)
+  level: number; // 1, 2, 3
+}
+
 export interface ReaderHandle {
   goTo: (location: string) => void;
   next: () => void;
@@ -39,4 +45,5 @@ export interface ReaderProps {
   onSelect: (sel: { location: string; quote: string } | null) => void;
   onWordCount: (total: number) => void;
   onAnnotationClick: (id: string) => void;
+  onToc?: (items: TocItem[]) => void;
 }

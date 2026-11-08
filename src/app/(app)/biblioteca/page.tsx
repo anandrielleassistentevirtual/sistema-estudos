@@ -7,6 +7,9 @@ import {
 import { Empty, Page } from "@/components/page";
 import { ACCEPT, addPhysicalBook, deleteBook, enqueue, uploadBook } from "@/lib/books";
 import { useTimer } from "@/components/timer-context";
+import { Cover } from "@/components/cover";
+import { coverUrls, epubCover, removeCover, setCover, setCoverFromLink } from "@/lib/covers";
+import { downloadBook } from "@/lib/books";
 import { fmtDuration, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { Book, BookStatus, Folder as F, STATUS_LABEL } from "@/lib/types";
@@ -18,6 +21,7 @@ const DEFAULT_WPM = 220;
 export default function Biblioteca() {
   const [folders, setFolders] = useState<F[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
+  const [covers, setCovers] = useState<Record<string, string>>({});
   const [sel, setSel] = useState<Sel>("todos");
   const [status, setStatus] = useState<BookStatus | "todos">("todos");
   const [q, setQ] = useState("");
@@ -48,6 +52,7 @@ export default function Biblioteca() {
     ]);
     setFolders((f.data as F[]) ?? []);
     setBooks((b.data as Book[]) ?? []);
+    void coverUrls((b.data as Book[]) ?? []).then(setCovers);
     const secs = (r.data ?? []).reduce((a, x) => a + x.seconds, 0);
     const words = (r.data ?? []).reduce((a, x) => a + x.words, 0);
     if (secs > 300) setWpm(Math.round(words / (secs / 60)));
@@ -280,7 +285,7 @@ export default function Biblioteca() {
                 <div key={b.id} className="p-3 flex flex-wrap items-center gap-3">
                   <Link href={b.format === "fisico" ? "#" : `/ler/${b.id}`} onClick={(e) => { if (b.format === "fisico") { e.preventDefault(); readPhysical(b); } }}
                     className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="grid place-items-center w-9 h-11 rounded bg-surface-2 text-[10px] font-semibold uppercase text-muted shrink-0">{b.format === "fisico" ? "📖" : b.format}</span>
+                    <Cover book={b} url={covers[b.id]} className="w-10 h-14" />
                     <span className="min-w-0">
                       <span className="block font-medium truncate">{b.title}</span>
                       <span className="block text-xs text-muted truncate">
@@ -321,7 +326,8 @@ export default function Biblioteca() {
         </div>
       </div>
       {editing && (
-        <EditBookModal book={editing} onClose={() => setEditing(null)}
+        <EditBookModal book={editing} coverUrl={covers[editing.id]} onClose={() => setEditing(null)}
+          onCover={(id, url) => setCovers((c) => { const n = { ...c }; if (url) n[id] = url; else delete n[id]; return n; })}
           onSaved={(b) => { setEditing(null); setBooks((all) => all.map((x) => (x.id === b.id ? b : x)).sort((x, y) => x.title.localeCompare(y.title, "pt-BR"))); }} />
       )}
       {physical && (
@@ -403,7 +409,56 @@ function splitTitle(title: string): { title: string; author: string } | null {
   return { title: m[1].trim(), author };
 }
 
-function EditBookModal({ book, onClose, onSaved }: { book: Book; onClose: () => void; onSaved: (b: Book) => void }) {
+function EditBookModal({ book, coverUrl, onClose, onSaved, onCover }: {
+  book: Book; coverUrl?: string; onClose: () => void; onSaved: (b: Book) => void; onCover: (id: string, url: string | null) => void;
+}) {
+  const [coverPath, setCoverPath] = useState(book.cover_path ?? null);
+  const [preview, setPreview] = useState<string | undefined>(coverUrl);
+  const [coverBusy, setCoverBusy] = useState<string | null>(null);
+  const coverInput = useRef<HTMLInputElement>(null);
+  const [link, setLink] = useState("");
+
+  async function applyLink(value: string) {
+    setCoverBusy("Buscando a imagem…");
+    setErr(null);
+    try {
+      const r = await setCoverFromLink({ id: book.id, cover_path: coverPath }, value);
+      setCoverPath(r.path);
+      setPreview(r.url);
+      onCover(book.id, r.url);
+      setLink("");
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setCoverBusy(null);
+    }
+  }
+
+  async function applyCover(img: Blob | null, how: string) {
+    if (!img) { setErr(how === "epub" ? "Este EPUB não tem capa embutida." : "Imagem inválida."); return; }
+    setCoverBusy("Salvando capa…");
+    setErr(null);
+    try {
+      const path = await setCover({ id: book.id, cover_path: coverPath }, img);
+      setCoverPath(path);
+      const url = URL.createObjectURL(img);
+      setPreview(url);
+      onCover(book.id, url);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setCoverBusy(null);
+    }
+  }
+
+  function onPaste(e: React.ClipboardEvent) {
+    const item = [...e.clipboardData.items].find((i) => i.type.startsWith("image/"));
+    if (item) { e.preventDefault(); void applyCover(item.getAsFile(), "colar"); return; }
+    const text = e.clipboardData.getData("text").trim();
+    const inField = (e.target as HTMLElement).closest("input[name=titulo],input[name=autor]");
+    if (!inField && /^https?:\/\/\S+$/.test(text)) { e.preventDefault(); setLink(text); void applyLink(text); }
+  }
+
   const [title, setTitle] = useState(book.title);
   const [author, setAuthor] = useState(book.author ?? "");
   const [pages, setPages] = useState(book.total_pages ? String(book.total_pages) : "");
@@ -430,18 +485,46 @@ function EditBookModal({ book, onClose, onSaved }: { book: Book; onClose: () => 
     }
     const { error } = await supabase().from("books").update(patch).eq("id", book.id);
     if (error) { setErr(error.message); setBusy(false); return; }
-    onSaved({ ...book, ...patch });
+    onSaved({ ...book, ...patch, cover_path: coverPath });
   }
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
-      <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3">
+      <form onSubmit={save} onPaste={onPaste} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3 max-h-[92vh] overflow-y-auto">
         <div className="flex justify-between items-center">
           <h2 className="font-semibold">Editar livro</h2>
           <button type="button" onClick={onClose}><X size={18} /></button>
         </div>
+        <div className="flex gap-4 items-start">
+          <Cover book={book} url={preview} className="w-24 h-36" />
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="label">Capa</span>
+            <button type="button" className="btn text-xs py-1" onClick={() => coverInput.current?.click()} disabled={!!coverBusy}>
+              <Upload size={13} /> Enviar imagem
+            </button>
+            {book.format === "epub" && (
+              <button type="button" className="btn text-xs py-1" disabled={!!coverBusy}
+                onClick={async () => { setCoverBusy("Lendo o EPUB…"); try { await applyCover(await epubCover(await downloadBook(book)), "epub"); } finally { setCoverBusy(null); } }}>
+                Usar a capa do EPUB
+              </button>
+            )}
+            {coverPath && (
+              <button type="button" className="btn btn-ghost text-xs py-1 hover:text-critical" disabled={!!coverBusy}
+                onClick={async () => { await removeCover({ id: book.id, cover_path: coverPath }); setCoverPath(null); setPreview(undefined); onCover(book.id, null); }}>
+                <Trash2 size={13} /> Remover capa
+              </button>
+            )}
+            <div className="flex gap-1 mt-1">
+              <input className="input text-xs py-1" placeholder="ou cole o link da imagem" value={link} onChange={(e) => setLink(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (link.trim()) void applyLink(link); } }} />
+              <button type="button" className="btn text-xs py-1 whitespace-nowrap" disabled={!link.trim() || !!coverBusy} onClick={() => applyLink(link)}>Usar link</button>
+            </div>
+            <span className="text-xs text-muted">{coverBusy ?? "também dá para colar uma imagem copiada (Ctrl+V)"}</span>
+            <input ref={coverInput} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void applyCover(f, "arquivo"); e.target.value = ""; }} />
+          </div>
+        </div>
         <label className="block space-y-1"><span className="label">Título</span>
-          <input className="input" required autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input className="input" name="titulo" required autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
         </label>
         {suggestion && (
           <button type="button" className="text-xs text-accent text-left"
@@ -450,7 +533,7 @@ function EditBookModal({ book, onClose, onSaved }: { book: Book; onClose: () => 
           </button>
         )}
         <label className="block space-y-1"><span className="label">Autor</span>
-          <input className="input" value={author} placeholder="Autor desconhecido" onChange={(e) => setAuthor(e.target.value)} />
+          <input className="input" name="autor" value={author} placeholder="Autor desconhecido" onChange={(e) => setAuthor(e.target.value)} />
         </label>
         {physical && (
           <div className="grid grid-cols-3 gap-3">
