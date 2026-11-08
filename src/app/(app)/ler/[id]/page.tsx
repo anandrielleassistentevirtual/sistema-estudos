@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Download, Highlighter, Layers, ListTree, Trash2, Type, X } from "lucide-react";
 import { EpubReader } from "@/components/reader/epub-reader";
 import { TextReader } from "@/components/reader/text-reader";
-import { HL_COLORS, ReaderHandle, ReaderPrefs, THEMES, TocItem } from "@/components/reader/types";
+import { DEFAULT_PREFS, FONTS, HL_COLORS, ReaderFont, ReaderHandle, ReaderPrefs, THEMES, TocItem } from "@/components/reader/types";
 import { downloadBook, saveBookFile } from "@/lib/books";
 import { fmtClock, nf } from "@/lib/dates";
 import { addBasicNote } from "@/lib/anki";
@@ -14,8 +14,8 @@ import { supabase } from "@/lib/supabase/client";
 import type { Annotation, Book } from "@/lib/types";
 import { useTimer } from "@/components/timer-context";
 
-const PREFS_KEY = "leitor-prefs";
-const defaultPrefs: ReaderPrefs = { theme: "claro", fontSize: 105, serif: true };
+const PREFS_KEY = "leitor-prefs-v2";
+const defaultPrefs: ReaderPrefs = DEFAULT_PREFS;
 
 export default function Ler() {
   const { id } = useParams<{ id: string }>();
@@ -234,17 +234,47 @@ export default function Ler() {
               </div>
             </div>
             <div>
-              <div className="label mb-2">Tamanho da letra · {prefs.fontSize}%</div>
-              <input type="range" min={80} max={160} step={5} value={prefs.fontSize} className="w-full"
-                onChange={(e) => setPrefs({ ...prefs, fontSize: Number(e.target.value) })} />
-            </div>
-            <div>
               <div className="label mb-2">Fonte</div>
-              <div className="flex gap-2">
-                <button className={`btn flex-1 justify-center ${prefs.serif ? "border-accent" : ""}`} style={{ fontFamily: "Literata, serif" }} onClick={() => setPrefs({ ...prefs, serif: true })}>Literata</button>
-                <button className={`btn flex-1 justify-center ${!prefs.serif ? "border-accent" : ""}`} onClick={() => setPrefs({ ...prefs, serif: false })}>Inter</button>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(Object.keys(FONTS) as ReaderFont[]).map((f) => (
+                  <button key={f} onClick={() => setPrefs({ ...prefs, font: f })}
+                    className={`btn justify-center text-xs px-1 ${prefs.font === f ? "border-accent ring-2 ring-accent-soft" : ""}`}
+                    style={{ fontFamily: FONTS[f].css }}>
+                    {f === "times" ? "Times" : FONTS[f].label}
+                  </button>
+                ))}
               </div>
             </div>
+            <div>
+              <div className="label mb-2 flex justify-between"><span>Tamanho</span><span className="normal-case">{prefs.sizePt} pt</span></div>
+              <div className="flex items-center gap-2">
+                <button className="btn px-2.5" onClick={() => setPrefs({ ...prefs, sizePt: Math.max(9, prefs.sizePt - 1) })}>A−</button>
+                <input type="range" min={9} max={22} step={1} value={prefs.sizePt} className="flex-1"
+                  onChange={(e) => setPrefs({ ...prefs, sizePt: Number(e.target.value) })} />
+                <button className="btn px-2.5" onClick={() => setPrefs({ ...prefs, sizePt: Math.min(22, prefs.sizePt + 1) })}>A+</button>
+              </div>
+            </div>
+            <div>
+              <div className="label mb-2">Espaçamento entre linhas</div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[1, 1.15, 1.5, 2].map((lh) => (
+                  <button key={lh} onClick={() => setPrefs({ ...prefs, lineHeight: lh })}
+                    className={`btn justify-center text-xs px-1 ${prefs.lineHeight === lh ? "border-accent ring-2 ring-accent-soft" : ""}`}>
+                    {String(lh).replace(".", ",")}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="label mb-2">Alinhamento</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button className={`btn justify-center text-xs ${prefs.justify ? "border-accent ring-2 ring-accent-soft" : ""}`} onClick={() => setPrefs({ ...prefs, justify: true })}>Justificado</button>
+                <button className={`btn justify-center text-xs ${!prefs.justify ? "border-accent ring-2 ring-accent-soft" : ""}`} onClick={() => setPrefs({ ...prefs, justify: false })}>À esquerda</button>
+              </div>
+            </div>
+            <button className="text-xs text-accent" onClick={() => setPrefs({ ...DEFAULT_PREFS, theme: prefs.theme })}>
+              Voltar ao padrão (Times 12, justificado, 1,5)
+            </button>
             <p className="text-xs text-muted">Use ← e → do teclado ou toque nas bordas para virar a página.</p>
           </div>
         )}

@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { countWords } from "@/lib/text";
-import { HL_COLORS, ReaderHandle, ReaderProps, THEMES } from "./types";
+import { FONTS, HL_COLORS, ReaderHandle, ReaderProps, THEMES } from "./types";
 
 type Pos = { index: number; page: number; total: number };
 
@@ -34,7 +34,7 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
       rendition.current = r;
       for (const [k, t] of Object.entries(THEMES)) {
         r.themes.register(k, {
-          body: { background: `${t.bg} !important`, color: `${t.fg} !important`, "line-height": "1.65 !important" },
+          body: { background: `${t.bg} !important`, color: `${t.fg} !important` },
           "p, li, blockquote, span, div": { color: `${t.fg} !important` },
           a: { color: "#3987e5 !important" },
           "::selection": { background: "rgba(57,135,229,0.3)" },
@@ -130,9 +130,19 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
   function applyPrefs() {
     const r = rendition.current;
     if (!r) return;
-    r.themes.select(cb.current.prefs.theme);
-    r.themes.fontSize(`${cb.current.prefs.fontSize}%`);
-    r.themes.override("font-family", cb.current.prefs.serif ? "Literata, Georgia, serif" : "Inter, system-ui, sans-serif");
+    const p = cb.current.prefs;
+    r.themes.select(p.theme);
+    r.themes.fontSize(`${p.sizePt}pt`);
+    r.themes.default({
+      "body, p, div, li, blockquote, span, td": {
+        "font-family": `${FONTS[p.font].css} !important`,
+        "line-height": `${p.lineHeight} !important`,
+      },
+      "p, div, li, blockquote": {
+        "text-align": `${p.justify ? "justify" : "left"} !important`,
+        hyphens: "auto",
+      },
+    });
   }
   useEffect(applyPrefs, [props.prefs]);
 

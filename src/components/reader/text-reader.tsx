@@ -3,7 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { countWords } from "@/lib/text";
-import { ReaderHandle, ReaderProps, THEMES, TocItem } from "./types";
+import { FONTS, ReaderHandle, ReaderProps, THEMES, TocItem } from "./types";
 
 const WORDS_PER_PAGE = 320;
 
@@ -122,14 +122,27 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     <div ref={box} className="w-full h-full overflow-y-auto" style={{ background: t.bg, color: t.fg }} onMouseUp={onMouseUp} onTouchEnd={onMouseUp}>
       <article
         className="reading-page prose-notes mx-auto max-w-[68ch] px-6 py-10"
-        style={{ fontSize: `${(props.prefs.fontSize / 100) * 1.12}rem`, lineHeight: 1.75, fontFamily: props.prefs.serif ? undefined : "var(--font-sans)" }}
+        style={{
+          fontSize: `${props.prefs.sizePt}pt`,
+          lineHeight: props.prefs.lineHeight,
+          fontFamily: FONTS[props.prefs.font].css,
+          textAlign: props.prefs.justify ? "justify" : "left",
+          hyphens: "auto",
+        }}
       >
         {!current ? (
           <p className="opacity-60">Carregando…</p>
         ) : props.format === "md" ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{current.text}</ReactMarkdown>
         ) : (
-          current.text.split("\n\n").map((p, i) => <p key={i} dangerouslySetInnerHTML={{ __html: highlight(escape(p), marks.map(escape)) }} />)
+          current.text.split("\n\n").map((p, i) => {
+            const h = p.match(/^(#{1,3})\s+(.+?)\s*#*$/);
+            if (h) {
+              const Tag = (["h1", "h2", "h3"] as const)[h[1].length - 1];
+              return <Tag key={i} style={{ textAlign: "left" }}>{h[2]}</Tag>;
+            }
+            return <p key={i} dangerouslySetInnerHTML={{ __html: highlight(escape(p), marks.map(escape)) }} />;
+          })
         )}
         {current && (
           <div className="flex justify-between items-center mt-10 text-sm opacity-70 font-sans">

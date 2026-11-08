@@ -2,11 +2,23 @@ import type { Annotation } from "@/lib/types";
 
 export type ReaderTheme = "claro" | "sepia" | "escuro";
 
+export type ReaderFont = "times" | "literata" | "inter";
+
 export interface ReaderPrefs {
   theme: ReaderTheme;
-  fontSize: number; // %
-  serif: boolean;
+  font: ReaderFont;
+  sizePt: number; // tamanho em pontos (12 = padrão de documento)
+  justify: boolean;
+  lineHeight: number; // 1, 1.15, 1.5, 2
 }
+
+export const DEFAULT_PREFS: ReaderPrefs = { theme: "claro", font: "times", sizePt: 12, justify: true, lineHeight: 1.5 };
+
+export const FONTS: Record<ReaderFont, { label: string; css: string }> = {
+  times: { label: "Times New Roman", css: '"Times New Roman", Tinos, Times, "Liberation Serif", serif' },
+  literata: { label: "Literata", css: "Literata, Georgia, serif" },
+  inter: { label: "Inter", css: "Inter, system-ui, sans-serif" },
+};
 
 export const THEMES: Record<ReaderTheme, { bg: string; fg: string; label: string }> = {
   claro: { bg: "#fcfcfb", fg: "#1d1c1a", label: "Claro" },

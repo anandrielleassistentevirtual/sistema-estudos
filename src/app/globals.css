@@ -173,5 +173,5 @@ body {
 .prose-notes mark { background: var(--hl); color: inherit; border-radius: 2px; }
 
 .reading-page { font-family: var(--font-serif); }
-.reading-page p { margin: 0 0 1.05em; text-indent: 0; }
+.reading-page p { margin: 0 0 0.8em; text-indent: 0; line-height: inherit; text-align: inherit; }
 }
