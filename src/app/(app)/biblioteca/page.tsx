@@ -29,6 +29,7 @@ export default function Biblioteca() {
   const fileRef = useRef<HTMLInputElement>(null);
   const timer = useTimer();
   const [physical, setPhysical] = useState(false);
+  const [editing, setEditing] = useState<Book | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (toast) { const x = setTimeout(() => setToast(null), 3000); return () => clearTimeout(x); } }, [toast]);
 
@@ -303,6 +304,7 @@ export default function Biblioteca() {
                     ) : (
                       <Link className="btn btn-ghost px-2" href={`/ler/${b.id}`} title="Ler"><BookOpen size={15} /></Link>
                     )}
+                    <button className="btn btn-ghost px-2" title="Editar título e autor" onClick={() => setEditing(b)}><Pencil size={15} /></button>
                     <button className="btn btn-ghost px-2" title={b.queue_position ? "Já está na fila" : "Adicionar à fila"} disabled={!!b.queue_position}
                       onClick={async () => { const p = await enqueue(b); setBooks((all) => all.map((x) => (x.id === b.id ? { ...x, queue_position: p } : x))); }}>
                       <ListOrdered size={15} />
@@ -318,6 +320,10 @@ export default function Biblioteca() {
           )}
         </div>
       </div>
+      {editing && (
+        <EditBookModal book={editing} onClose={() => setEditing(null)}
+          onSaved={(b) => { setEditing(null); setBooks((all) => all.map((x) => (x.id === b.id ? b : x)).sort((x, y) => x.title.localeCompare(y.title, "pt-BR"))); }} />
+      )}
       {physical && (
         <PhysicalModal folders={folders} folderId={currentFolderId} onClose={() => setPhysical(false)}
           onSaved={(b) => { setPhysical(false); setBooks((all) => [...all, b].sort((x, y) => x.title.localeCompare(y.title, "pt-BR"))); }} />
@@ -377,6 +383,88 @@ function PhysicalModal({ folders, folderId, onClose, onSaved }: { folders: F[]; 
             {folders.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
           </select>
         </label>
+        {err && <p className="text-sm text-critical">{err}</p>}
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" disabled={busy}>Salvar</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/** "Título - Sobrenome, Nome" → { título, "Nome Sobrenome" } */
+function splitTitle(title: string): { title: string; author: string } | null {
+  const m = title.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+  if (!m) return null;
+  let author = m[2].trim();
+  const inv = author.match(/^([^,]+),\s*(.+)$/);
+  if (inv) author = `${inv[2]} ${inv[1]}`;
+  return { title: m[1].trim(), author };
+}
+
+function EditBookModal({ book, onClose, onSaved }: { book: Book; onClose: () => void; onSaved: (b: Book) => void }) {
+  const [title, setTitle] = useState(book.title);
+  const [author, setAuthor] = useState(book.author ?? "");
+  const [pages, setPages] = useState(book.total_pages ? String(book.total_pages) : "");
+  const [current, setCurrent] = useState(book.current_page ? String(book.current_page) : "");
+  const [wpp, setWpp] = useState(String(book.words_per_page ?? 300));
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const suggestion = splitTitle(title);
+  const physical = book.format === "fisico";
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    const patch: Partial<Book> = { title: title.trim(), author: author.trim() || null };
+    if (physical) {
+      const total = Number(pages) || null;
+      const cur = Number(current) || null;
+      const w = Number(wpp) || 300;
+      Object.assign(patch, {
+        total_pages: total, current_page: cur, words_per_page: w,
+        word_count: total ? total * w : null,
+        progress: total && cur ? Math.min(1, cur / total) : 0,
+      });
+    }
+    const { error } = await supabase().from("books").update(patch).eq("id", book.id);
+    if (error) { setErr(error.message); setBusy(false); return; }
+    onSaved({ ...book, ...patch });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
+      <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3">
+        <div className="flex justify-between items-center">
+          <h2 className="font-semibold">Editar livro</h2>
+          <button type="button" onClick={onClose}><X size={18} /></button>
+        </div>
+        <label className="block space-y-1"><span className="label">Título</span>
+          <input className="input" required autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
+        </label>
+        {suggestion && (
+          <button type="button" className="text-xs text-accent text-left"
+            onClick={() => { setTitle(suggestion.title); if (!author.trim()) setAuthor(suggestion.author); }}>
+            Separar: título “{suggestion.title}” · autor “{suggestion.author}”
+          </button>
+        )}
+        <label className="block space-y-1"><span className="label">Autor</span>
+          <input className="input" value={author} placeholder="Autor desconhecido" onChange={(e) => setAuthor(e.target.value)} />
+        </label>
+        {physical && (
+          <div className="grid grid-cols-3 gap-3">
+            <label className="space-y-1"><span className="label">Páginas</span>
+              <input className="input" type="number" min={1} value={pages} onChange={(e) => setPages(e.target.value)} />
+            </label>
+            <label className="space-y-1"><span className="label">Estou na p.</span>
+              <input className="input" type="number" min={0} value={current} onChange={(e) => setCurrent(e.target.value)} />
+            </label>
+            <label className="space-y-1"><span className="label">Palavras/pág.</span>
+              <input className="input" type="number" min={50} max={1000} value={wpp} onChange={(e) => setWpp(e.target.value)} />
+            </label>
+          </div>
+        )}
         {err && <p className="text-sm text-critical">{err}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" className="btn" onClick={onClose}>Cancelar</button>
