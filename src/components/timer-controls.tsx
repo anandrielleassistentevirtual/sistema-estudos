@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { BookOpen, Pause, Play, RotateCcw, Square } from "lucide-react";
 import { CATEGORIAS, useTimer } from "./timer-context";
 import { fmtClock } from "@/lib/dates";
@@ -15,6 +16,15 @@ interface NoteOpt { id: string; title: string; professor: string; course: string
 /** Controles do timer (usados na tela Timer e no timer flutuante). */
 export function TimerControls({ compact = false }: { compact?: boolean }) {
   const t = useTimer();
+  const router = useRouter();
+
+  /** Leva ao lugar de estudo em modo foco (menu e lista recolhidos) e liga o timer. */
+  function goFocus(path: string | null) {
+    try { localStorage.setItem("menu-oculto", "1"); localStorage.setItem("lista-oculta", "1"); } catch {}
+    window.dispatchEvent(new CustomEvent("modo-foco", { detail: { oculto: true } }));
+    if (!t.running) t.start();
+    if (path) router.push(path);
+  }
   const [books, setBooks] = useState<BookOpt[]>([]);
   const [notes, setNotes] = useState<NoteOpt[]>([]);
   const [langs, setLangs] = useState<Language[]>([]);
@@ -101,6 +111,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
               onChange={(id) => {
                 const b = books.find((x) => x.id === id);
                 t.set({ bookId: b?.id ?? "", bookTitle: b ? bookName(b) : "", bookPhysical: b?.format === "fisico" });
+                if (b) goFocus(b.format === "fisico" ? null : `/ler/${b.id}`);
               }}
             />
             {book && book.format !== "fisico" && (
@@ -124,6 +135,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
               onChange={(id) => {
                 const n = notes.find((x) => x.id === id);
                 t.set({ noteId: n?.id ?? "", noteTitle: n?.title ?? "" });
+                if (n) goFocus(`/estudos?id=${n.id}`);
               }}
             />
             {notes.length === 0 && <span className="text-xs text-muted">Suas transcrições aparecem aqui (menu Estudos).</span>}

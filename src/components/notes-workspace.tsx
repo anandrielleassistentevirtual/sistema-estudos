@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ChevronDown, ChevronRight, Download, Eye, FileText, Folder, FolderUp, Link as LinkIcon, Pencil, Plus, Search, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Eye, FileText, Folder, FolderUp, Link as LinkIcon, Pencil, Plus, Search, Trash2, Upload, X, ZoomIn, ZoomOut, PanelLeftClose, PanelLeftOpen, CircleCheck, Circle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { countWords, slug, wikilinks } from "@/lib/text";
 import { nf } from "@/lib/dates";
@@ -48,6 +48,22 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
   const [preview, setPreview] = useState<null | { files: File[]; level: 0 | 1 }>(null);
   const [importing, setImporting] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
+  // lista recolhível (também pelo modo foco: Ctrl + \)
+  const [listHidden, setListHidden] = useState(false);
+  useEffect(() => { try { setListHidden(localStorage.getItem("lista-oculta") === "1"); } catch {} }, []);
+  useEffect(() => { try { localStorage.setItem("lista-oculta", listHidden ? "1" : "0"); } catch {} }, [listHidden]);
+  useEffect(() => {
+    const f = (e: Event) => setListHidden((e as CustomEvent<{ oculto: boolean }>).detail.oculto);
+    window.addEventListener("modo-foco", f);
+    return () => window.removeEventListener("modo-foco", f);
+  }, []);
+
+  async function toggleDone(n: Note) {
+    const completed_at = n.completed_at ? null : new Date().toISOString();
+    setNotes((all) => all.map((x) => (x.id === n.id ? { ...x, completed_at } : x)));
+    setCurrent((c) => (c?.id === n.id ? { ...c, completed_at } : c));
+    await supabase().from("notes").update({ completed_at }).eq("id", n.id);
+  }
 
   async function rename(n: Note, value: string) {
     setRenaming(null);
@@ -274,11 +290,16 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)] md:h-screen">
     {tabs && <div className="px-4 md:px-6 pt-3 shrink-0">{tabs}</div>}
-    <div className="grid md:grid-cols-[280px_1fr] flex-1 min-h-0">
-      <aside className="border-r border-line flex flex-col min-h-0 bg-bg">
+    <div className={`grid flex-1 min-h-0 ${listHidden ? "" : "md:grid-cols-[280px_1fr]"}`}>
+      <aside className={`border-r border-line flex-col min-h-0 bg-bg ${listHidden ? "hidden" : "flex"}`}>
         <div className="p-3 space-y-2 border-b border-line">
           <div className="flex items-center justify-between">
-            <h1 className="font-semibold">{isStudy ? "Estudos" : isAtomic ? "Notas atômicas" : "Notas"}</h1>
+            <h1 className="font-semibold flex items-center gap-1">
+              <button className="p-1 -ml-1 text-faint hover:text-ink rounded-md hover:bg-surface-2" title="Recolher a lista (Ctrl + \)" onClick={() => setListHidden(true)}>
+                <PanelLeftClose size={16} />
+              </button>
+              {isStudy ? "Estudos" : isAtomic ? "Notas atômicas" : "Notas"}
+            </h1>
             <div className="flex gap-0.5">
               {isStudy && (
                 <button className="btn btn-ghost px-2" title="Importar a pasta de um curso (ou a pasta com todos os cursos)" onClick={() => folderRef.current?.click()}><FolderUp size={15} /></button>
@@ -314,6 +335,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                   onClick={() => setCollapsed((c) => { const x = new Set(c); if (x.has(g)) x.delete(g); else x.add(g); return x; })}>
                   {collapsed.has(g) ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                   <Folder size={13} /> <span className="truncate">{g}</span>
+                  {isStudy && <span className="ml-auto pl-1 normal-case font-normal tabular-nums text-faint">{list.filter((x) => x.completed_at).length}/{list.length}</span>}
                 </button>
               )}
               {!collapsed.has(g) &&
@@ -330,8 +352,10 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                     <div key={n.id} className={`group/item flex items-center rounded-md ${current?.id === n.id ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
                       <button onClick={() => setCurrent(n)} onDoubleClick={() => setRenaming({ id: n.id, value: n.title })}
                         className={`flex items-center gap-2 flex-1 min-w-0 text-left px-2 py-1.5 text-sm ${g ? "pl-5" : ""}`} title="Dois cliques para renomear">
-                        <FileText size={14} className="text-faint shrink-0" />
-                        <span className="truncate">{n.title}</span>
+                        {isStudy && n.completed_at
+                          ? <CircleCheck size={14} className="text-good shrink-0" />
+                          : <FileText size={14} className="text-faint shrink-0" />}
+                        <span className={`truncate ${isStudy && n.completed_at ? "text-muted" : ""}`}>{n.title}</span>
                       </button>
                       <button className="p-1.5 mr-1 text-faint hover:text-accent opacity-60 group-hover/item:opacity-100" title="Renomear"
                         onClick={() => setRenaming({ id: n.id, value: n.title })}>
@@ -352,6 +376,11 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
           <>
             <div className="border-b border-line px-4 md:px-6 py-3 space-y-2">
               <div className="flex items-center gap-2">
+                {listHidden && (
+                  <button className="btn btn-ghost px-2 shrink-0" title="Mostrar a lista (Ctrl + \)" onClick={() => setListHidden(false)}>
+                    <PanelLeftOpen size={16} />
+                  </button>
+                )}
                 <label className="group/titulo flex-1 min-w-0 flex items-center gap-1.5 rounded-md border border-line/60 hover:border-line focus-within:border-accent px-1.5 -mx-1.5 cursor-text"
                   title={isStudy ? "Clique para renomear a aula" : "Clique para renomear"}>
                   <input className="flex-1 bg-transparent text-xl font-semibold outline-none min-w-0 py-0.5" value={current.title}
@@ -359,6 +388,13 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                   <Pencil size={16} className="text-muted group-hover/titulo:text-accent shrink-0" />
                 </label>
                 <span className="text-xs text-faint hidden sm:inline">{saving === "salvo" ? "salvo" : "salvando…"}</span>
+                {isStudy && (
+                  <button onClick={() => toggleDone(current)} title={current.completed_at ? "Desmarcar (voltar a pendente)" : "Marcar a aula como concluída"}
+                    className={`btn text-xs py-1 shrink-0 ${current.completed_at ? "border-good text-good" : ""}`}>
+                    {current.completed_at ? <CircleCheck size={15} /> : <Circle size={15} />}
+                    <span className="hidden lg:inline">{current.completed_at ? "Concluída" : "Concluir aula"}</span>
+                  </button>
+                )}
                 {isStudy && view !== "editar" && (
                   <div className="flex items-center rounded-lg border border-line" title="Zoom da leitura (teclas + e −)">
                     <button className="p-1.5 text-muted hover:text-ink disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, -1))} disabled={zoom <= ZOOM[0]} aria-label="Diminuir"><ZoomOut size={15} /></button>

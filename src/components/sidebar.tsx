@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   GraduationCap, Languages, LayoutDashboard, Library,
-  LogOut, Menu, Moon, NotebookPen, Sun, Timer, X,
+  LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, NotebookPen, Sun, Timer, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useTimer } from "./timer-context";
@@ -45,15 +45,46 @@ export function Sidebar() {
   const timer = useTimer();
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [path]);
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    try { setHidden(localStorage.getItem("menu-oculto") === "1"); } catch {}
+  }, []);
+  useEffect(() => {
+    document.documentElement.dataset.menu = hidden ? "oculto" : "";
+    try { localStorage.setItem("menu-oculto", hidden ? "1" : "0"); } catch {}
+  }, [hidden]);
+  // Ctrl + \ : modo foco (esconde/mostra o menu e a lista de aulas/notas juntos)
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "\\") {
+        e.preventDefault();
+        setHidden((h) => {
+          window.dispatchEvent(new CustomEvent("modo-foco", { detail: { oculto: !h } }));
+          return !h;
+        });
+      }
+    };
+    document.addEventListener("keydown", k);
+    // o timer (ou outra tela) pode pedir o modo foco
+    const f = (e: Event) => setHidden((e as CustomEvent<{ oculto: boolean }>).detail.oculto);
+    window.addEventListener("modo-foco", f);
+    return () => { document.removeEventListener("keydown", k); window.removeEventListener("modo-foco", f); };
+  }, []);
 
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const showTimer = timer.running || timer.seconds > 0;
 
   const nav = (
     <nav className="flex flex-col h-full p-3 gap-0.5">
-      <div className="px-3 pt-2 pb-4">
-        <div className="font-semibold tracking-tight">Sistema de Estudos</div>
-        <div className="text-xs text-faint">studium · lectio · memoria</div>
+      <div className="px-3 pt-2 pb-4 flex items-start justify-between gap-2">
+        <div>
+          <div className="font-semibold tracking-tight">Sistema de Estudos</div>
+          <div className="text-xs text-faint">studium · lectio · memoria</div>
+        </div>
+        <button className="hidden md:block p-1 -mr-1 text-faint hover:text-ink rounded-md hover:bg-surface-2" title="Recolher o menu (Ctrl + \)"
+          onClick={() => setHidden(true)}>
+          <PanelLeftClose size={17} />
+        </button>
       </div>
       {NAV.map(({ href, label, icon: Icon }) => (
         <Link
@@ -93,7 +124,13 @@ export function Sidebar() {
           {showTimer ? fmtClock(timer.mode === "pomodoro" ? timer.remaining : timer.seconds) : ""}
         </span>
       </header>
-      <aside className="hidden md:block fixed inset-y-0 left-0 w-60 border-r border-line bg-bg">{nav}</aside>
+      {!hidden && <aside className="hidden md:block fixed inset-y-0 left-0 w-60 border-r border-line bg-bg">{nav}</aside>}
+      {hidden && (
+        <button className="hidden md:flex fixed left-3 bottom-4 z-30 items-center gap-1.5 rounded-full border border-line bg-surface/90 backdrop-blur px-3 py-2 text-xs text-muted hover:text-ink shadow-sm"
+          title="Mostrar o menu (Ctrl + \)" onClick={() => setHidden(false)}>
+          <PanelLeftOpen size={15} /> Menu
+        </button>
+      )}
       {open && (
         <div className="md:hidden fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />

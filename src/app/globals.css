@@ -177,3 +177,11 @@ body {
 .reading-page h1, .reading-page h2, .reading-page h3 { text-align: left; line-height: 1.25; }
 .reading-page li { line-height: inherit; }
 }
+
+/* menu lateral: recolhível (html[data-menu="oculto"]) */
+@media (min-width: 768px) {
+  .app-main { padding-left: 15rem; }
+  .app-left { left: 15rem; }
+  html[data-menu="oculto"] .app-main { padding-left: 0; }
+  html[data-menu="oculto"] .app-left { left: 0; }
+}

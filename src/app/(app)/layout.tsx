@@ -6,7 +6,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <TimerProvider>
       <Sidebar />
-      <main className="md:pl-60 min-h-screen">{children}</main>
+      <main className="app-main min-h-screen">{children}</main>
       <FloatingTimer />
     </TimerProvider>
   );

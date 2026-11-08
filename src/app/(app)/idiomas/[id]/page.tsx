@@ -422,7 +422,7 @@ export default function LessonPage() {
       </p>
 
       {src && (
-        <div className="fixed bottom-0 inset-x-0 md:left-60 z-20 border-t border-line bg-surface/95 backdrop-blur">
+        <div className="fixed bottom-0 inset-x-0 app-left z-20 border-t border-line bg-surface/95 backdrop-blur">
           <div className="max-w-6xl mx-auto px-4 md:px-8 py-3 flex flex-wrap items-center gap-3">
             <audio ref={audio} src={src} preload="metadata" onTimeUpdate={onTime} onLoadedMetadata={(e) => { setDur(e.currentTarget.duration); e.currentTarget.playbackRate = rate; }}
               onPlay={() => { setPlaying(true); lastTick.current = performance.now(); }} onPause={() => { setPlaying(false); lastTick.current = null; }} onEnded={onEnded} />

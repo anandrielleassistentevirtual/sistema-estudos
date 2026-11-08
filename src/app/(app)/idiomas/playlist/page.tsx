@@ -131,7 +131,7 @@ export default function Playlist() {
         </div>
       )}
 
-      <div className="fixed bottom-0 inset-x-0 md:left-60 z-20 border-t border-line bg-surface/95 backdrop-blur">
+      <div className="fixed bottom-0 inset-x-0 app-left z-20 border-t border-line bg-surface/95 backdrop-blur">
         <div className="max-w-5xl mx-auto px-4 md:px-8 py-3 flex flex-wrap items-center gap-3">
           <audio ref={audio} src={src ?? undefined} onEnded={onEnded}
             onTimeUpdate={(e) => {

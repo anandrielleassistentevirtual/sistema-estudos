@@ -60,6 +60,7 @@ export interface Note {
   zid?: string | null;
   source_id?: string | null;
   concluded_at?: string | null;
+  completed_at?: string | null;
 }
 
 export interface Lesson {
