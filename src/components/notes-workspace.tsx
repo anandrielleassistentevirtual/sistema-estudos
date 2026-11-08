@@ -315,7 +315,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                         <FileText size={14} className="text-faint shrink-0" />
                         <span className="truncate">{n.title}</span>
                       </button>
-                      <button className="p-1 mr-1 text-faint hover:text-ink opacity-0 group-hover/item:opacity-100" title="Renomear"
+                      <button className="p-1.5 mr-1 text-faint hover:text-accent opacity-60 group-hover/item:opacity-100" title="Renomear"
                         onClick={() => setRenaming({ id: n.id, value: n.title })}>
                         <Pencil size={13} />
                       </button>
@@ -334,11 +334,11 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
           <>
             <div className="border-b border-line px-4 md:px-6 py-3 space-y-2">
               <div className="flex items-center gap-2">
-                <label className="group/titulo flex-1 min-w-0 flex items-center gap-1.5 rounded-md border border-transparent hover:border-line focus-within:border-accent px-1.5 -mx-1.5 cursor-text"
+                <label className="group/titulo flex-1 min-w-0 flex items-center gap-1.5 rounded-md border border-line/60 hover:border-line focus-within:border-accent px-1.5 -mx-1.5 cursor-text"
                   title={isStudy ? "Clique para renomear a aula" : "Clique para renomear"}>
                   <input className="flex-1 bg-transparent text-xl font-semibold outline-none min-w-0 py-0.5" value={current.title}
                     placeholder={isStudy ? "Nome da aula" : "Título"} onChange={(e) => patch({ title: e.target.value })} />
-                  <Pencil size={15} className="text-faint opacity-50 group-hover/titulo:opacity-100 shrink-0" />
+                  <Pencil size={16} className="text-muted group-hover/titulo:text-accent shrink-0" />
                 </label>
                 <span className="text-xs text-faint hidden sm:inline">{saving === "salvo" ? "salvo" : "salvando…"}</span>
                 <div className="inline-flex rounded-lg bg-surface-2 p-0.5">
