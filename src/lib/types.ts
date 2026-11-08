@@ -40,9 +40,11 @@ export interface Annotation {
   created_at: string;
 }
 
+export type NoteStatus = "a_tratar" | "em_tratamento" | "concluida";
+
 export interface Note {
   id: string;
-  kind: "nota" | "estudo";
+  kind: "nota" | "estudo" | "literaria" | "atomica";
   title: string;
   folder: string;
   content: string;
@@ -50,6 +52,14 @@ export interface Note {
   course: string;
   created_at: string;
   updated_at: string;
+  book_id?: string | null;
+  annotation_id?: string | null;
+  status?: NoteStatus | null;
+  quote?: string;
+  location?: string;
+  zid?: string | null;
+  source_id?: string | null;
+  concluded_at?: string | null;
 }
 
 export interface Lesson {

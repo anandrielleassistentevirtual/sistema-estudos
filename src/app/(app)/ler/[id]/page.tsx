@@ -13,6 +13,7 @@ import { ReadingTracker } from "@/lib/reading-tracker";
 import { supabase } from "@/lib/supabase/client";
 import type { Annotation, Book } from "@/lib/types";
 import { useTimer } from "@/components/timer-context";
+import { literaryFromHighlight } from "@/lib/zettel";
 
 const PREFS_KEY = "leitor-prefs-v2";
 const defaultPrefs: ReaderPrefs = DEFAULT_PREFS;
@@ -113,7 +114,17 @@ export default function Ler() {
       .insert({ book_id: id, location: sel.location, quote: sel.quote, note: selNote, color: selColor })
       .select()
       .single();
-    if (data) setAnns((a) => [...a, data as Annotation]);
+    if (data) {
+      setAnns((a) => [...a, data as Annotation]);
+      // todo destaque vira nota literária na Inbox do Zettelkasten
+      if (book) {
+        void literaryFromHighlight({
+          bookId: book.id, bookTitle: book.title, annotationId: (data as Annotation).id,
+          quote: sel.quote, note: selNote, location: sel.location,
+        });
+        setToast("Destaque salvo — e enviado para a Inbox das notas.");
+      }
+    }
     setSel(null);
     setSelNote("");
     window.getSelection()?.removeAllRanges();
@@ -304,7 +315,11 @@ export default function Ler() {
                   <div className="flex justify-end gap-1 mt-1.5">
                     <button className="btn btn-ghost text-xs px-2 py-1" onClick={() => toAnki(a)} title="Criar cartão no Anki"><Layers size={13} /> Anki</button>
                     <button className="btn btn-ghost text-xs px-2 py-1 hover:text-critical"
-                      onClick={async () => { setAnns((all) => all.filter((x) => x.id !== a.id)); await supabase().from("annotations").delete().eq("id", a.id); }}>
+                      onClick={async () => {
+                        setAnns((all) => all.filter((x) => x.id !== a.id));
+                        await supabase().from("notes").delete().eq("annotation_id", a.id).eq("status", "a_tratar");
+                        await supabase().from("annotations").delete().eq("id", a.id);
+                      }}>
                       <Trash2 size={13} />
                     </button>
                   </div>
