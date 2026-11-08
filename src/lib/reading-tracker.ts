@@ -20,7 +20,8 @@ export class ReadingTracker {
   public session = { seconds: 0, words: 0 };
   public onChange?: () => void;
 
-  constructor(private bookId: string, private timerOn: () => boolean = () => false) {
+  /** bookId para livros; para aulas (Estudos), bookId = null e noteId = id da aula. */
+  constructor(private bookId: string | null, private timerOn: () => boolean = () => false, private noteId: string | null = null) {
     this.timer = setInterval(() => void this.flush(), 20000);
     document.addEventListener("visibilitychange", this.onVis);
   }
@@ -62,7 +63,7 @@ export class ReadingTracker {
       this.saved = { seconds: 0, words: 0 };
       const { data } = await sb
         .from("reading_sessions")
-        .insert({ book_id: this.bookId, day: today, seconds: 0, words: 0, during_timer: withTimer })
+        .insert({ book_id: this.bookId, note_id: this.noteId, day: today, seconds: 0, words: 0, during_timer: withTimer })
         .select("id")
         .single();
       this.rowId = data?.id ?? null;

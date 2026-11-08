@@ -11,6 +11,7 @@ import { atomicTemplate, locationLabel, newZid } from "@/lib/zettel";
 import { bookName } from "@/lib/folders";
 import { stepZoom, useReaderPrefs, zoomOf, ZOOM } from "@/components/reader/prefs";
 import { FONTS, THEMES } from "@/components/reader/types";
+import { LessonReader } from "@/components/reader/lesson-reader";
 
 type Kind = Note["kind"];
 type View = "editar" | "ler" | "dividir";
@@ -57,6 +58,9 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     window.addEventListener("modo-foco", f);
     return () => window.removeEventListener("modo-foco", f);
   }, []);
+
+  const [lessonProgress, setLessonProgress] = useState(0);
+  useEffect(() => setLessonProgress(0), [current?.id]);
 
   async function toggleDone(n: Note) {
     const completed_at = n.completed_at ? null : new Date().toISOString();
@@ -390,7 +394,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                 <span className="text-xs text-faint hidden sm:inline">{saving === "salvo" ? "salvo" : "salvando…"}</span>
                 {isStudy && (
                   <button onClick={() => toggleDone(current)} title={current.completed_at ? "Desmarcar (voltar a pendente)" : "Marcar a aula como concluída"}
-                    className={`btn text-xs py-1 shrink-0 ${current.completed_at ? "border-good text-good" : ""}`}>
+                    className={`btn text-xs py-1 shrink-0 ${current.completed_at ? "border-good text-good" : lessonProgress >= 0.97 ? "btn-primary" : ""}`}>
                     {current.completed_at ? <CircleCheck size={15} /> : <Circle size={15} />}
                     <span className="hidden lg:inline">{current.completed_at ? "Concluída" : "Concluir aula"}</span>
                   </button>
@@ -444,7 +448,9 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                   spellCheck
                 />
               )}
-              {view !== "editar" && (
+              {isStudy && view === "ler" ? (
+                <LessonReader key={current.id} note={current} prefs={prefs} onProgress={setLessonProgress} />
+              ) : view !== "editar" && (
                 <div className="overflow-y-auto p-4 md:p-8"
                   style={isStudy ? { background: THEMES[prefs.theme].bg, color: THEMES[prefs.theme].fg } : undefined}>
                   <article

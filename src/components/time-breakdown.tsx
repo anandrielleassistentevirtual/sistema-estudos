@@ -11,7 +11,7 @@ const PERIODS: { id: Period; label: string }[] = [
 ];
 
 interface Sess { day: string; seconds: number; category: string; language: string | null; note_id: string | null; label: string }
-interface Read { day: string; seconds: number; during_timer: boolean }
+interface Read { day: string; seconds: number; during_timer: boolean; note_id: string | null }
 
 /** "Onde está indo seu tempo": Leitura, cada idioma, cada curso, outras categorias. */
 export function TimeBreakdown() {
@@ -26,7 +26,7 @@ export function TimeBreakdown() {
     const sb = supabase();
     void Promise.all([
       sb.from("study_sessions").select("day,seconds,category,language,note_id,label").gte("day", from).limit(50000),
-      sb.from("reading_sessions").select("day,seconds,during_timer").gte("day", from).limit(50000),
+      sb.from("reading_sessions").select("day,seconds,during_timer,note_id").gte("day", from).limit(50000),
       sb.from("notes").select("id,course").eq("kind", "estudo"),
     ]).then(([s, r, n]) => {
       setSessions((s.data as Sess[]) ?? []);
@@ -54,7 +54,13 @@ export function TimeBreakdown() {
       else add(`cat:${s.category}`, s.category, "Outros", s.seconds);
     }
     // leitura medida no leitor sem o timer ligado (com o timer, já entrou acima)
-    for (const r of reading) if (r.day >= from && !r.during_timer) add("leitura", "Leitura", "Leitura", r.seconds);
+    for (const r of reading) {
+      if (r.day < from || r.during_timer) continue;
+      if (r.note_id) {
+        const course = courseOf.get(r.note_id);
+        add(`curso:${course ?? ""}`, course || "Estudos (sem curso)", "Curso", r.seconds);
+      } else add("leitura", "Leitura", "Leitura", r.seconds);
+    }
     return [...m.entries()].map(([key, v]) => ({ key, ...v })).filter((r) => r.seconds >= 60).sort((a, b) => b.seconds - a.seconds);
   }, [sessions, reading, courseOf, period]);
 
