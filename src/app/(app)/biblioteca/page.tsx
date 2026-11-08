@@ -12,6 +12,7 @@ import { Cover } from "@/components/cover";
 import { coverUrls, epubCover, removeCover, setCover, setCoverFromLink } from "@/lib/covers";
 import { downloadBook } from "@/lib/books";
 import { callNumbers, cddCompare, flatTree, folderLabel, shelfOrder } from "@/lib/folders";
+import { FolderSelect } from "@/components/folder-select";
 import { fmtDuration, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { Book, BookStatus, Folder as F, STATUS_LABEL } from "@/lib/types";
@@ -179,7 +180,7 @@ export default function Biblioteca() {
               <div
                 className={`group flex items-center gap-1 rounded-md pr-1 text-sm cursor-pointer ${sel === f.id ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}
                 style={{ paddingLeft: 4 + depth * 14 }}
-                onClick={() => setSel(f.id)}
+                onClick={() => { setSel(f.id); if (kids) setOpen((o) => new Set(o).add(f.id)); }}
               >
                 <button
                   className={`p-0.5 text-faint ${kids ? "" : "invisible"}`}
@@ -189,7 +190,8 @@ export default function Biblioteca() {
                 </button>
                 {sel === f.id ? <FolderOpen size={15} className="text-accent" /> : <Folder size={15} className="text-muted" />}
                 <span className="truncate flex-1 py-1.5" title={folderLabel(f)}>
-                  {f.code && <span className="font-mono text-[11px] text-faint mr-1.5">{f.code}</span>}{f.name}
+                  {f.code && <span className={`font-mono text-xs mr-1 ${depth === 0 ? "font-semibold text-ink" : "text-muted"}`}>{f.code} –</span>}
+                  <span className={depth === 0 ? "font-medium" : ""}>{f.name}</span>
                 </span>
                 {n > 0 && <span className="text-xs text-faint tabular-nums group-hover:hidden">{n}</span>}
                 <button className="hidden group-hover:block p-0.5 text-faint hover:text-accent" title="Nova subpasta aqui"
@@ -225,7 +227,7 @@ export default function Biblioteca() {
         </>
       }
     >
-      <div className="grid md:grid-cols-[240px_1fr] gap-4">
+      <div className="grid md:grid-cols-[300px_1fr] gap-4">
         <aside className="card p-2 h-fit md:sticky md:top-4">
           {(["todos", "sem-pasta"] as const).map((k) => (
             <div key={k} onClick={() => setSel(k)}
@@ -274,8 +276,8 @@ export default function Biblioteca() {
                     className="card p-4 text-left hover:border-accent transition-colors">
                     <div className="flex items-center gap-2">
                       <Folder size={16} className="text-accent shrink-0" />
-                      {f.code && <span className="font-mono text-xs text-muted">{f.code}</span>}
-                      <span className="font-medium truncate">{f.name}</span>
+                      {f.code && <span className="font-mono text-sm font-semibold whitespace-nowrap shrink-0">{f.code} –</span>}
+                      <span className="font-medium truncate min-w-0">{f.name}</span>
                     </div>
                     <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden">
                       <div className="h-full bg-accent" style={{ width: `${pct * 100}%` }} />
@@ -317,7 +319,7 @@ export default function Biblioteca() {
               {visible.map((b) => (
                 <div key={b.id} className="p-3 flex flex-wrap items-center gap-3">
                   <Link href={b.format === "fisico" ? "#" : `/ler/${b.id}`} onClick={(e) => { if (b.format === "fisico") { e.preventDefault(); readPhysical(b); } }}
-                    className="flex items-center gap-3 min-w-0 flex-1">
+                    className="flex items-center gap-3 min-w-0 basis-full 2xl:basis-0 2xl:flex-1">
                     <Cover book={b} url={covers[b.id]} className="w-10 h-14" />
                     <span className="min-w-0">
                       <span className="block truncate" title={`${b.author ?? "Autor desconhecido"} — ${b.title}`}>
@@ -348,14 +350,13 @@ export default function Biblioteca() {
                       </span>
                     </span>
                   </Link>
+                  <span className="hidden sm:block w-[52px] 2xl:hidden" />
                   <select className="input w-auto text-xs py-1" value={b.status} onChange={(e) => update(b, { status: e.target.value as BookStatus })}>
                     {STATUS.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
                   </select>
-                  <select className="input w-auto text-xs py-1 max-w-[150px]" value={b.folder_id ?? ""} title="Pasta (CDD)" onChange={(e) => update(b, { folder_id: e.target.value || null })}>
-                    <option value="">Sem pasta</option>
-                    {tree.map(({ folder: f, depth }) => <option key={f.id} value={f.id}>{"\u00a0\u00a0".repeat(depth)}{folderLabel(f)}</option>)}
-                  </select>
-                  <div className="flex gap-1">
+                  <FolderSelect folders={folders} value={b.folder_id ?? ""} className="input w-auto text-xs py-1 max-w-[170px]" title="Pasta (CDD)"
+                    onChange={(id) => update(b, { folder_id: id || null })} />
+                  <div className="flex gap-1 ml-auto">
                     {sel === b.folder_id && (
                       <>
                         <button className="btn btn-ghost px-1.5" title="Subir na estante" disabled={calls[b.id]?.n === 1} onClick={() => move(b, -1)}><ArrowUp size={14} /></button>
@@ -452,10 +453,7 @@ function PhysicalModal({ folders, folderId, onClose, onSaved }: { folders: F[]; 
           3 linhas, divida por 3 e multiplique pelo número de linhas da página.
         </p>
         <label className="block space-y-1"><span className="label">Pasta</span>
-          <select className="input" value={f.folder_id} onChange={(e) => setF({ ...f, folder_id: e.target.value })}>
-            <option value="">Sem pasta</option>
-            {flatTree(folders).map(({ folder: x, depth }) => <option key={x.id} value={x.id}>{"\u00a0\u00a0".repeat(depth)}{folderLabel(x)}</option>)}
-          </select>
+          <FolderSelect folders={folders} value={f.folder_id} onChange={(id) => setF({ ...f, folder_id: id })} />
         </label>
         {err && <p className="text-sm text-critical">{err}</p>}
         <div className="flex justify-end gap-2">
@@ -668,12 +666,7 @@ function FolderModal({ folders, edit, parentId, onClose, onSaved }: {
           <button type="button" onClick={onClose}><X size={18} /></button>
         </div>
         <label className="block space-y-1"><span className="label">Dentro de</span>
-          <select className="input" value={parent} onChange={(e) => setParent(e.target.value)}>
-            <option value="">— pasta principal —</option>
-            {flatTree(folders).filter(({ folder }) => !blocked.has(folder.id)).map(({ folder: f, depth }) => (
-              <option key={f.id} value={f.id}>{"\u00a0\u00a0".repeat(depth)}{folderLabel(f)}</option>
-            ))}
-          </select>
+          <FolderSelect folders={folders} value={parent} onChange={setParent} exclude={blocked} emptyLabel="— pasta principal (nova classe) —" />
         </label>
         <div className="grid grid-cols-[110px_1fr] gap-3">
           <label className="space-y-1"><span className="label">Código CDD</span>
