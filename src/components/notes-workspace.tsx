@@ -2,13 +2,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ChevronDown, ChevronRight, Download, Eye, FileText, Folder, FolderUp, Link as LinkIcon, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Eye, FileText, Folder, FolderUp, Link as LinkIcon, Pencil, Plus, Search, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { countWords, slug, wikilinks } from "@/lib/text";
 import { nf } from "@/lib/dates";
 import type { Note } from "@/lib/types";
 import { atomicTemplate, locationLabel, newZid } from "@/lib/zettel";
 import { bookName } from "@/lib/folders";
+import { stepZoom, useReaderPrefs, zoomOf, ZOOM } from "@/components/reader/prefs";
+import { FONTS, THEMES } from "@/components/reader/types";
 
 type Kind = Note["kind"];
 type View = "editar" | "ler" | "dividir";
@@ -29,6 +31,19 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isStudy = kind === "estudo";
   const isAtomic = kind === "atomica";
+  const [prefs, setPrefs] = useReaderPrefs();
+  const zoom = zoomOf(prefs);
+  useEffect(() => { if (isStudy) setView("ler"); }, [isStudy]);
+  useEffect(() => {
+    if (!isStudy) return;
+    const k = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest("input,textarea,select") || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "+" || e.key === "=") setPrefs((p) => stepZoom(p, 1));
+      if (e.key === "-" || e.key === "_") setPrefs((p) => stepZoom(p, -1));
+    };
+    document.addEventListener("keydown", k);
+    return () => document.removeEventListener("keydown", k);
+  }, [isStudy]); // eslint-disable-line react-hooks/exhaustive-deps
   const [source, setSource] = useState<{ id: string; label: string; bookId: string | null } | null>(null);
   const [preview, setPreview] = useState<null | { files: File[]; level: 0 | 1 }>(null);
   const [importing, setImporting] = useState<string | null>(null);
@@ -101,6 +116,9 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     for (const n of list) {
       const key = isStudy ? [n.course || "Sem curso", n.folder].filter(Boolean).join(" › ") : isAtomic ? "" : n.folder || "";
       g.set(key, [...(g.get(key) ?? []), n]);
+    }
+    for (const [k, items] of g) {
+      g.set(k, isAtomic ? items : [...items].sort((a, b) => a.title.localeCompare(b.title, "pt-BR", { numeric: true, sensitivity: "base" })));
     }
     return [...g.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true }));
   }, [notes, q, isStudy, isAtomic]);
@@ -341,6 +359,13 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                   <Pencil size={16} className="text-muted group-hover/titulo:text-accent shrink-0" />
                 </label>
                 <span className="text-xs text-faint hidden sm:inline">{saving === "salvo" ? "salvo" : "salvando…"}</span>
+                {isStudy && view !== "editar" && (
+                  <div className="flex items-center rounded-lg border border-line" title="Zoom da leitura (teclas + e −)">
+                    <button className="p-1.5 text-muted hover:text-ink disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, -1))} disabled={zoom <= ZOOM[0]} aria-label="Diminuir"><ZoomOut size={15} /></button>
+                    <button className="text-xs tabular-nums w-11 text-center text-muted hover:text-ink" onClick={() => setPrefs((p) => ({ ...p, sizePt: 12 }))} title="Voltar a 100%">{zoom}%</button>
+                    <button className="p-1.5 text-muted hover:text-ink disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, 1))} disabled={zoom >= ZOOM[ZOOM.length - 1]} aria-label="Aumentar"><ZoomIn size={15} /></button>
+                  </div>
+                )}
                 <div className="inline-flex rounded-lg bg-surface-2 p-0.5">
                   {([["editar", Pencil], ["dividir", LinkIcon], ["ler", Eye]] as const).map(([v, Icon]) => (
                     <button key={v} title={v === "dividir" ? "Editor + visualização" : v === "editar" ? "Só editor" : "Só leitura"}
@@ -384,8 +409,17 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                 />
               )}
               {view !== "editar" && (
-                <div className="overflow-y-auto p-4 md:p-8">
-                  <article className="prose-notes max-w-[72ch] font-serif text-[1.02rem]">
+                <div className="overflow-y-auto p-4 md:p-8"
+                  style={isStudy ? { background: THEMES[prefs.theme].bg, color: THEMES[prefs.theme].fg } : undefined}>
+                  <article
+                    className={isStudy ? "reading-page prose-notes mx-auto max-w-[68ch] py-4" : "prose-notes max-w-[72ch] font-serif text-[1.02rem]"}
+                    style={isStudy ? {
+                      fontFamily: FONTS[prefs.font].css,
+                      fontSize: `${prefs.sizePt}pt`,
+                      lineHeight: prefs.lineHeight,
+                      textAlign: prefs.justify ? "justify" : "left",
+                      hyphens: "auto",
+                    } : undefined}>
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       urlTransform={(u) => u}
@@ -402,7 +436,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                       {rendered}
                     </ReactMarkdown>
                   </article>
-                  <div className="mt-10 pt-4 border-t border-line max-w-[72ch]">
+                  <div className={`mt-10 pt-4 border-t border-line max-w-[72ch] ${isStudy ? "mx-auto font-sans text-sm" : ""}`}>
                     <div className="label mb-2">Backlinks ({backlinks.length})</div>
                     {backlinks.length === 0 ? (
                       <p className="text-sm text-faint">Nenhuma nota aponta para esta ainda. Escreva [[{current.title}]] em outra nota.</p>
