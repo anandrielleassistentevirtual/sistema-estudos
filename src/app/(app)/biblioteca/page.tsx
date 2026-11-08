@@ -112,7 +112,6 @@ export default function Biblioteca() {
     });
   }, [books, sel, status, q, inFolder, calls, shelfIndex]);
 
-  const tiles = sel === "todos" ? children.get(null) ?? [] : sel === "sem-pasta" ? [] : children.get(sel) ?? [];
   const currentFolderId = sel === "todos" || sel === "sem-pasta" ? null : sel;
 
   async function onFiles(files: FileList | File[]) {
@@ -265,32 +264,6 @@ export default function Biblioteca() {
               </span>
             )}
           </div>
-
-          {tiles.length > 0 && (
-            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
-              {tiles.map((f) => {
-                const s = stats(inFolder(f.id));
-                const pct = s.n ? s.done / s.n : 0;
-                return (
-                  <button key={f.id} onClick={() => { setSel(f.id); setOpen((o) => new Set(o).add(f.id)); }}
-                    className="card p-4 text-left hover:border-accent transition-colors">
-                    <div className="flex items-center gap-2">
-                      <Folder size={16} className="text-accent shrink-0" />
-                      {f.code && <span className="font-mono text-sm font-semibold whitespace-nowrap shrink-0">{f.code} –</span>}
-                      <span className="font-medium truncate min-w-0">{f.name}</span>
-                    </div>
-                    <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                      <div className="h-full bg-accent" style={{ width: `${pct * 100}%` }} />
-                    </div>
-                    <div className="mt-2 flex justify-between text-xs text-muted">
-                      <span>{s.done}/{s.n} lidos · {s.waiting} aguardando</span>
-                      <span>{s.left ? `≈ ${fmtDuration((s.left / wpm) * 60)}` : ""}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
 
           <div className="flex flex-wrap gap-2 items-center mb-3">
             <div className="relative flex-1 min-w-[180px]">
