@@ -180,20 +180,20 @@ export default function Biblioteca() {
                     <Cover book={b} url={covers[b.id]} className="w-10 h-14" />
                     <span className="min-w-0">
                       <span className="block truncate" title={`${b.author ?? "Autor desconhecido"} — ${b.title}`}>
-                        {b.author ? <span className="font-semibold">{b.author}</span> : <span className="text-faint">Autor desconhecido</span>}
+                        {b.author ? <span className="font-medium">{b.author}</span> : <span className="text-faint">Autor desconhecido</span>}
                         <span className="text-faint"> — </span>
                         <span className="font-medium">{b.title}</span>
                       </span>
                       <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted mt-0.5">
                         {queueNo.has(b.id) && (
-                          <span className="inline-flex items-center rounded-md border border-accent/40 px-1.5 py-0.5 text-[11px] font-mono font-semibold text-accent"
+                          <span className="inline-flex items-center rounded-md border border-accent/40 px-1.5 py-0.5 text-[11px] font-mono font-medium text-accent"
                             title="Posição na fila de leitura">
                             Nº {String(queueNo.get(b.id)).padStart(2, "0")}
                           </span>
                         )}
                         {b.folder_id && folderById.get(b.folder_id) ? (
                           <span className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-1.5 py-0.5 text-[11px]" title={`Pasta: ${folderLabel(folderById.get(b.folder_id)!)}`}>
-                            {folderById.get(b.folder_id)!.code && <span className="font-mono font-semibold">{folderById.get(b.folder_id)!.code}</span>}
+                            {folderById.get(b.folder_id)!.code && <span className="font-mono font-medium">{folderById.get(b.folder_id)!.code}</span>}
                             <span className="truncate max-w-[180px]">{folderById.get(b.folder_id)!.name}</span>
                           </span>
                         ) : (
@@ -275,7 +275,7 @@ export default function Biblioteca() {
                 </button>
                 {sel === f.id ? <FolderOpen size={15} className="text-accent" /> : <Folder size={15} className="text-muted" />}
                 <span className="truncate flex-1 py-1.5" title={folderLabel(f)}>
-                  {f.code && <span className={`font-mono text-xs mr-1 ${depth === 0 ? "font-semibold text-ink" : "text-muted"}`}>{f.code} –</span>}
+                  {f.code && <span className={`font-mono text-xs mr-1 ${depth === 0 ? "font-medium text-ink" : "text-muted"}`}>{f.code} –</span>}
                   <span className={depth === 0 ? "font-medium" : ""}>{f.name}</span>
                 </span>
                 {n > 0 && <span className="text-xs text-faint tabular-nums group-hover:hidden">{n}</span>}
@@ -377,7 +377,7 @@ export default function Biblioteca() {
               {queued.length > 0 && (
                 <section className="mb-6">
                   <div className="flex items-baseline justify-between mb-2 px-1">
-                    <h2 className="font-semibold flex items-center gap-2"><ListOrdered size={16} className="text-accent" /> Fila de leitura</h2>
+                    <h2 className="font-medium flex items-center gap-2"><ListOrdered size={16} className="text-accent" /> Fila de leitura</h2>
                     <span className="text-xs text-muted">
                       {queued.length} {queued.length === 1 ? "livro" : "livros"}
                       {queueLeft ? ` · ≈ ${fmtDuration((queueLeft / wpm) * 60)} de leitura` : ""}
@@ -391,7 +391,7 @@ export default function Biblioteca() {
               {rest.length > 0 && (
                 <section>
                   <div className="flex items-baseline justify-between mb-2 px-1">
-                    <h2 className="font-semibold text-muted">{queued.length ? "Fora da fila" : "Livros"}</h2>
+                    <h2 className="font-medium text-muted">{queued.length ? "Fora da fila" : "Livros"}</h2>
                     <span className="text-xs text-muted">{rest.length} {rest.length === 1 ? "livro" : "livros"} · use ☰ para pôr na fila</span>
                   </div>
                   <div className="card divide-y divide-line">
@@ -441,7 +441,7 @@ function PhysicalModal({ folders, folderId, onClose, onSaved }: { folders: F[]; 
     <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3">
         <div className="flex justify-between items-center">
-          <h2 className="font-semibold">Livro físico</h2>
+          <h2 className="font-medium">Livro físico</h2>
           <button type="button" onClick={onClose}><X size={18} /></button>
         </div>
         <label className="block space-y-1"><span className="label">Título</span>
@@ -568,7 +568,7 @@ function EditBookModal({ book, coverUrl, onClose, onSaved, onCover }: {
     <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <form onSubmit={save} onPaste={onPaste} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3 max-h-[92vh] overflow-y-auto">
         <div className="flex justify-between items-center">
-          <h2 className="font-semibold">Editar livro</h2>
+          <h2 className="font-medium">Editar livro</h2>
           <button type="button" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="flex gap-4 items-start">
@@ -675,7 +675,7 @@ function FolderModal({ folders, edit, parentId, onClose, onSaved }: {
     <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3">
         <div className="flex justify-between items-center">
-          <h2 className="font-semibold">{edit ? "Editar pasta" : parentFolder ? "Nova subpasta" : "Nova pasta"}</h2>
+          <h2 className="font-medium">{edit ? "Editar pasta" : parentFolder ? "Nova subpasta" : "Nova pasta"}</h2>
           <button type="button" onClick={onClose}><X size={18} /></button>
         </div>
         <label className="block space-y-1"><span className="label">Dentro de</span>

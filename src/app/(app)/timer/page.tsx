@@ -34,8 +34,8 @@ export default function TimerPage() {
         </div>
 
         <div className="card p-5">
-          <h2 className="font-semibold">Hoje</h2>
-          <p className="text-3xl font-semibold mt-1 tabular-nums">{fmtDuration(today.reduce((a, s) => a + s.seconds, 0))}</p>
+          <h2 className="font-medium">Hoje</h2>
+          <p className="text-3xl font-medium mt-1 tabular-nums">{fmtDuration(today.reduce((a, s) => a + s.seconds, 0))}</p>
           <div className="mt-3 space-y-1">
             {Object.entries(byCat).map(([c, secs]) => (
               <div key={c} className="flex justify-between text-sm"><span className="text-muted">{c}</span><span className="tabular-nums">{fmtDuration(secs)}</span></div>

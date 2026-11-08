@@ -28,18 +28,18 @@ export function FloatingTimer() {
           {open && (
             <div className="card shadow-2xl p-4 w-[min(340px,calc(100vw-2rem))] max-h-[75vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-2">
-                <span className="font-semibold text-sm">Timer</span>
+                <span className="font-medium text-sm">Timer</span>
                 <button onClick={() => setOpen(false)} className="text-muted"><X size={16} /></button>
               </div>
               <TimerControls compact />
             </div>
           )}
-          <div className={`flex items-center rounded-full shadow-lg border border-line ${active ? "bg-accent text-white border-accent" : "bg-surface"}`}>
+          <div className={`flex items-center rounded-full shadow-lg border border-line ${active ? "bg-accent text-accent-ink border-accent" : "bg-surface"}`}>
             <button className="flex items-center gap-2 pl-3.5 pr-2 py-2 text-sm" onClick={() => setOpen(!open)} title="Abrir o timer">
               <Timer size={16} />
               {active ? (
                 <>
-                  <span className="font-mono tabular-nums font-semibold">{clock}</span>
+                  <span className="font-mono tabular-nums font-medium">{clock}</span>
                   <span className="hidden sm:inline max-w-[160px] truncate opacity-90">{t.phase === "pausa" ? "Pausa" : t.what || t.category}</span>
                 </>
               ) : (
@@ -80,7 +80,7 @@ function PagesPrompt() {
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center p-4 bg-black/40">
       <form className="card w-full max-w-sm p-5 space-y-3" onSubmit={(e) => { e.preventDefault(); void t.resolvePending(n > 0 ? n : null); }}>
-        <h2 className="font-semibold">Até que página você chegou?</h2>
+        <h2 className="font-medium">Até que página você chegou?</h2>
         <p className="text-sm text-muted">
           {p.state.bookTitle} · {fmtClock(p.seconds)} de leitura
           {info?.current ? ` · você estava na p. ${info.current}` : ""}{info?.total ? ` (de ${info.total})` : ""}

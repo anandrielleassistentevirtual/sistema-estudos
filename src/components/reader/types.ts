@@ -1,6 +1,8 @@
 import type { Annotation } from "@/lib/types";
 
-export type ReaderTheme = "claro" | "sepia" | "escuro";
+/** "auto" acompanha o tema do sistema (claro/escuro). */
+export type ReaderTheme = "auto" | "claro" | "sepia" | "escuro";
+export type ConcreteTheme = Exclude<ReaderTheme, "auto">;
 
 export type ReaderFont = "times" | "literata" | "inter";
 
@@ -12,7 +14,7 @@ export interface ReaderPrefs {
   lineHeight: number; // 1, 1.15, 1.5, 2
 }
 
-export const DEFAULT_PREFS: ReaderPrefs = { theme: "claro", font: "times", sizePt: 12, justify: true, lineHeight: 1.5 };
+export const DEFAULT_PREFS: ReaderPrefs = { theme: "auto", font: "times", sizePt: 12, justify: true, lineHeight: 1.5 };
 
 export const FONTS: Record<ReaderFont, { label: string; css: string }> = {
   times: { label: "Times New Roman", css: '"Times New Roman", Tinos, Times, "Liberation Serif", serif' },
@@ -20,10 +22,10 @@ export const FONTS: Record<ReaderFont, { label: string; css: string }> = {
   inter: { label: "Inter", css: "Inter, system-ui, sans-serif" },
 };
 
-export const THEMES: Record<ReaderTheme, { bg: string; fg: string; label: string }> = {
-  claro: { bg: "#fcfcfb", fg: "#1d1c1a", label: "Claro" },
+export const THEMES: Record<ConcreteTheme, { bg: string; fg: string; label: string }> = {
+  claro: { bg: "#ffffff", fg: "#1c1c1c", label: "Claro" },
   sepia: { bg: "#f4ecd8", fg: "#4a3b2a", label: "Sépia" },
-  escuro: { bg: "#1a1a19", fg: "#e8e6e1", label: "Escuro" },
+  escuro: { bg: "#1c1c1c", fg: "#e6e6e6", label: "Escuro" },
 };
 
 export const HL_COLORS: Record<string, string> = {
@@ -60,4 +62,9 @@ export interface ReaderProps {
   onToc?: (items: TocItem[]) => void;
   /** página na tela: palavras e se é a última */
   onView?: (words: number, last: boolean) => void;
+}
+
+/** Cores do tema (o leitor recebe o tema já resolvido; "auto" cai no claro por segurança). */
+export function themeColors(t: ReaderTheme) {
+  return THEMES[t === "auto" ? "claro" : t];
 }

@@ -13,12 +13,14 @@ import { fmtClock } from "@/lib/dates";
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/timer", label: "Timer", icon: Timer },
+  { sep: true },
   { href: "/biblioteca", label: "Mapa da Ignorância", icon: Library },
   { href: "/estudos", label: "Estudos", icon: GraduationCap },
   { href: "/idiomas", label: "Idiomas", icon: Languages },
+  { sep: true },
   { href: "/lectio", label: "Lectio Divina", icon: BookHeart },
   { href: "/notas", label: "Notas", icon: NotebookPen },
-];
+] as const;
 
 function ThemeToggle() {
   const [dark, setDark] = useState(false);
@@ -77,28 +79,35 @@ export function Sidebar() {
 
   const nav = (
     <nav className="flex flex-col h-full p-3 gap-0.5">
-      <div className="px-3 pt-2 pb-4 flex items-start justify-between gap-2">
-        <div>
-          <div className="font-semibold tracking-tight">Sistema de Estudos</div>
-          <div className="text-xs text-faint">studium · lectio · memoria</div>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex-1 min-w-0 flex items-center gap-2 rounded-lg border border-line bg-surface px-2 py-1.5">
+          <span className="w-6 h-6 shrink-0 rounded-md bg-surface-2 border border-line grid place-items-center font-serif text-[15px] leading-none">S</span>
+          <div className="min-w-0">
+            <div className="text-[13px] font-medium truncate leading-tight">Sistema de Estudos</div>
+            <div className="text-[10.5px] text-faint truncate leading-tight">studium · lectio · memoria</div>
+          </div>
         </div>
-        <button className="hidden md:block p-1 -mr-1 text-faint hover:text-ink rounded-md hover:bg-surface-2" title="Recolher o menu (Ctrl + \)"
+        <button className="hidden md:block p-1 text-faint hover:text-ink rounded-md hover:bg-surface-2" title="Recolher o menu (Ctrl + \)"
           onClick={() => setHidden(true)}>
-          <PanelLeftClose size={17} />
+          <PanelLeftClose size={16} />
         </button>
       </div>
-      {NAV.map(({ href, label, icon: Icon }) => (
-        <Link
-          key={href}
-          href={href}
-          className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
-            active(href) ? "bg-accent-soft text-ink font-medium" : "text-muted hover:bg-surface-2 hover:text-ink"
-          }`}
-        >
-          <Icon size={17} strokeWidth={1.8} />
-          {label}
-        </Link>
-      ))}
+      {NAV.map((item, i) =>
+        "sep" in item ? (
+          <div key={`sep${i}`} className="my-2 mx-2 border-t border-line" />
+        ) : (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-sm border transition-colors ${
+              active(item.href) ? "bg-surface-2 border-line text-ink" : "border-transparent text-muted hover:text-ink hover:bg-surface-2/60"
+            }`}
+          >
+            <item.icon size={16} strokeWidth={1.7} />
+            {item.label}
+          </Link>
+        ),
+      )}
       <div className="mt-auto pt-3 space-y-0.5">
         <ThemeToggle />
         <button
@@ -120,7 +129,7 @@ export function Sidebar() {
         <button className="btn btn-ghost px-2" onClick={() => setOpen(true)} aria-label="Abrir menu">
           <Menu size={18} />
         </button>
-        <span className="font-semibold text-sm">Sistema de Estudos</span>
+        <span className="font-medium text-sm">Sistema de Estudos</span>
         <span className="w-8 text-xs font-mono tabular-nums text-muted">
           {showTimer ? fmtClock(timer.mode === "pomodoro" ? timer.remaining : timer.seconds) : ""}
         </span>

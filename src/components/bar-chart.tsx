@@ -45,7 +45,7 @@ export function BarChart({
               style={{
                 width: "62%",
                 height: `${(d.value / nice) * 100}%`,
-                background: "var(--accent)",
+                background: "linear-gradient(to top, color-mix(in srgb, var(--chart) 35%, transparent), var(--chart))",
                 opacity: hover === null || hover === i ? 1 : 0.55,
               }}
             />
@@ -64,7 +64,7 @@ export function BarChart({
           className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-xs shadow-lg whitespace-nowrap"
           style={{ left: `calc((100% - 2.25rem) * ${(hover + 0.5) / data.length})`, top: 0, background: "var(--text)", color: "var(--bg)" }}
         >
-          <div className="font-semibold">
+          <div className="font-medium">
             {nf.format(data[hover].value)} {unit}
           </div>
           <div className="opacity-80">{data[hover].detail ?? data[hover].label}</div>

@@ -71,7 +71,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
           <div className="text-[10px] uppercase tracking-wider text-muted">
             {t.mode === "pomodoro" ? (t.phase === "foco" ? "Foco" : "Pausa") : "Decorrido"}
           </div>
-          <div className={`${compact ? "text-3xl" : "text-5xl"} font-semibold font-mono tabular-nums mt-0.5`}>{fmtClock(display)}</div>
+          <div className={`${compact ? "text-3xl" : "text-5xl"} font-medium font-mono tabular-nums mt-0.5`}>{fmtClock(display)}</div>
           {t.mode === "pomodoro" && !compact && <div className="text-xs text-faint mt-1">ciclos hoje: {t.cycles}</div>}
         </div>
       </div>

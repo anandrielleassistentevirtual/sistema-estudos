@@ -76,7 +76,7 @@ export default function AnkiPage() {
       {msg && <p className="text-sm text-muted mt-3">{msg}</p>}
 
       <section className="card p-5 mt-4">
-        <h2 className="font-semibold mb-3">Histórico de revisões</h2>
+        <h2 className="font-medium mb-3">Histórico de revisões</h2>
         <Heatmap data={daily} metric="anki" />
       </section>
 
@@ -114,7 +114,7 @@ export default function AnkiPage() {
 
       <section className="grid md:grid-cols-2 gap-4 mt-4">
         <div className="card p-5 space-y-3">
-          <h2 className="font-semibold">Preferências</h2>
+          <h2 className="font-medium">Preferências</h2>
           <label className="block space-y-1">
             <span className="label">Baralho para destaques de leitura</span>
             <input className="input" value={deck} onChange={(e) => { setDeck(e.target.value); try { localStorage.setItem("anki-deck", e.target.value); } catch {} }} />
@@ -126,7 +126,7 @@ export default function AnkiPage() {
           </label>
         </div>
         <div className="card p-5 text-sm space-y-2">
-          <h2 className="font-semibold">Como conectar (uma vez por computador)</h2>
+          <h2 className="font-medium">Como conectar (uma vez por computador)</h2>
           <ol className="list-decimal pl-5 space-y-1.5 text-muted">
             <li>No Anki: <b>Ferramentas → Complementos → Obter complementos</b> e cole o código <code className="bg-surface-2 px-1 rounded">2055492159</code> (AnkiConnect). Reinicie o Anki.</li>
             <li>Em <b>Complementos → AnkiConnect → Configuração</b>, adicione este site em <code>webCorsOriginList</code>:

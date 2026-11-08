@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TextReader } from "./text-reader";
-import { THEMES, type ReaderHandle, type ReaderPrefs } from "./types";
+import { themeColors, type ReaderHandle, type ReaderPrefs } from "./types";
 import { ReadingTracker } from "@/lib/reading-tracker";
 import { useTimer } from "@/components/timer-context";
 import { fmtClock, nf } from "@/lib/dates";
@@ -63,7 +63,7 @@ export function LessonReader({ note, prefs, onProgress, onPosition }: {
     return () => { void t.close(); };
   }, [note.id]);
 
-  const t = THEMES[prefs.theme];
+  const t = themeColors(prefs.theme);
   const wpm = session.seconds > 30 ? Math.round(session.words / (session.seconds / 60)) : 0;
   const line = prefs.theme === "escuro" ? "#2f2f2c" : "#00000014";
 
@@ -106,7 +106,7 @@ export function LessonReader({ note, prefs, onProgress, onPosition }: {
       <div className="shrink-0 flex items-center gap-2 px-3 h-8 text-xs opacity-80">
         <button className="p-1" onClick={() => reader.current?.prev()} aria-label="Página anterior"><ChevronLeft size={16} /></button>
         <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: line }}>
-          <div className="h-full" style={{ width: `${progress * 100}%`, background: "#3987e5" }} />
+          <div className="h-full opacity-60" style={{ width: `${progress * 100}%`, background: "currentColor" }} />
         </div>
         <button className="p-1" onClick={() => reader.current?.next()} aria-label="Próxima página"><ChevronRight size={16} /></button>
       </div>

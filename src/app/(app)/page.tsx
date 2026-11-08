@@ -112,7 +112,7 @@ export default function Dashboard() {
 
       <section className="mt-4 grid md:grid-cols-2 gap-4">
         <div className="card p-5">
-          <h2 className="font-semibold mb-3">Continuar lendo</h2>
+          <h2 className="font-medium mb-3">Continuar lendo</h2>
           {reading.length === 0 ? (
             <p className="text-sm text-muted">
               Nada em andamento. Escolha algo na <Link className="text-accent" href="/biblioteca">fila de leitura</Link>.
@@ -125,7 +125,7 @@ export default function Dashboard() {
                     <Cover book={b} url={covers[b.id]} className="w-9 h-12" />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm truncate">
-                        {b.author && <><span className="font-semibold">{b.author}</span><span className="text-faint"> — </span></>}
+                        {b.author && <><span className="font-medium">{b.author}</span><span className="text-faint"> — </span></>}
                         <span className="font-medium">{b.title}</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
@@ -140,11 +140,11 @@ export default function Dashboard() {
           )}
         </div>
         <div className="card p-5">
-          <h2 className="font-semibold mb-3">Biblioteca</h2>
+          <h2 className="font-medium mb-3">Biblioteca</h2>
           <div className="grid grid-cols-4 gap-2 text-center">
             {(["aguardando", "lendo", "pausado", "lido"] as const).map((st) => (
               <div key={st} className="rounded-lg bg-surface-2 py-3">
-                <div className="text-xl font-semibold tabular-nums">{count(st)}</div>
+                <div className="text-xl font-medium tabular-nums">{count(st)}</div>
                 <div className="text-xs text-muted capitalize">{st}</div>
               </div>
             ))}

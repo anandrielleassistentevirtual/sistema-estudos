@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { countWords } from "@/lib/text";
-import { FONTS, HL_COLORS, ReaderHandle, ReaderProps, THEMES } from "./types";
+import { FONTS, HL_COLORS, ReaderHandle, ReaderProps, THEMES, themeColors } from "./types";
 
 type Pos = { index: number; page: number; total: number };
 
@@ -36,8 +36,8 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
         r.themes.register(k, {
           body: { background: `${t.bg} !important`, color: `${t.fg} !important` },
           "p, li, blockquote, span, div": { color: `${t.fg} !important` },
-          a: { color: "#3987e5 !important" },
-          "::selection": { background: "rgba(57,135,229,0.3)" },
+          a: { color: "inherit !important", "text-decoration": "underline" },
+          "::selection": { background: "rgba(128,128,128,0.3)" },
         });
       }
       applyPrefs();
@@ -173,7 +173,7 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
   }
   useEffect(drawAnnotations, [props.annotations]);
 
-  const bg = THEMES[props.prefs.theme].bg;
+  const bg = themeColors(props.prefs.theme).bg;
   return (
     <div className="relative w-full h-full" style={{ background: bg }}>
       <div ref={el} className="absolute inset-0 px-2 md:px-10 py-6" />

@@ -9,7 +9,7 @@ import { nf } from "@/lib/dates";
 import type { Note } from "@/lib/types";
 import { atomicTemplate, locationLabel, newZid } from "@/lib/zettel";
 import { bookName } from "@/lib/folders";
-import { stepZoom, useReaderPrefs, zoomOf, ZOOM } from "@/components/reader/prefs";
+import { stepZoom, useEffectiveTheme, useReaderPrefs, zoomOf, ZOOM } from "@/components/reader/prefs";
 import { FONTS, THEMES } from "@/components/reader/types";
 import { LessonReader } from "@/components/reader/lesson-reader";
 
@@ -33,6 +33,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
   const isStudy = kind === "estudo";
   const isAtomic = kind === "atomica";
   const [prefs, setPrefs] = useReaderPrefs();
+  const tema = useEffectiveTheme(prefs.theme);
   const zoom = zoomOf(prefs);
   useEffect(() => { if (isStudy) setView("ler"); }, [isStudy]);
   useEffect(() => {
@@ -298,7 +299,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
       <aside className={`border-r border-line flex-col min-h-0 bg-bg ${listHidden ? "hidden" : "flex"}`}>
         <div className="p-3 space-y-2 border-b border-line">
           <div className="flex items-center justify-between">
-            <h1 className="font-semibold flex items-center gap-1">
+            <h1 className="font-medium flex items-center gap-1">
               <button className="p-1 -ml-1 text-faint hover:text-ink rounded-md hover:bg-surface-2" title="Recolher a lista (Ctrl + \)" onClick={() => setListHidden(true)}>
                 <PanelLeftClose size={16} />
               </button>
@@ -335,7 +336,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
           {groups.map(([g, list]) => (
             <div key={g || "_"} className="mb-1">
               {g && (
-                <button className="flex items-center gap-1 w-full text-left text-xs font-semibold text-muted px-1 py-1.5 uppercase tracking-wide"
+                <button className="flex items-center gap-1 w-full text-left text-xs font-medium text-muted px-1 py-1.5 uppercase tracking-wide"
                   onClick={() => setCollapsed((c) => { const x = new Set(c); if (x.has(g)) x.delete(g); else x.add(g); return x; })}>
                   {collapsed.has(g) ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                   <Folder size={13} /> <span className="truncate">{g}</span>
@@ -387,7 +388,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                 )}
                 <label className="group/titulo flex-1 min-w-0 flex items-center gap-1.5 rounded-md border border-line/60 hover:border-line focus-within:border-accent px-1.5 -mx-1.5 cursor-text"
                   title={isStudy ? "Clique para renomear a aula" : "Clique para renomear"}>
-                  <input className="flex-1 bg-transparent text-xl font-semibold outline-none min-w-0 py-0.5" value={current.title}
+                  <input className="flex-1 bg-transparent text-xl font-medium outline-none min-w-0 py-0.5" value={current.title}
                     placeholder={isStudy ? "Nome da aula" : "Título"} onChange={(e) => patch({ title: e.target.value })} />
                   <Pencil size={16} className="text-muted group-hover/titulo:text-accent shrink-0" />
                 </label>
@@ -449,11 +450,11 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                 />
               )}
               {isStudy && view === "ler" ? (
-                <LessonReader key={current.id} note={current} prefs={prefs} onProgress={setLessonProgress}
+                <LessonReader key={current.id} note={current} prefs={{ ...prefs, theme: tema }} onProgress={setLessonProgress}
                   onPosition={(loc) => { const id = current.id; setNotes((all) => all.map((x) => (x.id === id ? { ...x, location: loc } : x))); }} />
               ) : view !== "editar" && (
                 <div className="overflow-y-auto p-4 md:p-8"
-                  style={isStudy ? { background: THEMES[prefs.theme].bg, color: THEMES[prefs.theme].fg } : undefined}>
+                  style={isStudy ? { background: THEMES[tema].bg, color: THEMES[tema].fg } : undefined}>
                   <article
                     className={isStudy ? "reading-page prose-notes mx-auto max-w-[68ch] py-4" : "prose-notes max-w-[72ch] font-serif text-[1.02rem]"}
                     style={isStudy ? {
@@ -502,14 +503,14 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
       <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={() => setPreview(null)}>
         <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-center">
-            <h2 className="font-semibold">Importar {preview.files.length} aulas</h2>
+            <h2 className="font-medium">Importar {preview.files.length} aulas</h2>
             <button onClick={() => setPreview(null)}><X size={18} /></button>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
-            <button className={`btn justify-center text-xs ${preview.level === 1 ? "border-accent ring-2 ring-accent-soft" : ""}`} onClick={() => setPreview({ ...preview, level: 1 })}>
+            <button className={`btn justify-center text-xs ${preview.level === 1 ? "border-muted" : ""}`} onClick={() => setPreview({ ...preview, level: 1 })}>
               Escolhi a pasta com todos os cursos
             </button>
-            <button className={`btn justify-center text-xs ${preview.level === 0 ? "border-accent ring-2 ring-accent-soft" : ""}`} onClick={() => setPreview({ ...preview, level: 0 })}>
+            <button className={`btn justify-center text-xs ${preview.level === 0 ? "border-muted" : ""}`} onClick={() => setPreview({ ...preview, level: 0 })}>
               Escolhi a pasta de um curso
             </button>
           </div>
@@ -524,7 +525,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
               }
               return [...m.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true })).map(([c, mods]) => (
                 <div key={c}>
-                  <div className="font-semibold">{c || "Sem curso"} <span className="text-muted font-normal">· {(() => { const t = [...mods.values()].reduce((a, b) => a + b, 0); return `${t} ${t === 1 ? "aula" : "aulas"}`; })()}</span></div>
+                  <div className="font-medium">{c || "Sem curso"} <span className="text-muted font-normal">· {(() => { const t = [...mods.values()].reduce((a, b) => a + b, 0); return `${t} ${t === 1 ? "aula" : "aulas"}`; })()}</span></div>
                   {[...mods.entries()].filter(([mod]) => mod).sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true })).slice(0, 8).map(([mod, n]) => (
                     <div key={mod} className="text-xs text-muted pl-3">{mod} · {n}</div>
                   ))}

@@ -20,7 +20,7 @@ export function CalendarPanel() {
   return (
     <section id="calendario" className="mt-4 scroll-mt-4">
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <h2 className="font-semibold mr-auto">Calendário</h2>
+        <h2 className="font-medium mr-auto">Calendário</h2>
         <div className="inline-flex rounded-lg bg-surface-2 p-1 text-sm">
           {METRICS.map((m) => (
             <button key={m.id} onClick={() => setMetric(m.id)}

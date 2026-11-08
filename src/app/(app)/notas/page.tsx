@@ -62,7 +62,7 @@ export default function Inbox() {
               onDrop={(e) => { e.preventDefault(); setOver(null); const n = notes.find((x) => x.id === dragId); if (n) void move(n, col.id); }}
               className={`rounded-xl border p-3 min-h-[240px] transition-colors ${over === col.id ? "border-accent bg-accent-soft/40" : "border-line bg-surface-2/50"}`}>
               <header className="flex items-baseline justify-between mb-1 px-1">
-                <h2 className="font-semibold text-sm">{col.label}</h2>
+                <h2 className="font-medium text-sm">{col.label}</h2>
                 <span className="text-xs text-muted tabular-nums">{list.length}</span>
               </header>
               <p className="text-[11px] text-faint px-1 mb-3">{col.id === "concluida" ? "últimos 7 dias · " : ""}{col.hint}</p>
@@ -73,8 +73,8 @@ export default function Inbox() {
                   return (
                     <article key={n.id} draggable onDragStart={() => setDragId(n.id)} onDragEnd={() => setDragId(null)}
                       onClick={() => setEditing(n)}
-                      className={`card p-3 cursor-pointer hover:border-accent transition-colors ${dragId === n.id ? "opacity-50" : ""}`}>
-                      {b && <div className="text-[11px] text-muted truncate mb-1"><span className="font-semibold">{b.author ?? ""}</span>{b.author ? " — " : ""}{b.title}</div>}
+                      className={`card p-3 cursor-pointer hover:border-faint transition-colors ${dragId === n.id ? "opacity-50" : ""}`}>
+                      {b && <div className="text-[11px] text-muted truncate mb-1"><span className="font-medium">{b.author ?? ""}</span>{b.author ? " — " : ""}{b.title}</div>}
                       {n.quote ? (
                         <p className="text-sm font-serif leading-snug line-clamp-4 border-l-[3px] border-[#eda100] pl-2">“{n.quote}”</p>
                       ) : (

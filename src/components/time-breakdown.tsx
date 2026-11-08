@@ -71,7 +71,7 @@ export function TimeBreakdown() {
     <section className="card p-5 mt-4">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div>
-          <h2 className="font-semibold">Onde está indo seu tempo</h2>
+          <h2 className="font-medium">Onde está indo seu tempo</h2>
           <p className="text-xs text-muted mt-0.5">{total ? `${fmtDuration(total)} no total` : "Nenhum tempo registrado no período"}</p>
         </div>
         <div className="inline-flex rounded-lg bg-surface-2 p-1 text-xs">
@@ -94,9 +94,9 @@ export function TimeBreakdown() {
                   {r.label}
                   {r.kind !== r.label && <span className="block text-[11px] text-faint">{r.kind}</span>}
                 </span>
-                <span className="h-3.5 rounded-[4px] bg-surface-2 overflow-hidden" title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round(pct * 100)}%)`}>
-                  <span className="block h-full rounded-[4px] transition-opacity"
-                    style={{ width: `${(r.seconds / max) * 100}%`, background: "var(--accent)", opacity: hover && hover !== r.key ? 0.55 : 1 }} />
+                <span className="h-2.5 rounded-full bg-surface-2 overflow-hidden" title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round(pct * 100)}%)`}>
+                  <span className="block h-full rounded-full transition-opacity"
+                    style={{ width: `${(r.seconds / max) * 100}%`, background: "var(--chart)", opacity: hover && hover !== r.key ? 0.55 : 1 }} />
                 </span>
                 <span className="tabular-nums text-right whitespace-nowrap">
                   <span className="font-medium">{fmtDuration(r.seconds)}</span>

@@ -3,7 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { countWords } from "@/lib/text";
-import { FONTS, ReaderHandle, ReaderProps, THEMES, TocItem } from "./types";
+import { FONTS, ReaderHandle, ReaderProps, themeColors, TocItem } from "./types";
 
 const WORDS_PER_PAGE = 320;
 
@@ -115,7 +115,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     if (quote && box.current?.contains(sel!.anchorNode)) cb.current.onSelect({ location: `p:${page}`, quote });
   }
 
-  const t = THEMES[props.prefs.theme];
+  const t = themeColors(props.prefs.theme);
   const current = pages[page];
   const marks = props.annotations.filter((a) => a.location === `p:${page}`).map((a) => a.quote);
 
@@ -147,9 +147,9 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
         )}
         {current && (
           <div className="flex justify-between items-center mt-10 text-sm opacity-70 font-sans">
-            <button className="btn" onClick={() => go(page - 1)} disabled={page === 0}>← Anterior</button>
+            <button className="rounded-lg border border-current/20 px-3 py-1.5 hover:bg-current/5 disabled:opacity-40" onClick={() => go(page - 1)} disabled={page === 0}>← Anterior</button>
             <span>{page + 1} / {pages.length}</span>
-            <button className="btn" onClick={() => go(page + 1)} disabled={page >= pages.length - 1}>Próxima →</button>
+            <button className="rounded-lg border border-current/20 px-3 py-1.5 hover:bg-current/5 disabled:opacity-40" onClick={() => go(page + 1)} disabled={page >= pages.length - 1}>Próxima →</button>
           </div>
         )}
       </article>

@@ -320,7 +320,7 @@ export default function LessonPage() {
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <Link href="/idiomas" className="text-sm text-muted flex items-center gap-1 mb-1"><ChevronLeft size={15} /> {lesson.language}{lesson.collection ? ` · ${lesson.collection}` : ""}</Link>
-          <h1 className="text-2xl font-semibold tracking-tight">{lesson.title}</h1>
+          <h1 className="text-2xl font-medium tracking-tight">{lesson.title}</h1>
           <p className="text-sm text-muted mt-1">
             {sents.length} frases · {nf.format(total)} leituras de frases · {lesson.listen_count} escutas completas
           </p>
@@ -328,7 +328,7 @@ export default function LessonPage() {
         <div className="flex items-center gap-4">
           <div className="text-right">
             <div className="label">Leituras completas</div>
-            <div className="text-2xl font-semibold tabular-nums">{reads}<span className="text-faint text-base">/{lesson.read_goal}</span></div>
+            <div className="text-2xl font-medium tabular-nums">{reads}<span className="text-faint text-base">/{lesson.read_goal}</span></div>
           </div>
           <svg width="52" height="52" viewBox="0 0 52 52" className="-rotate-90">
             <circle cx="26" cy="26" r="21" fill="none" stroke="var(--surface-2)" strokeWidth="6" />
@@ -428,7 +428,7 @@ export default function LessonPage() {
               onPlay={() => { setPlaying(true); lastTick.current = performance.now(); }} onPause={() => { setPlaying(false); lastTick.current = null; }} onEnded={onEnded} />
             <button className="p-2 text-muted" title="Voltar 5 s" onClick={() => audio.current && (audio.current.currentTime -= 5)}><RotateCcw size={17} /></button>
             <button className="p-2 text-muted" title="Frase anterior" onClick={() => playSentence(Math.max(0, focus - 1))} disabled={!timed}><SkipBack size={17} /></button>
-            <button className="w-11 h-11 rounded-full grid place-items-center bg-accent text-white" onClick={togglePlay}>
+            <button className="w-11 h-11 rounded-full grid place-items-center bg-accent text-accent-ink" onClick={togglePlay}>
               {playing ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
             </button>
             <button className="p-2 text-muted" title="Próxima frase" onClick={() => playSentence(Math.min(sents.length - 1, focus + 1))} disabled={!timed}><SkipForward size={17} /></button>
@@ -446,7 +446,7 @@ export default function LessonPage() {
       {undo && (
         <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 flex items-center gap-3 rounded-lg pl-4 pr-2 py-2 text-sm shadow-lg" style={{ background: "var(--text)", color: "var(--bg)" }}>
           <span>{undo.s ? `+1 leitura: “${undo.s.text.length > 40 ? undo.s.text.slice(0, 40) + "…" : undo.s.text}”` : "+1 leitura em todas as frases"}</span>
-          <button className="rounded-md px-2.5 py-1 font-semibold underline underline-offset-2" onClick={() => minusOne(undo.s)}>Desfazer</button>
+          <button className="rounded-md px-2.5 py-1 font-medium underline underline-offset-2" onClick={() => minusOne(undo.s)}>Desfazer</button>
         </div>
       )}
       {toast && (

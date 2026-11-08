@@ -108,7 +108,7 @@ export function Heatmap({
           className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md px-2.5 py-1.5 text-xs shadow-lg whitespace-nowrap"
           style={{ left: hover.x, top: hover.y - 6, background: "var(--text)", color: "var(--bg)" }}
         >
-          <div className="font-semibold">
+          <div className="font-medium">
             {nf.format(metricValue(data.get(hover.day), metric))} {unit}
           </div>
           <div className="opacity-80">{fmtDayLong(hover.day)}</div>

@@ -269,7 +269,7 @@ export default function RevisarAnki() {
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 min-h-screen flex flex-col">
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Link href="/idiomas/anki" className="text-sm text-muted flex items-center gap-1"><ChevronLeft size={15} /> Anki</Link>
-        <span className="font-semibold truncate">{card?.deckName ?? deck}</span>
+        <span className="font-medium truncate">{card?.deckName ?? deck}</span>
         <span className="ml-auto flex items-center gap-3 text-xs text-muted">
           <span className="tabular-nums font-mono">{fmtClock(secs)}</span>
           <span>{done} {done === 1 ? "cartão" : "cartões"}</span>
@@ -294,7 +294,7 @@ export default function RevisarAnki() {
       {state === "fim" && (
         <div className="card p-10 text-center space-y-3">
           <div className="text-4xl">🎉</div>
-          <p className="font-semibold text-lg">Parabéns! Você terminou este baralho por hoje.</p>
+          <p className="font-medium text-lg">Parabéns! Você terminou este baralho por hoje.</p>
           <p className="text-sm text-muted">{done} cartões em {fmtClock(secs)}.</p>
           <Link href="/idiomas/anki" className="btn btn-primary inline-flex">Voltar aos baralhos</Link>
         </div>
@@ -342,7 +342,7 @@ export default function RevisarAnki() {
                   <button key={b} onClick={() => answer(b)}
                     className="rounded-xl border border-line bg-surface py-3 hover:bg-surface-2 transition-colors">
                     <div className="text-xs text-muted tabular-nums">{card.nextReviews[i] ?? ""}</div>
-                    <div className="font-semibold" style={{ color: EASE[b]?.color }}>{EASE[b]?.label ?? b}</div>
+                    <div className="font-medium" style={{ color: EASE[b]?.color }}>{EASE[b]?.label ?? b}</div>
                     <div className="text-[10px] text-faint">tecla {b}</div>
                   </button>
                 ))}

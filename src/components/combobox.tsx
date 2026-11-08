@@ -86,7 +86,7 @@ export function Combobox({
             <li key={o.value} data-i={i}
               onMouseDown={(e) => { e.preventDefault(); pick(o); }}
               onMouseEnter={() => setHi(i)}
-              className={`px-3 py-1.5 cursor-pointer ${i === hi ? "bg-accent-soft" : ""} ${o.value === value ? "font-semibold" : ""}`}>
+              className={`px-3 py-1.5 cursor-pointer ${i === hi ? "bg-accent-soft" : ""} ${o.value === value ? "font-medium" : ""}`}>
               <div className="truncate">{o.label}</div>
               {o.hint && <div className="text-[11px] text-muted truncate">{o.hint}</div>}
             </li>

@@ -47,7 +47,7 @@ export function LiteraryModal({ note, books, onClose, onSaved, fixedBookId }: {
     <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-xl p-5 space-y-3 max-h-[92vh] overflow-y-auto">
         <div className="flex justify-between items-center">
-          <h2 className="font-semibold">{note ? "Nota literária" : "Nova nota literária"}</h2>
+          <h2 className="font-medium">{note ? "Nota literária" : "Nova nota literária"}</h2>
           <button type="button" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="grid grid-cols-[1fr_140px] gap-3">
@@ -75,7 +75,7 @@ export function LiteraryModal({ note, books, onClose, onSaved, fixedBookId }: {
           <div className="grid grid-cols-3 gap-1.5 mt-1">
             {COLUNAS.map((c) => (
               <button type="button" key={c.id} onClick={() => setSt(c.id)}
-                className={`btn justify-center text-xs ${status === c.id ? "border-accent ring-2 ring-accent-soft" : ""}`}>{c.label}</button>
+                className={`btn justify-center text-xs ${status === c.id ? "border-muted" : ""}`}>{c.label}</button>
             ))}
           </div>
         </div>

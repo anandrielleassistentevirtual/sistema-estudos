@@ -8,7 +8,7 @@ export function Cover({ book, url, className = "w-9 h-12" }: { book: Pick<Book, 
     return <img src={url} alt={`Capa de ${book.title}`} className={`${className} rounded object-cover shrink-0 bg-surface-2 shadow-sm`} />;
   }
   return (
-    <span className={`${className} grid place-items-center rounded bg-surface-2 text-[10px] font-semibold uppercase text-muted shrink-0`}>
+    <span className={`${className} grid place-items-center rounded bg-surface-2 text-[10px] font-medium uppercase text-muted shrink-0`}>
       {book.format === "fisico" ? "📖" : book.format}
     </span>
   );

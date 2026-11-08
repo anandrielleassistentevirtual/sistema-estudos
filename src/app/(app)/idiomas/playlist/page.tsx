@@ -77,7 +77,7 @@ export default function Playlist() {
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 pb-36">
       <IdiomasTabs />
-      <h1 className="text-2xl font-semibold tracking-tight mb-1">Playlist</h1>
+      <h1 className="text-2xl font-medium tracking-tight mb-1">Playlist</h1>
       <p className="text-sm text-muted mb-5">Monte uma sequência de áudios para ouvir em loop. Cada áudio ouvido até o fim conta uma escuta.</p>
 
       {lessons.length === 0 ? (
@@ -86,7 +86,7 @@ export default function Playlist() {
         <div className="grid md:grid-cols-2 gap-4">
           <div className="card p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-sm">Lições disponíveis</h2>
+              <h2 className="font-medium text-sm">Lições disponíveis</h2>
               <select className="input w-auto py-1 text-xs" value={lang} onChange={(e) => setLang(e.target.value)}>
                 {langs.map((l) => <option key={l}>{l}</option>)}
               </select>
@@ -110,7 +110,7 @@ export default function Playlist() {
           </div>
           <div className="card p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-sm">Na playlist ({queue.length})</h2>
+              <h2 className="font-medium text-sm">Na playlist ({queue.length})</h2>
               <button className="btn text-xs py-1" disabled={queue.length < 2}
                 onClick={() => setPicked((p) => [...p].sort(() => Math.random() - 0.5))}><Shuffle size={13} /> Embaralhar</button>
             </div>
@@ -147,7 +147,7 @@ export default function Playlist() {
             <div className="text-xs text-muted tabular-nums font-mono">{fmtClock(t)} / {fmtClock(dur)}</div>
           </div>
           <button className="p-2 text-muted" onClick={() => playAt(Math.max(0, cur - 1))} disabled={cur <= 0}><SkipBack size={17} /></button>
-          <button className="w-11 h-11 rounded-full grid place-items-center bg-accent text-white" disabled={!queue.length}
+          <button className="w-11 h-11 rounded-full grid place-items-center bg-accent text-accent-ink" disabled={!queue.length}
             onClick={() => { if (cur < 0) void playAt(0); else if (audio.current?.paused) void audio.current.play(); else audio.current?.pause(); }}>
             {playing ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
           </button>

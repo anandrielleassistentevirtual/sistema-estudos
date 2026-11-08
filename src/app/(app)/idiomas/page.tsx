@@ -130,9 +130,9 @@ export default function Idiomas() {
             const registered = !l.id.startsWith("extra-");
             return (
               <div key={l.id} onClick={() => setLang(l.name)}
-                className={`card p-4 cursor-pointer transition-colors group ${lang === l.name ? "border-accent ring-2 ring-accent-soft" : "hover:border-accent"}`}>
+                className={`card p-4 cursor-pointer transition-colors group ${lang === l.name ? "border-muted" : "hover:border-faint"}`}>
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold">{l.name}</span>
+                  <span className="font-medium">{l.name}</span>
                   <span className="flex gap-1 opacity-0 group-hover:opacity-100">
                     {registered ? (
                       <button className="p-1 text-faint hover:text-ink" title="Editar meta" onClick={(e) => { e.stopPropagation(); setModal({ edit: l }); }}><Pencil size={13} /></button>
@@ -142,7 +142,7 @@ export default function Idiomas() {
                   </span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-2xl font-semibold tabular-nums">{fmtDuration(t.week)}</span>
+                  <span className="text-2xl font-medium tabular-nums">{fmtDuration(t.week)}</span>
                   <span className="text-xs text-muted">esta semana{goal ? ` de ${fmtDuration(goal)}` : ""}</span>
                 </div>
                 {goal > 0 && (
@@ -164,13 +164,13 @@ export default function Idiomas() {
         <div className="grid lg:grid-cols-[1fr_300px] gap-4 mb-6">
           <section className="card p-5">
             <div className="flex items-baseline justify-between mb-3">
-              <h2 className="font-semibold">{lang}: minutos por semana</h2>
+              <h2 className="font-medium">{lang}: minutos por semana</h2>
               <span className="text-xs text-muted">últimas {WEEKS} semanas</span>
             </div>
             <BarChart data={weekly} unit="min" />
           </section>
           <section className="card p-5">
-            <h2 className="font-semibold mb-3">Onde foi o tempo</h2>
+            <h2 className="font-medium mb-3">Onde foi o tempo</h2>
             <p className="text-xs text-muted -mt-2 mb-3">últimos 30 dias</p>
             {bySource.length === 0 ? (
               <p className="text-sm text-muted">Nada ainda. Use o Timer (categoria Idiomas) ou “Registrar tempo”.</p>
@@ -200,7 +200,7 @@ export default function Idiomas() {
 
       {lang && (
         <>
-          <h2 className="font-semibold mb-3">Lições de {lang}</h2>
+          <h2 className="font-medium mb-3">Lições de {lang}</h2>
           {collections.length === 0 ? (
             <Empty>Nenhuma lição de {lang} ainda.</Empty>
           ) : (
@@ -211,7 +211,7 @@ export default function Idiomas() {
                   {list.map((l) => {
                     const pct = Math.min(1, l.minReads / Math.max(1, l.read_goal));
                     return (
-                      <Link key={l.id} href={`/idiomas/${l.id}`} className="card p-4 hover:border-accent transition-colors">
+                      <Link key={l.id} href={`/idiomas/${l.id}`} className="card p-4 hover:border-faint transition-colors">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             {l.level && <div className="text-xs text-faint">{l.level}</div>}
@@ -257,7 +257,7 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
     <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className={`card w-full ${wide ? "max-w-3xl" : "max-w-md"} max-h-[90vh] overflow-y-auto p-5 space-y-3`}>
         <div className="flex justify-between items-center">
-          <h2 className="font-semibold">{title}</h2>
+          <h2 className="font-medium">{title}</h2>
           <button type="button" onClick={onClose}><X size={18} /></button>
         </div>
         {children}

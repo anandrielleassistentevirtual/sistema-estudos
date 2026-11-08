@@ -31,7 +31,7 @@ export default function Login() {
     <main className="min-h-screen grid place-items-center px-4">
       <form onSubmit={submit} className="card w-full max-w-sm p-7 space-y-4">
         <div>
-          <h1 className="text-xl font-semibold">Sistema de Estudos</h1>
+          <h1 className="text-xl font-medium">Sistema de Estudos</h1>
           <p className="text-sm text-muted mt-1">
             {mode === "entrar" ? "Entre para continuar seus estudos." : "Crie sua conta (só você terá acesso aos dados)."}
           </p>

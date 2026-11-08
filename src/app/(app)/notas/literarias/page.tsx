@@ -135,7 +135,7 @@ export default function Literarias() {
                 </button>
                 {sel === f.id ? <FolderOpen size={15} className="text-accent" /> : <Folder size={15} className="text-muted" />}
                 <span className="truncate flex-1 py-1.5" title={folderLabel(f)}>
-                  {f.code && <span className={`font-mono text-xs mr-1 ${depth === 0 ? "font-semibold text-ink" : "text-muted"}`}>{f.code} –</span>}
+                  {f.code && <span className={`font-mono text-xs mr-1 ${depth === 0 ? "font-medium text-ink" : "text-muted"}`}>{f.code} –</span>}
                   <span className={depth === 0 ? "font-medium" : ""}>{f.name}</span>
                 </span>
                 {n > 0 && <span className="text-xs text-faint tabular-nums">{n}</span>}
@@ -180,13 +180,13 @@ export default function Literarias() {
                       className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2 ${n ? "" : "opacity-60"}`}>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate">
-                          {b.author && <><span className="font-semibold">{b.author}</span><span className="text-faint"> — </span></>}
+                          {b.author && <><span className="font-medium">{b.author}</span><span className="text-faint"> — </span></>}
                           <span className="font-medium">{b.title}</span>
                         </span>
                         {f && <span className="text-xs text-muted"><span className="font-mono">{f.code}</span> {f.name}</span>}
                       </span>
                       {p > 0 && <span className="inline-flex items-center gap-1 text-[11px] text-muted"><Inbox size={12} /> {p}</span>}
-                      <span className={`text-xs tabular-nums ${n ? "font-semibold text-accent" : "text-faint"}`}>{n ? `${n} ${n === 1 ? "anotação" : "anotações"}` : "sem anotações"}</span>
+                      <span className={`text-xs tabular-nums ${n ? "font-medium text-accent" : "text-faint"}`}>{n ? `${n} ${n === 1 ? "anotação" : "anotações"}` : "sem anotações"}</span>
                     </button>
                   );
                 })}
@@ -198,7 +198,7 @@ export default function Literarias() {
                 <div className="min-w-0">
                   <button className="text-sm text-muted hover:text-ink mb-1" onClick={() => setBookId(null)}>← voltar</button>
                   <h2 className="text-xl">
-                    {book.author && <span className="font-semibold">{book.author} — </span>}
+                    {book.author && <span className="font-medium">{book.author} — </span>}
                     <span>{book.title}</span>
                   </h2>
                   <p className="text-sm text-muted">

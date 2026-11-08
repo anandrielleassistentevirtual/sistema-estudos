@@ -199,7 +199,7 @@ export default function Lectio() {
           <button className="btn btn-ghost px-2" onClick={() => setDia(dayKey(addDays(parseDay(dia), -1)))} disabled={rodando}><ChevronLeft size={16} /></button>
           <div className="text-center min-w-0">
             <div className="text-xs uppercase tracking-wider text-muted first-letter:uppercase">{dataLonga}</div>
-            <h1 className="text-xl font-semibold flex items-center justify-center gap-2">
+            <h1 className="text-xl font-medium flex items-center justify-center gap-2">
               <BookHeart size={18} className="text-accent" /> Lectio Divina
             </h1>
           </div>
@@ -216,7 +216,7 @@ export default function Lectio() {
         <div className="grid grid-cols-4 gap-1.5 mt-6">
           {ETAPAS.map((e, i) => (
             <button key={e.id} disabled={rodando} onClick={() => { setEtapa(i); setRestante(minutos * 60); setFim(false); }}
-              className={`rounded-lg py-2 text-xs sm:text-sm transition-colors ${i === etapa && !fim ? "bg-accent text-white font-medium" : i < etapa || fim ? "bg-accent-soft text-ink" : "bg-surface-2 text-muted"}`}>
+              className={`rounded-lg py-2 text-xs sm:text-sm transition-colors ${i === etapa && !fim ? "bg-accent text-accent-ink font-medium" : i < etapa || fim ? "bg-accent-soft text-ink" : "bg-surface-2 text-muted"}`}>
               {e.nome}
             </button>
           ))}
@@ -233,7 +233,7 @@ export default function Lectio() {
             <span className="absolute inset-0 grid place-items-center text-xs font-mono tabular-nums">{fim ? "✓" : fmtClock(Math.max(0, restante))}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-semibold">{fim ? "Lectio concluída" : `${atual.nome} — ${atual.pergunta}`}</div>
+            <div className="font-medium">{fim ? "Lectio concluída" : `${atual.nome} — ${atual.pergunta}`}</div>
             <div className="text-xs text-muted">{fim ? `Tempo total: ${fmtDuration(total)}` : atual.guia}</div>
           </div>
           <div className="flex gap-1 shrink-0">
@@ -298,7 +298,7 @@ export default function Lectio() {
                   <figure key={i} className={`card p-5 ${c.destaque ? "border-accent/50" : ""}`}>
                     <blockquote className="leading-[1.75] text-[1.08em] text-justify" style={serif}>“{c.texto}”</blockquote>
                     <figcaption className="mt-3 text-[0.85em] flex flex-wrap items-baseline justify-between gap-2">
-                      <span><span className="font-semibold">{c.autor}</span>{c.fonte && !/^ubi sup/i.test(c.fonte) && <span className="text-muted"> · {c.fonte}</span>}</span>
+                      <span><span className="font-medium">{c.autor}</span>{c.fonte && !/^ubi sup/i.test(c.fonte) && <span className="text-muted"> · {c.fonte}</span>}</span>
                       {c.sobre && <span className="text-xs text-faint">sobre {c.sobre}</span>}
                     </figcaption>
                   </figure>

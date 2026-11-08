@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "Leitura, notas, idiomas e métricas de estudo num só lugar.",
 };
 
-const themeScript = `try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}`;
+const themeScript = `try{var t=localStorage.getItem("tema");document.documentElement.dataset.theme=t||"dark"}catch(e){document.documentElement.dataset.theme="dark"}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

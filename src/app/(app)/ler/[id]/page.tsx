@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Download, Highlighter, Layers, ListTree, Trash2, Type, X, ZoomIn, ZoomOut } from "lucide-react";
+import { loadPrefs, useEffectiveTheme } from "@/components/reader/prefs";
 import { EpubReader } from "@/components/reader/epub-reader";
 import { TextReader } from "@/components/reader/text-reader";
 import { DEFAULT_PREFS, FONTS, HL_COLORS, ReaderFont, ReaderHandle, ReaderPrefs, THEMES, TocItem } from "@/components/reader/types";
@@ -68,10 +69,8 @@ export default function Ler() {
   timerOn.current = timer.running && timer.phase === "foco";
 
   useEffect(() => {
-    try {
-      const p = localStorage.getItem(PREFS_KEY);
-      if (p) setPrefs({ ...defaultPrefs, ...JSON.parse(p) });
-    } catch {}
+    const p = loadPrefs();
+    if (p) setPrefs(p);
   }, []);
   useEffect(() => {
     try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
@@ -186,7 +185,9 @@ export default function Ler() {
     return () => document.removeEventListener("keydown", k);
   }, []);
 
-  const t = THEMES[prefs.theme];
+  const tema = useEffectiveTheme(prefs.theme);
+  const view = { ...prefs, theme: tema };
+  const t = THEMES[tema];
   const wpm = session.seconds > 30 ? Math.round(session.words / (session.seconds / 60)) : 0;
 
   if (error) {
@@ -200,7 +201,7 @@ export default function Ler() {
 
   return (
     <div className="fixed inset-0 z-20 flex flex-col" style={{ background: t.bg, color: t.fg }}>
-      <header className="flex items-center gap-2 px-3 h-12 border-b shrink-0" style={{ borderColor: prefs.theme === "escuro" ? "#2f2f2c" : "#00000014" }}>
+      <header className="flex items-center gap-2 px-3 h-12 border-b shrink-0" style={{ borderColor: tema === "escuro" ? "#2f2f2c" : "#00000014" }}>
         <Link href="/biblioteca" className="p-2 opacity-70 hover:opacity-100" title="Voltar"><ChevronLeft size={18} /></Link>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium truncate">{book?.title ?? "Carregando…"}</div>
@@ -212,7 +213,7 @@ export default function Ler() {
           <span>{wpm ? `${wpm} ppm` : "— ppm"}</span>
         </div>
         <span className="text-xs opacity-70 tabular-nums w-10 text-right" title="Progresso no livro">{Math.round(progress * 100)}%</span>
-        <div className="flex items-center rounded-lg border mx-1" style={{ borderColor: prefs.theme === "escuro" ? "#2f2f2c" : "#00000018" }} title="Zoom (teclas + e −)">
+        <div className="flex items-center rounded-lg border mx-1" style={{ borderColor: tema === "escuro" ? "#2f2f2c" : "#00000018" }} title="Zoom (teclas + e −)">
           <button className="p-1.5 opacity-70 hover:opacity-100 disabled:opacity-30" onClick={() => setZoom(-1)} disabled={zoom <= ZOOM[0]} aria-label="Diminuir"><ZoomOut size={16} /></button>
           <button className="text-xs tabular-nums w-11 text-center opacity-80 hover:opacity-100" onClick={() => setPrefs((p) => ({ ...p, sizePt: 12 }))} title="Voltar a 100%">{zoom}%</button>
           <button className="p-1.5 opacity-70 hover:opacity-100 disabled:opacity-30" onClick={() => setZoom(1)} disabled={zoom >= ZOOM[ZOOM.length - 1]} aria-label="Aumentar"><ZoomIn size={16} /></button>
@@ -236,11 +237,11 @@ export default function Ler() {
       <div className="relative flex-1 min-h-0">
         {blob && book && (
           book.format === "epub" ? (
-            <EpubReader ref={reader} data={blob} format="epub" startAt={book.last_location} prefs={prefs} annotations={anns}
+            <EpubReader ref={reader} data={blob} format="epub" startAt={book.last_location} prefs={view} annotations={anns}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
               onAnnotationClick={() => setShowAnns(true)} onToc={setToc} onView={(w, last) => tracker.current?.see(w, last)} />
           ) : (
-            <TextReader ref={reader} data={blob} format={book.format as "txt" | "md"} startAt={book.last_location} prefs={prefs} annotations={anns}
+            <TextReader ref={reader} data={blob} format={book.format as "txt" | "md"} startAt={book.last_location} prefs={view} annotations={anns}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
               onAnnotationClick={() => setShowAnns(true)} onToc={setToc} onView={(w, last) => tracker.current?.see(w, last)} />
           )
@@ -250,7 +251,7 @@ export default function Ler() {
         {showToc && (
           <aside className="absolute left-0 top-0 bottom-0 z-30 w-full sm:w-80 bg-surface text-ink border-r border-line flex flex-col shadow-xl">
             <div className="flex items-center justify-between px-4 h-12 border-b border-line">
-              <span className="font-semibold text-sm">Sumário</span>
+              <span className="font-medium text-sm">Sumário</span>
               <button onClick={() => setShowToc(false)}><X size={18} /></button>
             </div>
             <nav className="overflow-y-auto flex-1 py-2">
@@ -278,9 +279,13 @@ export default function Ler() {
             <div>
               <div className="label mb-2">Tema</div>
               <div className="flex gap-2">
+                <button onClick={() => setPrefs({ ...prefs, theme: "auto" })} title="Acompanha o tema do sistema (claro ou escuro)"
+                  className={`flex-1 rounded-lg border py-2 text-xs bg-surface text-ink ${prefs.theme === "auto" ? "border-muted" : "border-line"}`}>
+                  Sistema
+                </button>
                 {(Object.keys(THEMES) as (keyof typeof THEMES)[]).map((k) => (
                   <button key={k} onClick={() => setPrefs({ ...prefs, theme: k })}
-                    className={`flex-1 rounded-lg border py-2 text-xs ${prefs.theme === k ? "border-accent ring-2 ring-accent-soft" : "border-line"}`}
+                    className={`flex-1 rounded-lg border py-2 text-xs ${prefs.theme === k ? "border-muted" : "border-line"}`}
                     style={{ background: THEMES[k].bg, color: THEMES[k].fg }}>
                     {THEMES[k].label}
                   </button>
@@ -292,7 +297,7 @@ export default function Ler() {
               <div className="grid grid-cols-3 gap-1.5">
                 {(Object.keys(FONTS) as ReaderFont[]).map((f) => (
                   <button key={f} onClick={() => setPrefs({ ...prefs, font: f })}
-                    className={`btn justify-center text-xs px-1 ${prefs.font === f ? "border-accent ring-2 ring-accent-soft" : ""}`}
+                    className={`btn justify-center text-xs px-1 ${prefs.font === f ? "border-muted" : ""}`}
                     style={{ fontFamily: FONTS[f].css }}>
                     {f === "times" ? "Times" : FONTS[f].label}
                   </button>
@@ -313,7 +318,7 @@ export default function Ler() {
               <div className="grid grid-cols-4 gap-1.5">
                 {[1, 1.15, 1.5, 2].map((lh) => (
                   <button key={lh} onClick={() => setPrefs({ ...prefs, lineHeight: lh })}
-                    className={`btn justify-center text-xs px-1 ${prefs.lineHeight === lh ? "border-accent ring-2 ring-accent-soft" : ""}`}>
+                    className={`btn justify-center text-xs px-1 ${prefs.lineHeight === lh ? "border-muted" : ""}`}>
                     {String(lh).replace(".", ",")}
                   </button>
                 ))}
@@ -322,8 +327,8 @@ export default function Ler() {
             <div>
               <div className="label mb-2">Alinhamento</div>
               <div className="grid grid-cols-2 gap-1.5">
-                <button className={`btn justify-center text-xs ${prefs.justify ? "border-accent ring-2 ring-accent-soft" : ""}`} onClick={() => setPrefs({ ...prefs, justify: true })}>Justificado</button>
-                <button className={`btn justify-center text-xs ${!prefs.justify ? "border-accent ring-2 ring-accent-soft" : ""}`} onClick={() => setPrefs({ ...prefs, justify: false })}>À esquerda</button>
+                <button className={`btn justify-center text-xs ${prefs.justify ? "border-muted" : ""}`} onClick={() => setPrefs({ ...prefs, justify: true })}>Justificado</button>
+                <button className={`btn justify-center text-xs ${!prefs.justify ? "border-muted" : ""}`} onClick={() => setPrefs({ ...prefs, justify: false })}>À esquerda</button>
               </div>
             </div>
             <button className="text-xs text-accent" onClick={() => setPrefs({ ...DEFAULT_PREFS, theme: prefs.theme })}>
@@ -336,7 +341,7 @@ export default function Ler() {
         {showAnns && (
           <aside className="absolute right-0 top-0 bottom-0 z-30 w-full sm:w-96 bg-surface text-ink border-l border-line flex flex-col shadow-xl">
             <div className="flex items-center justify-between px-4 h-12 border-b border-line">
-              <span className="font-semibold text-sm">Anotações ({anns.length})</span>
+              <span className="font-medium text-sm">Anotações ({anns.length})</span>
               <button onClick={() => setShowAnns(false)}><X size={18} /></button>
             </div>
             <div className="overflow-y-auto flex-1 p-3 space-y-3">
@@ -397,8 +402,8 @@ export default function Ler() {
 
       <footer className="shrink-0 flex items-center gap-2 px-3 h-9 text-xs opacity-80">
         <button className="p-1" onClick={() => reader.current?.prev()}><ChevronLeft size={16} /></button>
-        <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: prefs.theme === "escuro" ? "#2f2f2c" : "#00000012" }}>
-          <div className="h-full" style={{ width: `${progress * 100}%`, background: "#3987e5" }} />
+        <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: tema === "escuro" ? "#2f2f2c" : "#00000012" }}>
+          <div className="h-full opacity-60" style={{ width: `${progress * 100}%`, background: "currentColor" }} />
         </div>
         <button className="p-1" onClick={() => reader.current?.next()}><ChevronRight size={16} /></button>
       </footer>
