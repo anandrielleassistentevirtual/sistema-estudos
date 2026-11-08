@@ -16,8 +16,8 @@ const NAV = [
   { href: "/biblioteca", label: "Mapa da Ignorância", icon: Library },
   { href: "/estudos", label: "Estudos", icon: GraduationCap },
   { href: "/idiomas", label: "Idiomas", icon: Languages },
-  { href: "/notas", label: "Notas", icon: NotebookPen },
   { href: "/lectio", label: "Lectio Divina", icon: BookHeart },
+  { href: "/notas", label: "Notas", icon: NotebookPen },
 ];
 
 function ThemeToggle() {
