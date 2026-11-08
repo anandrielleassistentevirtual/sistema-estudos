@@ -14,9 +14,9 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/timer", label: "Timer", icon: Timer },
   { href: "/biblioteca", label: "Mapa da Ignorância", icon: Library },
-  { href: "/notas", label: "Notas", icon: NotebookPen },
   { href: "/estudos", label: "Estudos", icon: GraduationCap },
   { href: "/idiomas", label: "Idiomas", icon: Languages },
+  { href: "/notas", label: "Notas", icon: NotebookPen },
 ];
 
 function ThemeToggle() {
