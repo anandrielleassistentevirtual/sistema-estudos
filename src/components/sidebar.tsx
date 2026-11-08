@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  CalendarDays, GraduationCap, Languages, Layers, LayoutDashboard, Library, ListOrdered,
+  CalendarDays, GraduationCap, Languages, LayoutDashboard, Library, ListOrdered,
   LogOut, Menu, Moon, NotebookPen, Sun, Timer, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -19,7 +19,6 @@ const NAV = [
   { href: "/notas", label: "Notas", icon: NotebookPen },
   { href: "/estudos", label: "Estudos", icon: GraduationCap },
   { href: "/idiomas", label: "Idiomas", icon: Languages },
-  { href: "/anki", label: "Anki", icon: Layers },
 ];
 
 function ThemeToggle() {

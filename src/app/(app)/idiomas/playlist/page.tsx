@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, Headphones, Pause, Play, Repeat, Shuffle, SkipBack, SkipForward } from "lucide-react";
+import { Headphones, Pause, Play, Repeat, Shuffle, SkipBack, SkipForward } from "lucide-react";
 import { Empty } from "@/components/page";
+import { IdiomasTabs } from "@/components/idiomas-tabs";
 import { audioUrl, registerListen } from "@/lib/lessons";
 import { dayKey, fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
@@ -75,7 +76,7 @@ export default function Playlist() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 pb-36">
-      <Link href="/idiomas" className="text-sm text-muted flex items-center gap-1 mb-1"><ChevronLeft size={15} /> Idiomas</Link>
+      <IdiomasTabs />
       <h1 className="text-2xl font-semibold tracking-tight mb-1">Playlist</h1>
       <p className="text-sm text-muted mb-5">Monte uma sequência de áudios para ouvir em loop. Cada áudio ouvido até o fim conta uma escuta.</p>
 

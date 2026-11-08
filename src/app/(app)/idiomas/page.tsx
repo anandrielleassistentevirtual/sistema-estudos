@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock, Headphones, ListMusic, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Clock, Headphones, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Empty, Page } from "@/components/page";
+import { IdiomasTabs } from "@/components/idiomas-tabs";
 import { BarChart } from "@/components/bar-chart";
 import { createLesson } from "@/lib/lessons";
 import { Language, loadLanguages, ONDE, SUGESTOES } from "@/lib/languages";
@@ -107,13 +108,13 @@ export default function Idiomas() {
 
   return (
     <Page
+      tabs={<IdiomasTabs />}
       title="Idiomas"
       subtitle="Quanto tempo vai para cada idioma, e as lições de leitura e escuta."
       actions={
         <>
           <button className="btn" onClick={() => setModal("idioma")}><Plus size={15} /> Cadastrar idioma</button>
           <button className="btn" onClick={() => setModal("tempo")} disabled={!allLangs.length}><Clock size={15} /> Registrar tempo</button>
-          <Link className="btn" href={`/idiomas/playlist${lang ? `?idioma=${encodeURIComponent(lang)}` : ""}`}><ListMusic size={15} /> Playlist</Link>
           <button className="btn btn-primary" onClick={() => setModal("licao")}><Plus size={15} /> Nova lição</button>
         </>
       }

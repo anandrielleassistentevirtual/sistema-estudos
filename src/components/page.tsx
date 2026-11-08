@@ -4,7 +4,9 @@ export function Page({
   actions,
   children,
   wide,
+  tabs,
 }: {
+  tabs?: React.ReactNode;
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
@@ -13,6 +15,7 @@ export function Page({
 }) {
   return (
     <div className={`mx-auto px-4 md:px-8 py-6 md:py-8 ${wide ? "max-w-7xl" : "max-w-5xl"}`}>
+      {tabs}
       <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Play, RefreshCw } from "lucide-react";
 import { Page, Stat } from "@/components/page";
+import { IdiomasTabs } from "@/components/idiomas-tabs";
 import { Heatmap } from "@/components/heatmap";
 import { anki, ankiOnline, ankiUrl } from "@/lib/anki";
 import { addDays, dayKey, nf, weekStart } from "@/lib/dates";
@@ -60,6 +61,7 @@ export default function AnkiPage() {
 
   return (
     <Page
+      tabs={<IdiomasTabs />}
       title="Anki"
       subtitle="As revisões continuam no Anki. Aqui você vê o histórico, abre a revisão e cria cartões a partir das leituras e frases."
       actions={<button className="btn" onClick={refresh} disabled={busy}><RefreshCw size={15} className={busy ? "animate-spin" : ""} /> Atualizar</button>}
