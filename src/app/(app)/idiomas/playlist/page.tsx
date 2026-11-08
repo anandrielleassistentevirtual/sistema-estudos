@@ -23,7 +23,8 @@ export default function Playlist() {
   const [loop, setLoop] = useState(true);
   const [rate, setRate] = useState(1);
   const audio = useRef<HTMLAudioElement>(null);
-  const listened = useRef(0);
+  const listened = useRef<Record<string, number>>({});
+  const curLang = useRef<string>("");
   const tick = useRef<number | null>(null);
 
   useEffect(() => {
@@ -39,8 +40,10 @@ export default function Playlist() {
         } catch {}
       });
     return () => {
-      const secs = Math.round(listened.current);
-      if (secs >= 30) void supabase().from("study_sessions").insert({ day: dayKey(), seconds: secs, category: "Idiomas", label: "Playlist" });
+      const rows = Object.entries(listened.current)
+        .filter(([, secs]) => secs >= 30)
+        .map(([language, secs]) => ({ day: dayKey(), seconds: Math.round(secs), category: "Idiomas", language, label: "Playlist" }));
+      if (rows.length) void supabase().from("study_sessions").insert(rows);
     };
   }, []);
 
@@ -54,6 +57,7 @@ export default function Playlist() {
     const l = queue[i];
     if (!l?.audio_path) return;
     setCur(i);
+    curLang.current = l.language;
     const url = await audioUrl(l.audio_path);
     setSrc(url);
     setTimeout(() => { if (audio.current) { audio.current.playbackRate = rate; void audio.current.play(); } }, 50);
@@ -132,7 +136,7 @@ export default function Playlist() {
             onTimeUpdate={(e) => {
               setT(e.currentTarget.currentTime);
               const now = performance.now();
-              if (tick.current !== null && !e.currentTarget.paused) listened.current += Math.min(2, (now - tick.current) / 1000);
+              if (tick.current !== null && !e.currentTarget.paused && curLang.current) listened.current[curLang.current] = (listened.current[curLang.current] ?? 0) + Math.min(2, (now - tick.current) / 1000);
               tick.current = now;
             }}
             onLoadedMetadata={(e) => setDur(e.currentTarget.duration)}

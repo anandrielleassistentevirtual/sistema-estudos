@@ -20,10 +20,10 @@ export function BarChart({
   const W = 100 / data.length;
   return (
     <div className="relative" style={{ height: height + 22 }}>
-      <div className="absolute inset-x-0 top-0" style={{ height }}>
+      <div className="absolute left-0 right-9 top-0" style={{ height }}>
         {[0.5, 1].map((f) => (
           <div key={f} className="absolute inset-x-0 border-t border-dashed border-line" style={{ bottom: f * height }}>
-            <span className="absolute -top-2 right-0 z-10 text-[10px] text-faint bg-surface pl-1">{nf.format(nice * f)}</span>
+            <span className="absolute -top-2 -right-9 w-8 text-left z-10 text-[10px] text-faint pl-1">{nf.format(nice * f)}</span>
           </div>
         ))}
         <div className="absolute inset-x-0 bottom-0 border-t border-line" />
@@ -52,7 +52,7 @@ export function BarChart({
           </div>
         ))}
       </div>
-      <div className="absolute inset-x-0 bottom-0 flex text-[10px] text-faint">
+      <div className="absolute left-0 right-9 bottom-0 flex text-[10px] text-faint">
         {data.map((d, i) => (
           <div key={i} className="text-center truncate" style={{ width: `${W}%` }}>
             {i % Math.ceil(data.length / 8) === 0 ? d.label : ""}
@@ -62,7 +62,7 @@ export function BarChart({
       {hover !== null && (
         <div
           className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-xs shadow-lg whitespace-nowrap"
-          style={{ left: `${(hover + 0.5) * W}%`, top: 0, background: "var(--text)", color: "var(--bg)" }}
+          style={{ left: `calc((100% - 2.25rem) * ${(hover + 0.5) / data.length})`, top: 0, background: "var(--text)", color: "var(--bg)" }}
         >
           <div className="font-semibold">
             {nf.format(data[hover].value)} {unit}

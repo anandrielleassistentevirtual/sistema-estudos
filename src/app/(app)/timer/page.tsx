@@ -5,12 +5,15 @@ import { Page } from "@/components/page";
 import { CATEGORIAS, useTimer } from "@/components/timer-context";
 import { dayKey, fmtClock, fmtDuration } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
+import { Language, loadLanguages } from "@/lib/languages";
 
 interface Session { id: string; started_at: string; seconds: number; category: string; label: string }
 
 export default function TimerPage() {
   const t = useTimer();
   const [today, setToday] = useState<Session[]>([]);
+  const [langs, setLangs] = useState<Language[]>([]);
+  useEffect(() => { void loadLanguages().then(setLangs); }, []);
 
   const load = () =>
     supabase()
@@ -83,6 +86,16 @@ export default function TimerPage() {
                 {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}
               </select>
             </label>
+            {t.category === "Idiomas" && (
+              <label className="space-y-1 sm:col-span-2">
+                <span className="label">Idioma</span>
+                <select className="input" value={t.language} onChange={(e) => t.set({ language: e.target.value })}>
+                  <option value="">Escolha o idioma…</option>
+                  {langs.map((l) => <option key={l.id} value={l.name}>{l.name}</option>)}
+                </select>
+                {langs.length === 0 && <span className="text-xs text-muted">Cadastre seus idiomas na tela Idiomas.</span>}
+              </label>
+            )}
             <label className="space-y-1">
               <span className="label">O que está estudando</span>
               <input className="input" value={t.label} placeholder="ex.: Divina Comédia, canto V" onChange={(e) => t.set({ label: e.target.value })} />

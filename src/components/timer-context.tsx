@@ -16,6 +16,7 @@ interface TimerState {
   breakMin: number;
   category: string;
   label: string;
+  language: string;
   cycles: number;
 }
 
@@ -41,6 +42,7 @@ const initial: TimerState = {
   breakMin: 5,
   category: "Leitura",
   label: "",
+  language: "",
   cycles: 0,
 };
 
@@ -98,7 +100,10 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     const started = new Date(Date.now() - secs * 1000);
     await supabase()
       .from("study_sessions")
-      .insert({ day: dayKey(started), started_at: started.toISOString(), seconds: Math.round(secs), category: st.category, label: st.label });
+      .insert({
+        day: dayKey(started), started_at: started.toISOString(), seconds: Math.round(secs), category: st.category, label: st.label,
+        language: st.category === "Idiomas" && st.language ? st.language : null,
+      });
     setLastSaved(Date.now());
   }, []);
 

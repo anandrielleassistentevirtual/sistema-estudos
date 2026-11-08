@@ -3,9 +3,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Check, ChevronLeft, Eye, EyeOff, Layers, Pause, Play, Plus, Repeat, RotateCcw, SkipBack, SkipForward, Timer, Trash2,
+  Check, ChevronLeft, Eye, EyeOff, Layers, Minus, Pause, Play, Plus, Repeat, RotateCcw, SkipBack, SkipForward, Timer, Trash2,
 } from "lucide-react";
-import { audioUrl, fullReads, registerListen, registerRead } from "@/lib/lessons";
+import { audioUrl, fullReads, registerListen, registerRead, undoRead } from "@/lib/lessons";
 import { addBasicNote } from "@/lib/anki";
 import { dayKey, fmtClock, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
@@ -32,6 +32,7 @@ export default function LessonPage() {
   const [sync, setSync] = useState<{ idx: number; marks: number[] } | null>(null);
   const [focus, setFocus] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  const [undo, setUndo] = useState<{ s: Sentence | null; key: number } | null>(null);
   const audio = useRef<HTMLAudioElement>(null);
   const stopAt = useRef<{ start: number; end: number } | null>(null);
   const fullPlay = useRef(false);
@@ -68,7 +69,7 @@ export default function LessonPage() {
     return () => {
       const secs = Math.round(listened.current);
       if (secs >= 30 && lesson) {
-        void supabase().from("study_sessions").insert({ day: dayKey(), seconds: secs, category: "Idiomas", label: `${lesson.language}: ${lesson.title}` });
+        void supabase().from("study_sessions").insert({ day: dayKey(), seconds: secs, category: "Idiomas", language: lesson.language, label: `Lição: ${lesson.title}` });
       }
     };
   }, [lesson]);
@@ -156,8 +157,21 @@ export default function LessonPage() {
     if (!lesson) return;
     setSents((all) => all.map((x) => (s === null || x.id === s.id ? { ...x, read_count: x.read_count + 1 } : x)));
     await registerRead(lesson.id, s?.id ?? null);
-    if (s === null) setToast("+1 leitura em todas as frases.");
+    setUndo({ s, key: Date.now() });
   }
+
+  async function minusOne(s: Sentence | null) {
+    if (!lesson) return;
+    setSents((all) => all.map((x) => ((s === null || x.id === s.id) && x.read_count > 0 ? { ...x, read_count: x.read_count - 1 } : x)));
+    setUndo(null);
+    await undoRead(lesson.id, s?.id ?? null);
+  }
+
+  useEffect(() => {
+    if (!undo) return;
+    const x = setTimeout(() => setUndo(null), 6000);
+    return () => clearTimeout(x);
+  }, [undo]);
 
   // ───── sincronização manual ─────
   function startSync() {
@@ -328,10 +342,17 @@ export default function LessonPage() {
                   </>
                 )}
                 <button className="p-1.5 rounded-md text-muted hover:bg-surface-2 opacity-0 group-hover:opacity-100" title="Enviar ao Anki" onClick={(e) => { e.stopPropagation(); void toAnki(s); }}><Layers size={15} /></button>
-                <button className={`flex items-center gap-1 rounded-md px-2 py-1 text-sm tabular-nums border ${s.read_count >= lesson.read_goal ? "border-good text-good" : "border-line"} hover:bg-surface-2`}
-                  title="+1 leitura (Enter)" onClick={(e) => { e.stopPropagation(); void plusOne(s); }}>
-                  <Plus size={13} /> {s.read_count}
-                </button>
+                <div className={`flex items-center rounded-md border text-sm tabular-nums ${s.read_count >= lesson.read_goal ? "border-good text-good" : "border-line"}`}>
+                  <button className="px-1.5 py-1 rounded-l-md hover:bg-surface-2 disabled:opacity-30" title="−1 leitura (desfazer)" disabled={s.read_count === 0}
+                    onClick={(e) => { e.stopPropagation(); void minusOne(s); }}>
+                    <Minus size={13} />
+                  </button>
+                  <span className="px-1.5 min-w-[1.75rem] text-center">{s.read_count}</span>
+                  <button className="px-1.5 py-1 rounded-r-md hover:bg-surface-2" title="+1 leitura (Enter)"
+                    onClick={(e) => { e.stopPropagation(); void plusOne(s); }}>
+                    <Plus size={13} />
+                  </button>
+                </div>
               </div>
               {layout === "intercalado" && (
                 <p className={`font-serif text-[0.98rem] leading-relaxed text-muted ${trVisible(s) ? "" : "blur-sm select-none cursor-pointer"}`}
@@ -370,6 +391,12 @@ export default function LessonPage() {
         </div>
       )}
 
+      {undo && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 flex items-center gap-3 rounded-lg pl-4 pr-2 py-2 text-sm shadow-lg" style={{ background: "var(--text)", color: "var(--bg)" }}>
+          <span>{undo.s ? `+1 leitura: “${undo.s.text.length > 40 ? undo.s.text.slice(0, 40) + "…" : undo.s.text}”` : "+1 leitura em todas as frases"}</span>
+          <button className="rounded-md px-2.5 py-1 font-semibold underline underline-offset-2" onClick={() => minusOne(undo.s)}>Desfazer</button>
+        </div>
+      )}
       {toast && (
         <div className="fixed left-1/2 -translate-x-1/2 top-4 z-40 rounded-lg px-4 py-2 text-sm shadow-lg" style={{ background: "var(--text)", color: "var(--bg)" }}>{toast}</div>
       )}

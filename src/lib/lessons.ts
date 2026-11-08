@@ -66,6 +66,10 @@ export async function registerRead(lessonId: string, sentenceId: string | null) 
   await supabase().rpc("registrar_leitura", { p_lesson: lessonId, p_sentence: sentenceId, p_day: dayKey() });
 }
 
+export async function undoRead(lessonId: string, sentenceId: string | null) {
+  await supabase().rpc("desfazer_leitura", { p_lesson: lessonId, p_sentence: sentenceId, p_day: dayKey() });
+}
+
 export async function registerListen(lessonId: string) {
   await supabase().rpc("registrar_escuta", { p_lesson: lessonId, p_day: dayKey() });
 }
