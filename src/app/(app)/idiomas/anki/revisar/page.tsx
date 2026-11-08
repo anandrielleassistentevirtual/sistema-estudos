@@ -6,6 +6,7 @@ import { anki } from "@/lib/anki";
 import { Language, loadLanguages } from "@/lib/languages";
 import { dayKey, fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
+import { ankiRowsSince } from "@/lib/settings";
 
 interface CurrentCard {
   cardId: number;
@@ -192,7 +193,7 @@ export default function RevisarAnki() {
           day: dayKey(), seconds: s, category: "Idiomas", language: langRef.current || null, label: `Anki · ${doneRef.current} cartões`,
         });
       }
-      void anki<[string, number][]>("getNumCardsReviewedByDay").then((rows) => {
+      void anki<[string, number][]>("getNumCardsReviewedByDay").then(ankiRowsSince).then((rows) => {
         const today = rows.filter(([d]) => d >= dayKey(new Date(Date.now() - 7 * 864e5)));
         if (today.length) void supabase().from("anki_daily").upsert(today.map(([day, reviews]) => ({ day, reviews })));
       }).catch(() => {});

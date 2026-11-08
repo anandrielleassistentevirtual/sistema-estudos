@@ -9,6 +9,7 @@ import { anki, ankiOnline, ankiUrl } from "@/lib/anki";
 import { addDays, dayKey, nf, weekStart } from "@/lib/dates";
 import { DayStats, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
+import { ankiRowsSince } from "@/lib/settings";
 
 interface DeckStat { deck_id: number; name: string; new_count: number; learn_count: number; review_count: number; total_in_deck: number }
 
@@ -32,7 +33,7 @@ export default function AnkiPage() {
         const names = await anki<string[]>("deckNames");
         const stats = await anki<Record<string, DeckStat>>("getDeckStats", { decks: names });
         setDecks(Object.values(stats).sort((a, b) => a.name.localeCompare(b.name)));
-        const byDay = await anki<[string, number][]>("getNumCardsReviewedByDay");
+        const byDay = await ankiRowsSince(await anki<[string, number][]>("getNumCardsReviewedByDay"));
         if (byDay.length) {
           const rows = byDay.map(([day, reviews]) => ({ day, reviews }));
           for (let i = 0; i < rows.length; i += 500) await supabase().from("anki_daily").upsert(rows.slice(i, i + 500));
