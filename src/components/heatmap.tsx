@@ -26,7 +26,7 @@ export function Heatmap({
   const unit = METRICS.find((m) => m.id === metric)!.unit;
   const today = dayKey();
 
-  const { cells, months, thresholds, tLidas, tEscritas } = useMemo(() => {
+  const { cells, months, thresholds } = useMemo(() => {
     const first = addDays(weekStart(end), -(weeks - 1) * 7);
     const cells: { day: string; w: number; d: number; v: number; future: boolean }[] = [];
     const months: { w: number; label: string }[] = [];
@@ -52,17 +52,7 @@ export function Heatmap({
       return vs.length ? [q(0.2), q(0.4), q(0.6), q(0.8)] : [1, 2, 3, 4];
     };
     const thresholds = quart(values);
-    // leitura × escrita: cada série com a própria escala (lemos milhares de palavras, escrevemos centenas)
-    const lidas: number[] = [];
-    const escritas: number[] = [];
-    if (metric === "io") for (const c of cells) {
-      const st = data.get(c.day);
-      if (st?.words) lidas.push(st.words);
-      if (st?.written) escritas.push(st.written);
-    }
-    const tLidas = quart(lidas);
-    const tEscritas = quart(escritas);
-    return { cells, months, thresholds, tLidas, tEscritas };
+    return { cells, months, thresholds };
   }, [data, metric, weeks, end, today]);
 
   const nivel = (v: number, ts: number[]) => {
@@ -72,14 +62,8 @@ export function Heatmap({
     return Math.min(5, l);
   };
   const level = (v: number) => nivel(v, thresholds);
-  /** cor da célula: em "leitura × escrita", laranja = dia de escrita (saída), azul = só leitura (entrada) */
-  const cor = (day: string, v: number) => {
-    if (metric === "escritas") return `var(--out-${level(v)})`;
-    if (metric !== "io") return `var(--heat-${level(v)})`;
-    const st = data.get(day);
-    if (st?.written) return `var(--out-${nivel(st.written, tEscritas)})`;
-    return `var(--heat-${nivel(st?.words ?? 0, tLidas)})`;
-  };
+  /** escrita (saída) em laranja; o resto em azul */
+  const cor = (_day: string, v: number) => `var(--${metric === "escritas" && v > 0 ? "out" : "heat"}-${level(v)})`;
 
   const left = 26;
   const top = 16;
@@ -131,28 +115,17 @@ export function Heatmap({
           style={{ left: hover.x, top: hover.y - 6, background: "var(--text)", color: "var(--bg)" }}
         >
           <div className="font-medium">
-            {metric === "io"
-              ? `${nf.format(data.get(hover.day)?.words ?? 0)} lidas · ${nf.format(data.get(hover.day)?.written ?? 0)} escritas`
-              : `${nf.format(metricValue(data.get(hover.day), metric))} ${unit}`}
+            {`${nf.format(metricValue(data.get(hover.day), metric))} ${unit}`}
           </div>
           <div className="opacity-80">{fmtDayLong(hover.day)}</div>
         </div>
       )}
       <div className="flex items-center gap-1.5 mt-2 text-xs text-muted justify-end">
-        {metric === "io" ? (
-          <>
-            <span className="inline-block rounded-[3px]" style={{ width: 11, height: 11, background: "var(--heat-4)" }} /> leitura (entrada)
-            <span className="inline-block rounded-[3px] ml-3" style={{ width: 11, height: 11, background: "var(--out-4)" }} /> escrita (saída)
-          </>
-        ) : (
-          <>
-            menos
-            {[0, 1, 2, 3, 4, 5].map((l) => (
-              <span key={l} className="inline-block rounded-[3px]" style={{ width: 11, height: 11, background: `var(--${metric === "escritas" && l ? "out" : "heat"}-${l})` }} />
-            ))}
-            mais
-          </>
-        )}
+        menos
+        {[0, 1, 2, 3, 4, 5].map((l) => (
+          <span key={l} className="inline-block rounded-[3px]" style={{ width: 11, height: 11, background: `var(--${metric === "escritas" && l ? "out" : "heat"}-${l})` }} />
+        ))}
+        mais
       </div>
     </div>
   );

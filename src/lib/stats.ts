@@ -47,11 +47,10 @@ export async function loadDaily(from: string): Promise<Map<string, DayStats>> {
   return map;
 }
 
-export type Metric = "tempo" | "io" | "palavras" | "escritas" | "frases" | "anki";
+export type Metric = "tempo" | "palavras" | "escritas" | "frases" | "anki";
 
 export const METRICS: { id: Metric; label: string; unit: string }[] = [
   { id: "tempo", label: "Tempo", unit: "min" },
-  { id: "io", label: "Leitura × escrita", unit: "palavras" },
   { id: "palavras", label: "Lidas", unit: "palavras lidas" },
   { id: "escritas", label: "Escritas", unit: "palavras escritas" },
   { id: "frases", label: "Idiomas", unit: "leituras" },
@@ -67,8 +66,6 @@ export function metricValue(d: DayStats | undefined, m: Metric): number {
       return d.words;
     case "escritas":
       return d.written;
-    case "io":
-      return d.words + d.written;
     case "frases":
       return d.reads;
     case "anki":
