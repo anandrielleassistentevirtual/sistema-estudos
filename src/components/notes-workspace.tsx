@@ -410,7 +410,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                 <div className="inline-flex rounded-lg bg-surface-2 p-0.5">
                   {([["editar", Pencil], ["dividir", LinkIcon], ["ler", Eye]] as const).map(([v, Icon]) => (
                     <button key={v} title={v === "dividir" ? "Editor + visualização" : v === "editar" ? "Só editor" : "Só leitura"}
-                      onClick={() => setView(v)} className={`px-2 py-1 rounded-md ${view === v ? "bg-surface shadow-sm" : "text-muted"}`}>
+                      onClick={() => setView(v)} className={`px-2 py-1 rounded-md ${view === v ? "bg-seg shadow-sm" : "text-muted"}`}>
                       <Icon size={14} />
                     </button>
                   ))}

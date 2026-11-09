@@ -358,7 +358,7 @@ export default function Biblioteca() {
             <div className="inline-flex rounded-lg bg-surface-2 p-1 text-xs">
               {(["todos", ...STATUS] as const).map((s) => (
                 <button key={s} onClick={() => setStatus(s)}
-                  className={`px-2.5 py-1 rounded-md ${status === s ? "bg-surface shadow-sm font-medium" : "text-muted"}`}>
+                  className={`px-2.5 py-1 rounded-md ${status === s ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
                   {s === "todos" ? "Todos" : STATUS_LABEL[s]}
                 </button>
               ))}

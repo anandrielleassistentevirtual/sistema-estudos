@@ -25,7 +25,7 @@ export const FONTS: Record<ReaderFont, { label: string; css: string }> = {
 export const THEMES: Record<ConcreteTheme, { bg: string; fg: string; label: string }> = {
   claro: { bg: "#ffffff", fg: "#1c1c1c", label: "Claro" },
   sepia: { bg: "#f4ecd8", fg: "#4a3b2a", label: "Sépia" },
-  escuro: { bg: "#1c1c1c", fg: "#e6e6e6", label: "Escuro" },
+  escuro: { bg: "#1c1c1e", fg: "#f2f2f7", label: "Escuro" },
 };
 
 export const HL_COLORS: Record<string, string> = {

@@ -81,8 +81,8 @@ export function Sidebar() {
   const nav = (
     <nav className="flex flex-col h-full p-3 gap-0.5">
       <div className="flex items-center gap-2 mb-3">
-        <div className="flex-1 min-w-0 flex items-center gap-2 rounded-lg border border-line bg-surface px-2 py-1.5">
-          <span className="w-6 h-6 shrink-0 rounded-md bg-surface-2 border border-line grid place-items-center font-serif text-[15px] leading-none">S</span>
+        <div className="flex-1 min-w-0 flex items-center gap-2 rounded-lg px-1.5 py-1.5">
+          <span className="w-6 h-6 shrink-0 rounded-[7px] grid place-items-center font-serif text-[15px] leading-none text-white shadow-sm" style={{ background: "linear-gradient(180deg, #4aa3ff, #0066d6)" }}>S</span>
           <div className="min-w-0">
             <div className="text-[13px] font-medium truncate leading-tight">Sistema de Estudos</div>
             <div className="text-[10.5px] text-faint truncate leading-tight">studium · lectio · memoria</div>
@@ -101,10 +101,10 @@ export function Sidebar() {
             key={item.href}
             href={item.href}
             className={`flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-sm border transition-colors ${
-              active(item.href) ? "bg-surface-2 border-line text-ink" : "border-transparent text-muted hover:text-ink hover:bg-surface-2/60"
+              active(item.href) ? "bg-sel border-transparent text-ink font-medium" : "border-transparent text-ink/80 hover:bg-sel"
             }`}
           >
-            <item.icon size={16} strokeWidth={1.7} />
+            <item.icon size={16} strokeWidth={1.8} className="text-accent" />
             {item.label}
           </Link>
         ),
@@ -135,7 +135,7 @@ export function Sidebar() {
           {showTimer ? fmtClock(timer.mode === "pomodoro" ? timer.remaining : timer.seconds) : ""}
         </span>
       </header>
-      {!hidden && <aside className="hidden md:block fixed inset-y-0 left-0 w-60 border-r border-line bg-bg">{nav}</aside>}
+      {!hidden && <aside className="hidden md:block fixed inset-y-0 left-0 w-60 border-r border-line bg-sidebar backdrop-blur-xl">{nav}</aside>}
       {hidden && (
         <button className="hidden md:flex fixed left-3 bottom-4 z-30 items-center gap-1.5 rounded-full border border-line bg-surface/90 backdrop-blur px-3 py-2 text-xs text-muted hover:text-ink shadow-sm"
           title="Mostrar o menu (Ctrl + \)" onClick={() => setHidden(false)}>
@@ -145,7 +145,7 @@ export function Sidebar() {
       {open && (
         <div className="md:hidden fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-64 bg-bg border-r border-line">
+          <aside className="absolute inset-y-0 left-0 w-64 bg-surface border-r border-line">
             <button className="btn btn-ghost absolute right-2 top-2 px-2" onClick={() => setOpen(false)} aria-label="Fechar">
               <X size={18} />
             </button>

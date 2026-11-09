@@ -54,7 +54,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
       <div className={`inline-flex rounded-lg bg-surface-2 p-1 text-sm ${compact ? "mb-3" : "mb-6"}`}>
         {(["pomodoro", "livre"] as const).map((m) => (
           <button key={m} disabled={t.running} onClick={() => t.set({ mode: m, phase: "foco", elapsed: 0 })}
-            className={`px-3 py-1 rounded-md ${t.mode === m ? "bg-surface shadow-sm font-medium" : "text-muted"}`}>
+            className={`px-3 py-1 rounded-md ${t.mode === m ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
             {m === "pomodoro" ? "Pomodoro" : "Cronômetro"}
           </button>
         ))}

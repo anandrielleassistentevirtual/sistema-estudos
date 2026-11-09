@@ -4,6 +4,10 @@ import { destacar, type Classe } from "@/lib/escrita";
 
 export interface EditorHandle {
   focus: () => void;
+  /** posição do cursor no texto */
+  cursor: () => number;
+  /** põe o cursor na posição e foca */
+  irPara: (pos: number) => void;
 }
 
 const COR: Record<Classe, string | undefined> = {
@@ -36,7 +40,19 @@ export const Editor = forwardRef<EditorHandle, {
   const [caret, setCaret] = useState(0);
   const digitou = useRef(false);
 
-  useImperativeHandle(ref, () => ({ focus: () => ta.current?.focus() }));
+  const ultimoCursor = useRef(0);
+  useImperativeHandle(ref, () => ({
+    focus: () => ta.current?.focus(),
+    cursor: () => (document.activeElement === ta.current ? ta.current?.selectionEnd : ultimoCursor.current) ?? 0,
+    irPara: (pos: number) => {
+      const t = ta.current;
+      if (!t) return;
+      t.focus();
+      t.selectionStart = t.selectionEnd = pos;
+      ultimoCursor.current = pos;
+      setCaret(pos);
+    },
+  }));
 
   const linhaAtual = useMemo(() => p.value.slice(0, caret).split("\n").length - 1, [p.value, caret]);
 
@@ -62,7 +78,7 @@ export const Editor = forwardRef<EditorHandle, {
 
   const sync = () => {
     const t = ta.current;
-    if (t) setCaret(t.selectionEnd);
+    if (t) { setCaret(t.selectionEnd); ultimoCursor.current = t.selectionEnd; }
   };
 
   function envolver(marca: string) {
@@ -135,7 +151,7 @@ export const Editor = forwardRef<EditorHandle, {
             spellCheck
             lang="pt-BR"
             placeholder={p.placeholder}
-            onChange={(e) => { digitou.current = true; p.onChange(e.target.value); setCaret(e.target.selectionEnd); }}
+            onChange={(e) => { digitou.current = true; p.onChange(e.target.value); setCaret(e.target.selectionEnd); ultimoCursor.current = e.target.selectionEnd; }}
             onSelect={sync}
             onKeyUp={sync}
             onClick={() => { digitou.current = true; sync(); }}

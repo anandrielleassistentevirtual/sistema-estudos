@@ -77,7 +77,7 @@ export function TimeBreakdown() {
         <div className="inline-flex rounded-lg bg-surface-2 p-1 text-xs">
           {PERIODS.map((p) => (
             <button key={p.id} onClick={() => setPeriod(p.id)}
-              className={`px-2.5 py-1 rounded-md ${period === p.id ? "bg-surface shadow-sm font-medium" : "text-muted"}`}>{p.label}</button>
+              className={`px-2.5 py-1 rounded-md ${period === p.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>{p.label}</button>
           ))}
         </div>
       </div>

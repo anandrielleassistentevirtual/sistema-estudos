@@ -24,7 +24,7 @@ export function CalendarPanel() {
         <div className="inline-flex rounded-lg bg-surface-2 p-1 text-sm">
           {METRICS.map((m) => (
             <button key={m.id} onClick={() => setMetric(m.id)}
-              className={`px-3 py-1.5 rounded-md ${metric === m.id ? "bg-surface shadow-sm font-medium" : "text-muted"}`}>
+              className={`px-3 py-1.5 rounded-md ${metric === m.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
               {m.label}
             </button>
           ))}

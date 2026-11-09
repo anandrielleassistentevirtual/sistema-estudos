@@ -341,7 +341,7 @@ export default function LessonPage() {
       <div className="flex flex-wrap gap-2 mb-4 items-center">
         <div className="inline-flex rounded-lg bg-surface-2 p-1 text-xs">
           {([["lado", "Lado a lado"], ["intercalado", "Intercalado"], ["texto", "Só o texto"]] as const).map(([v, l]) => (
-            <button key={v} onClick={() => setLayout(v)} className={`px-2.5 py-1 rounded-md ${layout === v ? "bg-surface shadow-sm font-medium" : "text-muted"}`}>{l}</button>
+            <button key={v} onClick={() => setLayout(v)} className={`px-2.5 py-1 rounded-md ${layout === v ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>{l}</button>
           ))}
         </div>
         {layout !== "texto" && (

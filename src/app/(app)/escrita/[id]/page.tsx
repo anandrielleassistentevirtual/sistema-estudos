@@ -4,23 +4,25 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown, ChevronLeft, ChevronRight, Download, FileText, FolderOpen, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen,
-  PanelRightClose, PanelRightOpen, Plus, Printer, Table2, BarChart3, PenLine, Trash2, ArrowUp, ArrowDown, Upload, Pencil, Settings2, X,
+  PanelRightClose, PanelRightOpen, Plus, Printer, Table2, BarChart3, PenLine, Trash2, ArrowUp, ArrowDown, Upload, Pencil, Settings2, X, CornerUpLeft, BookOpenText, Library, Search, Quote,
 } from "lucide-react";
 import { supabase, fire } from "@/lib/supabase/client";
 import { dayKey, fmtClock, fmtDuration, nf, addDays, parseDay } from "@/lib/dates";
 import {
-  compilarMarkdown, contarPalavras, corStatus, ESCALETA, escaletaDeLinhas, lerXlsx, manuscrito, rotuloCena, SECOES, semComentarios, STATUS,
-  type Doc, type Projeto, type Secao, type Sessao,
+  compilarMarkdown, contarPalavras, paragrafosHtml, corStatus, ESCALETA, escaletaDeLinhas, lerXlsx, manuscrito, semComentarios, STATUS, estrutura, abnt, ordenarReferencias, sobrenome,
+  type Doc, type Estrutura, type Projeto, type Referencia, type Secao, type Sessao,
 } from "@/lib/escrita";
 import { Editor, type EditorHandle } from "@/components/escrita/editor";
 import { BarChart } from "@/components/bar-chart";
 import { FONTS } from "@/components/reader/types";
 import { useTimer } from "@/components/timer-context";
 
-type Aba = "escrever" | "escaleta" | "estatisticas";
+const SECOES_EXTRA: { id: Secao; label: string }[] = [
+  { id: "enredo", label: "Enredo" }, { id: "personagens", label: "Personagens" }, { id: "lugares", label: "Lugares" }, { id: "pesquisa", label: "Pesquisa" },
+];
+type Aba = "escrever" | "livro" | "escaleta" | "referencias" | "estatisticas";
 interface Prefs { fonte: "times" | "literata" | "inter"; tamanho: number; entrelinha: number; ocioso: number; falas: boolean; maquina: boolean; paragrafo: boolean }
 const PREFS0: Prefs = { fonte: "times", tamanho: 13, entrelinha: 1.6, ocioso: 300, falas: true, maquina: true, paragrafo: true };
-const CAMPOS_ESCALETA = ["resumo", "pov", "personagens", "personagens_indiretos", "espaco", "tempo", "pagina", "status", "titulo"] as const;
 
 export default function SalaDeEscrita() {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +30,8 @@ export default function SalaDeEscrita() {
   const [projeto, setProjeto] = useState<Projeto | null>(null);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
+  const [refs, setRefs] = useState<Referencia[]>([]);
+  const [lado, setLado] = useState<"escaleta" | "consulta">("escaleta");
   const [atual, setAtual] = useState<string | null>(null);
   const [aba, setAba] = useState<Aba>("escrever");
   const [arvore, setArvore] = useState(true);
@@ -61,11 +65,13 @@ export default function SalaDeEscrita() {
   useEffect(() => {
     (async () => {
       const sb = supabase();
-      const [p, d, s] = await Promise.all([
+      const [p, d, s, r] = await Promise.all([
         sb.from("escrita_projetos").select("*").eq("id", id).single(),
         sb.from("escrita_docs").select("*").eq("projeto_id", id).order("posicao"),
         sb.from("escrita_sessoes").select("*").eq("projeto_id", id).gte("dia", dayKey(addDays(new Date(), -60))).order("inicio", { ascending: false }),
+        sb.from("escrita_referencias").select("*").eq("projeto_id", id),
       ]);
+      setRefs((r.data as Referencia[]) ?? []);
       if (p.error || !p.data) return setErro("Projeto não encontrado.");
       setProjeto(p.data as Projeto);
       // recontagem local: o contador da sessão parte do número certo
@@ -82,6 +88,7 @@ export default function SalaDeEscrita() {
 
   const doc = docs.find((d) => d.id === atual) ?? null;
   const ms = useMemo(() => manuscrito(docs), [docs]);
+  const E = useMemo(() => estrutura(projeto ?? ({ tipo: "romance" } as Projeto), ms), [projeto, ms]);
   const totalPalavras = useMemo(() => docs.filter((d) => d.secao === "manuscrito").reduce((s, d) => s + d.palavras, 0), [docs]);
 
   /* ---------- salvar (com espera curta; nada se perde ao trocar de cena ou sair) ---------- */
@@ -109,7 +116,9 @@ export default function SalaDeEscrita() {
   }, [flush]);
 
   /* ---------- sessão de escrita: cronômetro que pausa quando você para ---------- */
-  const sess = useRef({ ativo: 0, ocioso: 0, ultimaAtividade: 0, inicio: "", id: "", studyId: "", palavrasInicio: 0, iniciada: false });
+  const sess = useRef({ ativo: 0, ocioso: 0, ultimaAtividade: 0, inicio: "", id: "", studyId: "", escritas: 0, iniciada: false });
+  /** maior contagem já alcançada por texto nesta sessão: apagar e redigitar a mesma palavra não conta duas vezes */
+  const teto = useRef(new Map<string, number>());
   const [relogio, setRelogio] = useState({ ativo: 0, ocioso: 0, parado: true });
   const total = useRef(0);
   total.current = totalPalavras;
@@ -121,7 +130,7 @@ export default function SalaDeEscrita() {
     const s = sess.current;
     if (!s.iniciada) return;
     const sb = supabase();
-    const dados = { segundos: Math.round(s.ativo), ocioso: Math.round(s.ocioso), palavras: total.current - s.palavrasInicio };
+    const dados = { segundos: Math.round(s.ativo), ocioso: Math.round(s.ocioso), palavras: Math.round(s.escritas) };
     if (!s.id) {
       const { data } = await sb.from("escrita_sessoes").insert({ projeto_id: id, dia: dayKey(), inicio: s.inicio, ...dados }).select().single();
       if (data) { s.id = (data as Sessao).id; setSessoes((x) => [data as Sessao, ...x]); }
@@ -144,10 +153,25 @@ export default function SalaDeEscrita() {
     if (!s.iniciada) {
       s.iniciada = true;
       s.inicio = new Date().toISOString();
-      s.palavrasInicio = total.current;
     }
     s.ultimaAtividade = Date.now();
   }, []);
+
+  /**
+   * Esforço: conta as palavras escritas em qualquer texto do projeto (cenas, rascunhos, notas).
+   * Apagar não desconta. Pequenas correções (apagar e redigitar) não contam em dobro;
+   * colar um bloco grande de texto não conta como escrito.
+   */
+  const escrever = useCallback((d: Doc, v: string) => {
+    atividade();
+    const n = contarPalavras(v);
+    const m = teto.current.get(d.id) ?? d.palavras;
+    if (n > m) {
+      if (n - m <= 150) sess.current.escritas += n - m;
+      teto.current.set(d.id, n);
+    } else if (m - n >= 5) teto.current.set(d.id, n);
+    patch(d.id, { conteudo: v, palavras: n });
+  }, [atividade, patch]);
 
   useEffect(() => {
     let ult = Date.now();
@@ -195,7 +219,7 @@ export default function SalaDeEscrita() {
   async function criar(tipo: Doc["tipo"], secao: Secao, parent: string | null) {
     const irmaos = docs.filter((d) => d.secao === secao && d.parent_id === parent && (secao !== "manuscrito" || d.tipo === tipo));
     const n = irmaos.length + 1;
-    const tituloNovo = tipo === "capitulo" ? `Capítulo ${n}` : tipo === "cena" ? `Cena ${n}` : tipo === "pasta" ? "Nova pasta" : "Nova nota";
+    const tituloNovo = tipo === "capitulo" ? `Capítulo ${n}` : tipo === "cena" ? `${E.Unidade} ${n}` : tipo === "pasta" ? "Nova pasta" : secao === "rascunhos" ? `Rascunho ${n}` : "Nova nota";
     const { data, error } = await supabase().from("escrita_docs").insert({
       projeto_id: id, parent_id: parent, tipo, secao, titulo: tituloNovo, posicao: Math.max(-1, ...irmaos.map((d) => d.posicao)) + 1,
     }).select().single();
@@ -233,10 +257,36 @@ export default function SalaDeEscrita() {
     await supabase().from("escrita_docs").update({ parent_id: destino.cap.id, posicao }).eq("id", d.id);
   }
 
+  /** Insere uma citação onde está o cursor (não conta como palavras escritas: é texto de outro autor). */
+  function inserirNoTexto(txt: string) {
+    if (!doc || aba !== "escrever") return;
+    const pos = editor.current?.cursor() ?? doc.conteudo.length;
+    const antes = doc.conteudo.slice(0, pos);
+    const sep = antes && !/\s$/.test(antes) ? " " : "";
+    const novo = antes + sep + txt + doc.conteudo.slice(pos);
+    const n = contarPalavras(novo);
+    teto.current.set(doc.id, Math.max(n, teto.current.get(doc.id) ?? 0));
+    patch(doc.id, { conteudo: novo, palavras: n });
+    setTimeout(() => editor.current?.irPara(pos + sep.length + txt.length), 30);
+  }
+
+  /** Um rascunho vira cena: vai para o fim do capítulo escolhido (ou do último). */
+  async function paraManuscrito(d: Doc) {
+    const atualDoc = docs.find((x) => x.id === atual);
+    const capId = atualDoc?.tipo === "capitulo" ? atualDoc.id : atualDoc?.tipo === "cena" ? atualDoc.parent_id : ms[ms.length - 1]?.cap.id;
+    const cap = ms.find((c) => c.cap.id === capId) ?? ms[ms.length - 1];
+    if (!cap) return alert("Crie um capítulo primeiro.");
+    if (!confirm(`Levar “${d.titulo}” para o manuscrito, como a última cena de “${cap.cap.titulo}”?`)) return;
+    const posicao = Math.max(-1, ...cap.cenas.map((c) => c.posicao)) + 1;
+    const f = { secao: "manuscrito" as const, tipo: "cena" as const, parent_id: cap.cap.id, posicao };
+    setDocs((ds) => ds.map((x) => (x.id === d.id ? { ...x, ...f } : x)));
+    await supabase().from("escrita_docs").update(f).eq("id", d.id);
+  }
+
   /* ---------- exportar ---------- */
   function baixarMd() {
     if (!projeto) return;
-    const blob = new Blob([compilarMarkdown(projeto, docs)], { type: "text/markdown;charset=utf-8" });
+    const blob = new Blob([compilarMarkdown(projeto, docs, E.referencias ? refs : [])], { type: "text/markdown;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `${projeto.titulo}.md`;
@@ -249,13 +299,16 @@ export default function SalaDeEscrita() {
     const fmt = (s: string) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(^|[^\p{L}])[_*](.+?)[_*](?![\p{L}])/gu, "$1<i>$2</i>");
     const pars = (t: string) => semComentarios(t).split(/\n+/).filter((l) => l.trim()).map((l) => `<p>${fmt(l)}</p>`).join("");
     const corpo = ms.map(({ cap, cenas }) =>
-      `<h2>${esc(cap.titulo)}</h2>${pars(cap.conteudo)}${cenas.map((c) => pars(c.conteudo)).filter(Boolean).join('<p class="sep">* * *</p>')}`).join("");
+      `${E.comCap ? `<h2>${esc(cap.titulo)}</h2>` : ""}${pars(cap.conteudo)}${E.unidade === "parte"
+        ? cenas.map((c) => `${cenas.length > 1 && c.titulo.trim() ? `<h3>${esc(c.titulo)}</h3>` : ""}${pars(c.conteudo)}`).join("")
+        : cenas.map((c) => pars(c.conteudo)).filter(Boolean).join('<p class="sep">* * *</p>')}`).join("")
+      + (E.referencias && refs.length ? `<h2 class="refs">Referências</h2>${ordenarReferencias(refs).map((r) => `<p class="ref">${fmt(abnt(r))}</p>`).join("")}` : "");
     const w = window.open("", "_blank");
     if (!w) return;
     w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(projeto.titulo)}</title><style>
       @page{size:A4;margin:2.5cm 3cm}body{font-family:"Times New Roman",Times,serif;font-size:12pt;line-height:1.5;color:#000}
       h1{text-align:center;font-size:20pt;font-weight:normal;margin:30vh 0 .3em}.autor{text-align:center;font-style:italic;page-break-after:always}
-      h2{font-size:14pt;font-weight:normal;text-align:center;margin:0 0 2em;page-break-before:always}
+      h2{font-size:14pt;font-weight:normal;text-align:center;margin:0 0 2em;page-break-before:always}h3{font-size:12pt;font-weight:bold;margin:1.5em 0 .5em}h3+p{text-indent:0}.ref{text-indent:0;text-align:left;margin:0 0 1em}
       p{margin:0;text-indent:1.25cm;text-align:justify}h2+p,.sep+p{text-indent:0}.sep{text-align:center;text-indent:0;margin:1em 0}
     </style></head><body><h1>${esc(projeto.titulo)}</h1><p class="autor">${esc(projeto.autor)}</p>${corpo}</body></html>`);
     w.document.close();
@@ -265,12 +318,11 @@ export default function SalaDeEscrita() {
   if (erro) return <div className="p-8 text-sm"><p className="text-critical">{erro}</p><Link href="/escrita" className="underline">← Voltar</Link></div>;
   if (!projeto) return <div className="fixed inset-0 z-20 bg-bg grid place-items-center text-sm text-muted">Abrindo o projeto…</div>;
 
-  const hoje = sessoes.filter((s) => s.dia === dayKey()).reduce((n, s) => n + s.palavras, 0) +
-    (sess.current.iniciada && !sess.current.id ? totalPalavras - sess.current.palavrasInicio : 0);
-  const palavrasSessao = sess.current.iniciada ? totalPalavras - sess.current.palavrasInicio : 0;
+  const palavrasSessao = Math.round(sess.current.escritas);
+  const hoje = sessoes.filter((s) => s.dia === dayKey() && s.id !== sess.current.id).reduce((n, s) => n + s.palavras, 0) + palavrasSessao;
   const fonte = FONTS[prefs.fonte].css;
   const capDoc = doc?.tipo === "cena" ? ms.find((c) => c.cap.id === doc.parent_id) : undefined;
-  const rotulo = doc?.tipo === "cena" && capDoc ? rotuloCena(capDoc.n, capDoc.cenas.findIndex((c) => c.id === doc.id) + 1) : "";
+  const rotulo = doc?.tipo === "cena" && capDoc ? E.rotulo(capDoc.n, capDoc.cenas.findIndex((c) => c.id === doc.id) + 1) : "";
 
   return (
     <div ref={raiz} className="fixed inset-0 z-20 bg-bg text-ink flex flex-col">
@@ -281,12 +333,14 @@ export default function SalaDeEscrita() {
           <button className="p-1.5 text-muted hover:text-ink" title={arvore ? "Esconder o projeto" : "Mostrar o projeto"} onClick={() => setArvore(!arvore)}>
             {arvore ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
           </button>
-          <div className="min-w-0 mr-2">
-            <div className="text-sm truncate">{projeto.titulo}</div>
-          </div>
+          <input className="min-w-0 w-48 mr-2 bg-transparent outline-none text-sm truncate rounded px-1.5 py-1 hover:bg-surface-2 focus:bg-surface-2"
+            title="Clique para renomear o projeto" value={projeto.titulo}
+            onChange={(e) => setProjeto({ ...projeto, titulo: e.target.value })}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            onBlur={(e) => { const t = e.target.value.trim() || "Sem título"; setProjeto({ ...projeto, titulo: t }); fire(supabase().from("escrita_projetos").update({ titulo: t }).eq("id", id)); }} />
           <nav className="flex items-center gap-0.5 rounded-lg bg-surface-2 p-0.5 text-sm mx-auto">
-            {([["escrever", "Escrever", PenLine], ["escaleta", "Escaleta", Table2], ["estatisticas", "Estatísticas", BarChart3]] as const).map(([k, l, I]) => (
-              <button key={k} onClick={() => setAba(k)} className={`flex items-center gap-1.5 px-3 py-1 rounded-md ${aba === k ? "bg-surface shadow-sm text-ink" : "text-muted hover:text-ink"}`}>
+            {([["escrever", "Escrever", PenLine], ["livro", "Texto inteiro", BookOpenText], ...(E.escaleta ? [["escaleta", "Escaleta", Table2] as const] : []), ...(E.referencias ? [["referencias", "Referências", Library] as const] : []), ["estatisticas", "Estatísticas", BarChart3]] as const).map(([k, l, I]) => (
+              <button key={k} onClick={() => setAba(k)} className={`flex items-center gap-1.5 px-3 py-1 rounded-md ${aba === k ? "bg-seg shadow-sm text-ink" : "text-muted hover:text-ink"}`}>
                 <I size={14} /> <span className="hidden sm:inline">{l}</span>
               </button>
             ))}
@@ -308,8 +362,8 @@ export default function SalaDeEscrita() {
       <div className="flex-1 min-h-0 flex">
         {/* árvore do projeto */}
         {arvore && !foco && (
-          <Arvore docs={docs} ms={ms} atual={atual} onAbrir={(d) => { void flush(); setAtual(d.id); setAba("escrever"); }}
-            onCriar={criar} onRenomear={(d, t) => patch(d.id, { titulo: t })} onApagar={apagar} onMover={mover} onTrocarCapitulo={trocarCapitulo} />
+          <Arvore E={E} docs={docs} ms={ms} atual={atual} onAbrir={(d) => { void flush(); setAtual(d.id); setAba("escrever"); }}
+            onCriar={criar} onRenomear={(d, t) => patch(d.id, { titulo: t })} onApagar={apagar} onMover={mover} onTrocarCapitulo={trocarCapitulo} onParaManuscrito={paraManuscrito} />
         )}
 
         {/* área principal */}
@@ -327,24 +381,27 @@ export default function SalaDeEscrita() {
                       {rotulo && <span className="text-xs text-faint font-mono">{rotulo}</span>}
                       <input className="flex-1 min-w-0 bg-transparent outline-none text-lg" value={doc.titulo}
                         onChange={(e) => patch(doc.id, { titulo: e.target.value })} />
-                      {capDoc && <span className="text-xs text-faint truncate max-w-[30%]">{capDoc.cap.titulo}</span>}
+                      {capDoc && E.comCap && <span className="text-xs text-faint truncate max-w-[30%]">{capDoc.cap.titulo}</span>}
                     </div>
                   </div>
                 )}
                 <div className="flex-1 min-h-0">
                   <Editor key={doc.id} ref={editor} value={doc.conteudo}
-                    onChange={(v) => { atividade(); patch(doc.id, { conteudo: v, palavras: contarPalavras(v) }); }}
+                    onChange={(v) => escrever(doc, v)}
                     fonte={fonte} tamanhoPt={prefs.tamanho} entrelinha={prefs.entrelinha}
                     focoParagrafo={foco && prefs.paragrafo} maquina={prefs.maquina} destacarFalas={prefs.falas}
-                    placeholder={doc.tipo === "cena" ? "Comece a cena…" : "Escreva a nota…"} />
+                    placeholder={doc.tipo === "cena" ? (E.unidade === "parte" ? "Comece o texto…" : "Comece a cena…") : doc.secao === "rascunhos" ? "Escreva à vontade: tudo o que você escreve aqui conta no esforço do dia." : "Escreva a nota…"} />
                 </div>
               </div>
             )
           ) : (
             <div className="h-full grid place-items-center text-sm text-muted">Escolha ou crie uma cena na árvore à esquerda.</div>
           ))}
-          {aba === "escaleta" && <Escaleta ms={ms} patch={patch} criar={criar} abrir={(d) => { setAtual(d.id); setAba("escrever"); }} recarregar={setDocs} projetoId={id} />}
-          {aba === "estatisticas" && <Estatisticas projeto={projeto} total={totalPalavras} sessoes={sessoes} ms={ms}
+          {aba === "livro" && <Livro E={E} refs={E.referencias ? refs : []} projeto={projeto} ms={ms} fonte={fonte} tamanhoPt={prefs.tamanho} entrelinha={prefs.entrelinha}
+            abrir={(d) => { setAtual(d.id); setAba("escrever"); }} />}
+          {aba === "escaleta" && E.escaleta && <Escaleta E={E} ms={ms} patch={patch} criar={criar} abrir={(d) => { setAtual(d.id); setAba("escrever"); }} recarregar={setDocs} projetoId={id} />}
+          {aba === "referencias" && <Referencias projetoId={id} refs={refs} setRefs={setRefs} />}
+          {aba === "estatisticas" && <Estatisticas E={E} projeto={projeto} total={totalPalavras} sessoes={sessoes} ms={ms}
             onMeta={async (x) => { setProjeto({ ...projeto, ...x }); await supabase().from("escrita_projetos").update(x).eq("id", id); }} />}
 
           {verPrefs && !foco && (
@@ -384,22 +441,35 @@ export default function SalaDeEscrita() {
           )}
         </main>
 
-        {/* escaleta da cena, ao lado do texto */}
-        {aba === "escrever" && painel && !foco && doc?.tipo === "cena" && (
-          <aside className="w-72 shrink-0 border-l border-line overflow-y-auto p-4 space-y-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted">Escaleta {rotulo && <span className="font-mono text-faint text-xs">· {rotulo}</span>}</span>
-            </div>
-            <label className="block"><span className="label">Status</span>
-              <select className="input mt-1" value={doc.status} onChange={(e) => patch(doc.id, { status: e.target.value })}>
-                {STATUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-              </select></label>
-            {ESCALETA.map((c) => (
-              <label key={c.campo} className="block"><span className="label">{c.label}</span>
-                <textarea className="input mt-1 resize-none leading-snug" rows={c.campo === "resumo" ? 5 : 1}
-                  style={{ fieldSizing: "content" } as React.CSSProperties}
-                  value={String(doc[c.campo] ?? "")} onChange={(e) => patch(doc.id, { [c.campo]: e.target.value } as Partial<Doc>)} /></label>
-            ))}
+        {/* ao lado do texto: escaleta da cena e consulta (notas e referências) */}
+        {aba === "escrever" && painel && !foco && doc && doc.tipo !== "capitulo" && doc.tipo !== "pasta" && (
+          <aside className="w-80 shrink-0 border-l border-line flex flex-col text-sm min-h-0">
+            {E.escaleta && doc.tipo === "cena" && (
+              <div className="shrink-0 p-3 pb-0">
+                <div className="grid grid-cols-2 rounded-lg bg-surface-2 p-0.5 text-[13px]">
+                  {(["escaleta", "consulta"] as const).map((k) => (
+                    <button key={k} onClick={() => setLado(k)} className={`py-1 rounded-md ${lado === k ? "bg-seg shadow-sm" : "text-muted"}`}>{k === "escaleta" ? "Escaleta" : "Consulta"}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {E.escaleta && doc.tipo === "cena" && lado === "escaleta" ? (
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="text-muted">{rotulo && <span className="font-mono text-faint text-xs">{rotulo}</span>}</div>
+                <label className="block"><span className="label">Status</span>
+                  <select className="input mt-1" value={doc.status} onChange={(e) => patch(doc.id, { status: e.target.value })}>
+                    {STATUS.map((st) => <option key={st.id} value={st.id}>{st.label}</option>)}
+                  </select></label>
+                {ESCALETA.map((c) => (
+                  <label key={c.campo} className="block"><span className="label">{c.label}</span>
+                    <textarea className="input mt-1 resize-none leading-snug" rows={c.campo === "resumo" ? 5 : 1}
+                      style={{ fieldSizing: "content" } as React.CSSProperties}
+                      value={String(doc[c.campo] ?? "")} onChange={(e) => patch(doc.id, { [c.campo]: e.target.value } as Partial<Doc>)} /></label>
+                ))}
+              </div>
+            ) : (
+              <Consulta refs={E.referencias ? refs : []} onInserir={inserirNoTexto} />
+            )}
           </aside>
         )}
       </div>
@@ -411,10 +481,10 @@ export default function SalaDeEscrita() {
           <span className="font-mono text-ink">{fmtClock(relogio.ativo)}</span>
           {relogio.ocioso >= 60 && <span className="text-faint">· parado {fmtDuration(relogio.ocioso)}</span>}
         </span>
-        <span title="Palavras nesta sessão">{palavrasSessao >= 0 ? "+" : ""}{nf.format(palavrasSessao)} sessão</span>
-        {doc && doc.tipo !== "capitulo" && doc.tipo !== "pasta" && <span title="Palavras neste texto">{nf.format(doc.palavras)} {doc.tipo === "cena" ? "na cena" : "na nota"}</span>}
-        <span title="Palavras do manuscrito">{nf.format(totalPalavras)}{projeto.meta_palavras ? ` / ${nf.format(projeto.meta_palavras)}` : ""} no livro</span>
-        {projeto.meta_diaria > 0 && <span title="Meta do dia">hoje {nf.format(Math.max(0, hoje))} / {nf.format(projeto.meta_diaria)}</span>}
+        <span title="Palavras escritas nesta sessão, em qualquer texto (cenas, rascunhos, notas). Apagar não desconta.">+{nf.format(palavrasSessao)} escritas</span>
+        {doc && doc.tipo !== "capitulo" && doc.tipo !== "pasta" && <span title="Palavras neste texto">{nf.format(doc.palavras)} {doc.tipo === "cena" ? (E.unidade === "parte" ? "na parte" : "na cena") : doc.secao === "rascunhos" ? "no rascunho" : "na nota"}</span>}
+        <span title="Palavras do manuscrito">{nf.format(totalPalavras)}{projeto.meta_palavras ? ` / ${nf.format(projeto.meta_palavras)}` : ""} {E.unidade === "parte" || projeto.tipo === "conto" ? "no texto" : "no livro"}</span>
+        <span title="Palavras escritas hoje neste projeto (esforço)">hoje {nf.format(Math.max(0, hoje))}{projeto.meta_diaria > 0 ? ` / ${nf.format(projeto.meta_diaria)}` : ""}</span>
         <span className="ml-auto">{salvo === "salvo" ? "salvo" : salvo === "salvando" ? "salvando…" : "…"}</span>
         {foco && <button className="flex items-center gap-1 hover:text-ink" onClick={sairFoco}><Minimize2 size={12} /> sair do foco (Esc)</button>}
       </footer>
@@ -425,6 +495,7 @@ export default function SalaDeEscrita() {
 /* ================= árvore ================= */
 
 function Arvore(p: {
+  E: Estrutura;
   docs: Doc[];
   ms: ReturnType<typeof manuscrito>;
   atual: string | null;
@@ -434,6 +505,7 @@ function Arvore(p: {
   onApagar: (d: Doc) => void;
   onMover: (d: Doc, dir: -1 | 1) => void;
   onTrocarCapitulo: (d: Doc, dir: -1 | 1) => void;
+  onParaManuscrito: (d: Doc) => void;
 }) {
   const [fechados, setFechados] = useState<Set<string>>(new Set());
   const [editando, setEditando] = useState<string | null>(null);
@@ -459,7 +531,8 @@ function Arvore(p: {
         <Acao t="Renomear" on={() => setEditando(d.id)}><Pencil size={11} /></Acao>
         <Acao t="Subir" on={() => p.onMover(d, -1)}><ArrowUp size={11} /></Acao>
         <Acao t="Descer" on={() => p.onMover(d, 1)}><ArrowDown size={11} /></Acao>
-        {d.tipo === "cena" && <Acao t="Mandar para o capítulo seguinte" on={() => p.onTrocarCapitulo(d, 1)}><ChevronRight size={11} /></Acao>}
+        {d.tipo === "cena" && p.E.comCap && <Acao t="Mandar para o capítulo seguinte" on={() => p.onTrocarCapitulo(d, 1)}><ChevronRight size={11} /></Acao>}
+        {d.secao === "rascunhos" && <Acao t={`Levar para o texto (vira ${p.E.unidade})`} on={() => p.onParaManuscrito(d)}><CornerUpLeft size={11} /></Acao>}
         <Acao t="Apagar" on={() => p.onApagar(d)} perigo><Trash2 size={11} /></Acao>
       </span>
       {d.palavras > 0 && <span className="text-[10px] text-faint tabular-nums group-hover:hidden w-9 text-right">{d.palavras >= 1000 ? `${(d.palavras / 1000).toFixed(1)}k` : d.palavras}</span>}
@@ -471,15 +544,16 @@ function Arvore(p: {
       {/* manuscrito */}
       <div className="flex items-center justify-between px-2 mb-1">
         <button className="flex items-center gap-1 text-xs text-faint hover:text-ink" onClick={() => alterna("manuscrito")}>
-          {fechados.has("manuscrito") ? <ChevronRight size={12} /> : <ChevronDown size={12} />} Manuscrito
+          {fechados.has("manuscrito") ? <ChevronRight size={12} /> : <ChevronDown size={12} />} {p.E.comCap ? "Manuscrito" : p.E.label}
         </button>
         <div className="flex items-center gap-0.5 text-faint">
-          <button className="text-[11px] px-1.5 py-0.5 rounded hover:bg-surface-2 hover:text-ink" title="Novo capítulo" onClick={() => p.onCriar("capitulo", "manuscrito", null)}>+ cap.</button>
-          <button className="text-[11px] px-1.5 py-0.5 rounded hover:bg-surface-2 hover:text-ink disabled:opacity-40" title="Nova cena no capítulo selecionado"
-            disabled={!capSel} onClick={() => capSel && p.onCriar("cena", "manuscrito", capSel)}>+ cena</button>
+          {p.E.capitulos && <button className="text-[11px] px-1.5 py-0.5 rounded hover:bg-surface-2 hover:text-ink" title="Novo capítulo" onClick={() => p.onCriar("capitulo", "manuscrito", null)}>+ cap.</button>}
+          <button className="text-[11px] px-1.5 py-0.5 rounded hover:bg-surface-2 hover:text-ink disabled:opacity-40" title={p.E.comCap ? `Nova ${p.E.unidade} no capítulo selecionado` : `Nova ${p.E.unidade}`}
+            disabled={!capSel} onClick={() => capSel && p.onCriar("cena", "manuscrito", capSel)}>+ {p.E.unidade}</button>
         </div>
       </div>
-      {!fechados.has("manuscrito") && p.ms.map(({ cap, n, cenas }) => (
+      {!fechados.has("manuscrito") && !p.E.comCap && p.ms[0]?.cenas.map((c, i) => item(c, 0, p.E.unidade === "parte" ? `${i + 1}` : `c${i + 1}`))}
+      {!fechados.has("manuscrito") && p.E.comCap && p.ms.map(({ cap, n, cenas }) => (
         <div key={cap.id}>
           <div className="flex items-center">
             <button className="p-1 text-faint hover:text-ink" onClick={() => alterna(cap.id)}>{fechados.has(cap.id) ? <ChevronRight size={12} /> : <ChevronDown size={12} />}</button>
@@ -490,7 +564,7 @@ function Arvore(p: {
       ))}
 
       {/* apoio */}
-      {SECOES.filter((s) => s.id !== "manuscrito").map((s) => {
+      {[...p.E.secoes, ...SECOES_EXTRA.filter((x) => !p.E.secoes.some((y) => y.id === x.id) && p.docs.some((d) => d.secao === x.id))].map((s) => {
         const notas = p.docs.filter((d) => d.secao === s.id).sort((a, b) => a.posicao - b.posicao);
         return (
           <div key={s.id} className="mt-4">
@@ -537,9 +611,77 @@ function Acao({ t, on, children, perigo }: { t: string; on: () => void; children
   );
 }
 
+/* ================= livro: o texto inteiro, como está ficando ================= */
+
+function Livro({ E, refs, projeto, ms, fonte, tamanhoPt, entrelinha, abrir }: {
+  E: Estrutura; refs: Referencia[]; projeto: Projeto; ms: ReturnType<typeof manuscrito>; fonte: string; tamanhoPt: number; entrelinha: number; abrir: (d: Doc) => void;
+}) {
+  const [marcas, setMarcas] = useState(true);
+  useEffect(() => { try { setMarcas(localStorage.getItem("escrita-livro-marcas") !== "0"); } catch {} }, []);
+  const total = ms.reduce((n, c) => n + c.cap.palavras + c.cenas.reduce((m, x) => m + x.palavras, 0), 0);
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="sticky top-0 z-10 bg-bg/90 backdrop-blur border-b border-line px-5 py-2 flex items-center gap-4 text-xs text-muted">
+        <span>{nf.format(total)} palavras · ≈ {Math.max(1, Math.round(total / 250)) === 1 ? "1 página" : `${nf.format(Math.round(total / 250))} páginas`}</span>
+        <label className="flex items-center gap-1.5 ml-auto cursor-pointer">
+          <input type="checkbox" checked={marcas} onChange={(e) => { setMarcas(e.target.checked); try { localStorage.setItem("escrita-livro-marcas", e.target.checked ? "1" : "0"); } catch {} }} />
+          Mostrar as cenas na margem
+        </label>
+      </div>
+      <article className="mx-auto max-w-[42rem] px-6 py-14" style={{ fontFamily: fonte, fontSize: `${tamanhoPt}pt`, lineHeight: entrelinha }}>
+        <header className="text-center mb-20">
+          <h1 className="text-[1.9em] leading-tight">{projeto.titulo}</h1>
+          {projeto.autor && <p className="mt-2 italic text-muted">{projeto.autor}</p>}
+        </header>
+        {ms.map(({ cap, n, cenas }) => (
+          <section key={cap.id} className="mb-20">
+            {E.comCap && <h2 className="text-center text-[1.3em] mb-10">{cap.titulo}</h2>}
+            {paragrafosHtml(cap.conteudo).map((h, i) => <p key={i} className="text-justify" style={{ textIndent: i ? "1.5em" : 0 }} dangerouslySetInnerHTML={{ __html: h }} />)}
+            {cenas.map((c, k) => {
+              const pars = paragrafosHtml(c.conteudo);
+              return (
+                <div key={c.id} className="relative group">
+                  {E.unidade === "parte"
+                    ? cenas.length > 1 && c.titulo.trim() && <h3 className="font-bold mt-10 mb-3">{c.titulo}</h3>
+                    : k > 0 && <p className="text-center my-6 text-faint">* * *</p>}
+                  {marcas && (
+                    <button onClick={() => abrir(c)} title="Abrir esta cena para escrever"
+                      className="hidden xl:block absolute right-full mr-8 top-1 w-40 text-right font-sans text-[11px] leading-snug text-faint hover:text-ink" style={{ marginTop: k > 0 ? (E.unidade === "parte" ? "2.6rem" : "4.5em") : 0 }}>
+                      <span className="font-mono">{E.rotulo(n, k + 1)}</span><br />{c.titulo}
+                      <span className="block mt-0.5">{nf.format(c.palavras)} pal.</span>
+                    </button>
+                  )}
+                  {pars.length ? (
+                    <div onDoubleClick={() => abrir(c)} title="Dois cliques para editar esta cena">
+                      {pars.map((h, i) => <p key={i} className="text-justify" style={{ textIndent: i ? "1.5em" : 0 }} dangerouslySetInnerHTML={{ __html: h }} />)}
+                    </div>
+                  ) : (
+                    <button onClick={() => abrir(c)} className="block w-full text-left font-sans text-sm text-faint border border-dashed border-line rounded-lg px-4 py-3 hover:text-ink">
+                      {E.rotulo(n, k + 1)} · {c.titulo}: ainda não escrita{c.resumo ? ` — ${c.resumo}` : ""}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        ))}
+        {refs.length > 0 && (
+          <section className="mt-10">
+            <h2 className="text-center text-[1.3em] mb-8">Referências</h2>
+            {ordenarReferencias(refs).map((r) => (
+              <p key={r.id} className="mb-4 text-left" dangerouslySetInnerHTML={{ __html: paragrafosHtml(abnt(r))[0] ?? "" }} />
+            ))}
+          </section>
+        )}
+      </article>
+    </div>
+  );
+}
+
 /* ================= escaleta ================= */
 
-function Escaleta({ ms, patch, criar, abrir, recarregar, projetoId }: {
+function Escaleta({ E, ms, patch, criar, abrir, recarregar, projetoId }: {
+  E: Estrutura;
   ms: ReturnType<typeof manuscrito>;
   patch: (id: string, f: Partial<Doc>) => void;
   criar: (tipo: Doc["tipo"], secao: Secao, parent: string | null) => Promise<Doc | undefined>;
@@ -559,6 +701,7 @@ function Escaleta({ ms, patch, criar, abrir, recarregar, projetoId }: {
       if (!confirm(`Importar ${linhas.length} cenas da escaleta? Capítulos e cenas que faltarem serão criados; os que já existem recebem os dados da planilha (o texto escrito não muda).`)) return setMsg("");
       const sb = supabase();
       // capítulos que faltam
+      if (!E.capitulos) linhas.forEach((l) => { l.cap = 1; });
       const maxCap = Math.max(...linhas.map((l) => l.cap));
       const caps = ms.map((c) => c.cap);
       if (maxCap > caps.length) {
@@ -594,25 +737,26 @@ function Escaleta({ ms, patch, criar, abrir, recarregar, projetoId }: {
           {msg && <span className="text-xs text-muted">{msg}</span>}
           <input ref={arquivo} type="file" accept=".xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void importar(f); e.target.value = ""; }} />
           <button className="btn text-sm" onClick={() => arquivo.current?.click()}><Upload size={14} /> Importar planilha (.xlsx)</button>
-          <button className="btn text-sm" onClick={() => criar("capitulo", "manuscrito", null)}><Plus size={14} /> Capítulo</button>
+          {E.capitulos ? <button className="btn text-sm" onClick={() => criar("capitulo", "manuscrito", null)}><Plus size={14} /> Capítulo</button>
+            : ms[0] && <button className="btn text-sm" onClick={() => criar("cena", "manuscrito", ms[0].cap.id)}><Plus size={14} /> {E.Unidade}</button>}
         </div>
         <div className="card overflow-hidden text-[13px]">
           <div className="grid border-b border-line bg-surface-2/60 text-muted" style={{ gridTemplateColumns: colunas }}>
-            <div className="px-2.5 py-2">Capítulo e cena</div>
+            <div className="px-2.5 py-2">{E.comCap ? "Capítulo e cena" : "Cena"}</div>
             {ESCALETA.map((c) => <div key={c.campo} className="px-2.5 py-2 border-l border-line">{c.label}</div>)}
             <div className="px-2.5 py-2 border-l border-line text-right">Palavras</div>
           </div>
           {ms.map(({ cap, n, cenas }) => (
             <div key={cap.id}>
-              <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-line bg-surface-2/30">
+              {E.comCap && <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-line bg-surface-2/30">
                 <span className="font-mono text-xs text-faint">C{n}</span>
                 <input className="bg-transparent outline-none flex-1" value={cap.titulo} onChange={(e) => patch(cap.id, { titulo: e.target.value })} />
                 <button className="text-xs text-faint hover:text-ink" onClick={() => criar("cena", "manuscrito", cap.id)}>+ cena</button>
-              </div>
+              </div>}
               {cenas.map((c, i) => (
                 <div key={c.id} className="grid border-b border-line last:border-b-0 group" style={{ gridTemplateColumns: colunas }}>
                   <button className="px-2.5 py-2 text-left align-top hover:bg-surface-2/60" title="Abrir a cena para escrever" onClick={() => abrir(c)}>
-                    <div className="font-mono text-xs flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full" style={{ background: corStatus(c.status) }} />{rotuloCena(n, i + 1)}</div>
+                    <div className="font-mono text-xs flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full" style={{ background: corStatus(c.status) }} />{E.rotulo(n, i + 1)}</div>
                     <div className="text-[11px] text-faint truncate mt-0.5 group-hover:text-muted">{c.titulo}</div>
                   </button>
                   {ESCALETA.map((col) => (
@@ -633,8 +777,8 @@ function Escaleta({ ms, patch, criar, abrir, recarregar, projetoId }: {
 
 /* ================= estatísticas ================= */
 
-function Estatisticas({ projeto, total, sessoes, ms, onMeta }: {
-  projeto: Projeto; total: number; sessoes: Sessao[]; ms: ReturnType<typeof manuscrito>;
+function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
+  E: Estrutura; projeto: Projeto; total: number; sessoes: Sessao[]; ms: ReturnType<typeof manuscrito>;
   onMeta: (x: Partial<Projeto>) => void;
 }) {
   const dias = Array.from({ length: 21 }, (_, i) => dayKey(addDays(new Date(), i - 20)));
@@ -656,7 +800,7 @@ function Estatisticas({ projeto, total, sessoes, ms, onMeta }: {
           <Card l="Manuscrito" v={`${nf.format(total)}`} h={projeto.meta_palavras ? `${Math.round(pct * 100)}% de ${nf.format(projeto.meta_palavras)}` : "palavras"} />
           <Card l="Hoje" v={`${hoje.palavras >= 0 ? "+" : ""}${nf.format(hoje.palavras)}`} h={projeto.meta_diaria ? `meta ${nf.format(projeto.meta_diaria)} · ${fmtDuration(hoje.segundos)}` : fmtDuration(hoje.segundos)} />
           <Card l="Ritmo" v={ritmo ? `${nf.format(ritmo)}` : "—"} h="palavras por hora escrevendo" />
-          <Card l="Cenas" v={`${cenas.filter((c) => c.status === "pronto").length}/${cenas.length}`} h="prontas" />
+          <Card l={E.Unidade === "Parte" ? "Partes" : "Cenas"} v={`${cenas.filter((c) => c.status === "pronto").length}/${cenas.length}`} h="prontas" />
         </div>
         {projeto.meta_palavras > 0 && (
           <div className="h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--chart)" }} /></div>
@@ -695,7 +839,7 @@ function Estatisticas({ projeto, total, sessoes, ms, onMeta }: {
               <input className="input mt-1" defaultValue={projeto.titulo} onBlur={(e) => e.target.value.trim() && onMeta({ titulo: e.target.value.trim() })} /></label>
           </div>
         </div>
-        <div className="card p-5">
+        {E.comCap && <div className="card p-5">
           <h3 className="mb-3">Capítulos</h3>
           <table className="w-full text-sm tabular-nums">
             <tbody>
@@ -712,7 +856,7 @@ function Estatisticas({ projeto, total, sessoes, ms, onMeta }: {
               })}
             </tbody>
           </table>
-        </div>
+        </div>}
       </div>
     </div>
   );
@@ -724,6 +868,207 @@ function Card({ l, v, h }: { l: string; v: string; h?: string }) {
       <div className="text-[13px] text-muted">{l}</div>
       <div className="text-[1.6rem] tracking-tight tabular-nums mt-1 leading-none">{v}</div>
       {h && <div className="text-xs text-faint mt-2">{h}</div>}
+    </div>
+  );
+}
+
+/* ================= consulta: suas notas e as referências, ao lado do texto ================= */
+
+interface NotaConsulta { id: string; kind: string; title: string; quote: string | null; content: string; book_id: string | null }
+interface LivroLite { id: string; title: string; author: string | null }
+
+const dobrar = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+function Consulta({ refs, onInserir }: { refs: Referencia[]; onInserir: (txt: string) => void }) {
+  const [notas, setNotas] = useState<NotaConsulta[] | null>(null);
+  const [livros, setLivros] = useState<Map<string, LivroLite>>(new Map());
+  const [q, setQ] = useState("");
+  const [aba, setAba] = useState<"notas" | "refs">("notas");
+  const [aberta, setAberta] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      const sb = supabase();
+      const [n, b] = await Promise.all([
+        sb.from("notes").select("id,kind,title,quote,content,book_id").in("kind", ["literaria", "atomica"]).order("updated_at", { ascending: false }).limit(1000),
+        sb.from("books").select("id,title,author"),
+      ]);
+      setNotas((n.data as NotaConsulta[]) ?? []);
+      setLivros(new Map(((b.data as LivroLite[]) ?? []).map((x) => [x.id, x])));
+    })();
+  }, []);
+  const termos = dobrar(q).split(/\s+/).filter(Boolean);
+  const casa = (t: string) => termos.every((w) => dobrar(t).includes(w));
+  const lista = (notas ?? []).filter((n) => {
+    const l = n.book_id ? livros.get(n.book_id) : undefined;
+    return casa(`${n.title} ${n.quote ?? ""} ${n.content} ${l?.title ?? ""} ${l?.author ?? ""}`);
+  }).slice(0, 80);
+  const listaRefs = ordenarReferencias(refs).filter((r) => casa(`${r.autor} ${r.titulo} ${r.ano} ${r.notas}`));
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col">
+      <div className="shrink-0 p-3 space-y-2">
+        <label className="input flex items-center gap-2 py-1.5">
+          <Search size={14} className="text-faint shrink-0" />
+          <input className="bg-transparent outline-none flex-1 min-w-0 text-[13px]" placeholder="Buscar nas suas notas…" value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
+        {refs.length > 0 && (
+          <div className="flex gap-3 text-xs">
+            {(["notas", "refs"] as const).map((k) => (
+              <button key={k} onClick={() => setAba(k)} className={aba === k ? "text-ink" : "text-faint hover:text-ink"}>
+                {k === "notas" ? "Notas" : `Referências (${refs.length})`}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-2">
+        {aba === "notas" || !refs.length ? (
+          <>
+            {notas && !lista.length && <p className="text-xs text-muted px-1">{notas.length ? "Nada encontrado." : "Suas notas literárias e atômicas (menu Notas) aparecem aqui para consulta."}</p>}
+            {lista.map((n) => {
+              const l = n.book_id ? livros.get(n.book_id) : undefined;
+              const texto = n.quote?.trim() || n.content.replace(/^>.*$/gm, "").replace(/[#*_>]/g, "").trim();
+              const longa = aberta === n.id;
+              return (
+                <div key={n.id} className="rounded-lg border border-line p-2.5 hover:bg-surface-2/50">
+                  <div className="text-[11px] text-faint flex justify-between gap-2">
+                    <span className="truncate">{n.kind === "atomica" ? "Nota atômica" : l ? `${l.author ? `${l.author} — ` : ""}${l.title}` : "Nota literária"}</span>
+                  </div>
+                  <div className="text-[13px] mt-0.5">{n.title}</div>
+                  {texto && (
+                    <p className={`mt-1 text-[13px] text-muted leading-snug cursor-pointer ${n.quote ? "italic" : ""} ${longa ? "" : "line-clamp-4"}`} style={{ fontFamily: FONTS.times.css }}
+                      onClick={() => setAberta(longa ? null : n.id)}>
+                      {n.quote ? `“${texto}”` : texto}
+                    </p>
+                  )}
+                  {n.quote?.trim() && (
+                    <button className="mt-1.5 text-[11px] text-muted hover:text-ink flex items-center gap-1"
+                      title="Insere a citação onde está o cursor"
+                      onClick={() => onInserir(`“${n.quote!.trim()}”${l?.author ? ` (${sobrenome(l.author)})` : ""}`)}>
+                      <Quote size={11} /> Inserir citação
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        ) : (
+          listaRefs.map((r) => (
+            <div key={r.id} className="rounded-lg border border-line p-2.5 text-[12px] leading-snug">
+              <p dangerouslySetInnerHTML={{ __html: paragrafosHtml(abnt(r))[0] ?? "" }} />
+              {r.notas && <p className="mt-1 text-muted whitespace-pre-wrap">{r.notas}</p>}
+              <button className="mt-1.5 text-[11px] text-muted hover:text-ink flex items-center gap-1" title="Insere (SOBRENOME, ano) onde está o cursor"
+                onClick={() => onInserir(`(${sobrenome(r.autor) || r.titulo}${r.ano ? `, ${r.ano}` : ""})`)}>
+                <Quote size={11} /> Citar ({sobrenome(r.autor) || r.titulo}{r.ano ? `, ${r.ano}` : ""})
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ================= referências bibliográficas (ensaio) ================= */
+
+const REF0 = { autor: "", titulo: "", subtitulo: "", edicao: "", local: "", editora: "", ano: "", url: "", notas: "", book_id: null as string | null };
+
+function Referencias({ projetoId, refs, setRefs }: { projetoId: string; refs: Referencia[]; setRefs: React.Dispatch<React.SetStateAction<Referencia[]>> }) {
+  const [form, setForm] = useState<typeof REF0 & { id?: string }>({ ...REF0 });
+  const [livros, setLivros] = useState<LivroLite[]>([]);
+  const [aberto, setAberto] = useState(false);
+  useEffect(() => {
+    void supabase().from("books").select("id,title,author").order("author").then(({ data }) => setLivros((data as LivroLite[]) ?? []));
+  }, []);
+  const set = (x: Partial<typeof form>) => setForm((f) => ({ ...f, ...x }));
+
+  async function salvar() {
+    if (!form.titulo.trim() && !form.autor.trim()) return;
+    const sb = supabase();
+    const rid = form.id;
+    const dados = Object.fromEntries((Object.keys(REF0) as (keyof typeof REF0)[]).map((k) => [k, form[k]])) as typeof REF0;
+    if (rid) {
+      await sb.from("escrita_referencias").update(dados).eq("id", rid);
+      setRefs((rs) => rs.map((r) => (r.id === rid ? { ...r, ...dados } : r)));
+    } else {
+      const { data } = await sb.from("escrita_referencias").insert({ ...dados, projeto_id: projetoId }).select().single();
+      if (data) setRefs((rs) => [...rs, data as Referencia]);
+    }
+    setForm({ ...REF0 });
+    setAberto(false);
+  }
+  async function apagar(r: Referencia) {
+    if (!confirm(`Apagar a referência “${r.titulo || r.autor}”?`)) return;
+    await supabase().from("escrita_referencias").delete().eq("id", r.id);
+    setRefs((rs) => rs.filter((x) => x.id !== r.id));
+  }
+
+  const campo = (k: keyof typeof REF0, label: string, ph = "", cls = "") => (
+    <label className={`block ${cls}`}><span className="label">{label}</span>
+      <input className="input mt-1" placeholder={ph} value={String(form[k] ?? "")} onChange={(e) => set({ [k]: e.target.value } as Partial<typeof form>)} /></label>
+  );
+
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-3xl mx-auto p-6 space-y-5">
+        <div className="flex items-center gap-2">
+          <div className="mr-auto">
+            <h2 className="text-lg">Referências</h2>
+            <p className="text-xs text-muted">Formatadas no padrão ABNT. Entram no fim do texto, ao exportar e imprimir.</p>
+          </div>
+          <button className="btn btn-primary" onClick={() => { setForm({ ...REF0 }); setAberto(true); }}><Plus size={15} /> Referência</button>
+        </div>
+
+        {aberto && (
+          <div className="card p-5 space-y-3">
+            {livros.length > 0 && !form.id && (
+              <label className="block"><span className="label">Do Mapa da Ignorância (opcional)</span>
+                <select className="input mt-1" value={form.book_id ?? ""} onChange={(e) => {
+                  const l = livros.find((x) => x.id === e.target.value);
+                  set(l ? { book_id: l.id, titulo: l.title, autor: l.author ?? "" } : { book_id: null });
+                }}>
+                  <option value="">Escolher um livro da sua biblioteca…</option>
+                  {livros.map((l) => <option key={l.id} value={l.id}>{l.author ? `${l.author} — ` : ""}{l.title}</option>)}
+                </select></label>
+            )}
+            <div className="grid sm:grid-cols-2 gap-3">
+              {campo("autor", "Autor(es)", "Sobrenome, Nome; Sobrenome, Nome", "sm:col-span-2")}
+              {campo("titulo", "Título")}
+              {campo("subtitulo", "Subtítulo")}
+              {campo("edicao", "Edição", "ex.: 2")}
+              {campo("ano", "Ano", "ex.: 2015")}
+              {campo("local", "Local", "ex.: São Paulo")}
+              {campo("editora", "Editora")}
+              {campo("url", "Link (se for on-line)", "", "sm:col-span-2")}
+            </div>
+            <label className="block"><span className="label">Anotações (só para você)</span>
+              <textarea className="input mt-1 min-h-[70px]" value={form.notas} onChange={(e) => set({ notas: e.target.value })} /></label>
+            {(form.titulo || form.autor) && (
+              <p className="text-sm text-muted">Fica assim: <span className="text-ink" dangerouslySetInnerHTML={{ __html: paragrafosHtml(abnt({ ...form, id: "", projeto_id: "" } as Referencia))[0] ?? "" }} /></p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button className="btn btn-ghost" onClick={() => setAberto(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={salvar}>Salvar</button>
+            </div>
+          </div>
+        )}
+
+        {!refs.length && !aberto && <div className="card p-8 text-center text-sm text-muted">Nenhuma referência ainda.</div>}
+        <ul className="space-y-2">
+          {ordenarReferencias(refs).map((r) => (
+            <li key={r.id} className="card p-4 group flex gap-3">
+              <div className="flex-1 min-w-0 text-[15px] leading-relaxed" style={{ fontFamily: FONTS.times.css }}>
+                <p dangerouslySetInnerHTML={{ __html: paragrafosHtml(abnt(r))[0] ?? "" }} />
+                {r.notas && <p className="mt-1 text-sm text-muted whitespace-pre-wrap font-sans">{r.notas}</p>}
+              </div>
+              <div className="flex items-start gap-0.5 text-faint opacity-0 group-hover:opacity-100">
+                <button className="p-1 hover:text-ink" title="Editar" onClick={() => { setForm({ ...REF0, ...r }); setAberto(true); }}><Pencil size={14} /></button>
+                <button className="p-1 hover:text-critical" title="Apagar" onClick={() => apagar(r)}><Trash2 size={14} /></button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

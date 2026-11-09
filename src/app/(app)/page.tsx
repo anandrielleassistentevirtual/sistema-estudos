@@ -19,6 +19,13 @@ export default function Dashboard() {
   const [books, setBooks] = useState<Book[]>([]);
   const [covers, setCovers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [nome, setNome] = useState("");
+  useEffect(() => {
+    void supabase().auth.getUser().then(({ data }) => {
+      const m = data.user?.user_metadata ?? {};
+      setNome(String(m.nome ?? m.full_name ?? m.name ?? ""));
+    });
+  }, []);
 
   useEffect(() => {
     const from = dayKey(addDays(weekStart(new Date()), -52 * 7));
@@ -90,7 +97,13 @@ export default function Dashboard() {
     .reduce((a, b) => a + (b.word_count ?? 0) * (1 - b.progress), 0);
 
   return (
-    <Page title="Dashboard" subtitle={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}>
+    <Page title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+      actions={<button className="text-xs text-faint hover:text-ink" title="Como você quer ser chamado" onClick={async () => {
+        const n = prompt("Seu nome:", nome)?.trim();
+        if (n === undefined || n === null) return;
+        await supabase().auth.updateUser({ data: { nome: n } });
+        setNome(n);
+      }}>{nome ? "trocar nome" : "Como quer ser chamado?"}</button>}>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Hoje" value={fmtDuration(s.today)} hint="timer + leitura" />
         <Stat label="Esta semana" value={fmtDuration(s.week)} />

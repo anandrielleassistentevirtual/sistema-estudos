@@ -4,82 +4,91 @@
 
 :root {
   color-scheme: light;
-  --bg: #f7f7f6;
+  --bg: #f5f5f7;
   --surface: #ffffff;
-  --surface-2: #f1f1f0;
-  --border: #e6e6e4;
-  --text: #171717;
-  --muted: #6f6f6c;
-  --faint: #a3a3a0;
-  --accent: #1c1c1c;
+  --surface-2: #f2f2f7;
+  --border: #e5e5ea;
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --faint: #a1a1a6;
+  --accent: #0071e3;
   --accent-ink: #ffffff;
-  --accent-soft: #ececeb;
-  --good: #3f8f5a;
-  --critical: #c0504a;
-  --hl: rgba(232, 178, 60, 0.30);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-  --chart: #3d3d3b;
-  --dialogo: #94661c;
-  --heat-0: #ececea;
-  --heat-1: #d4d4d2;
-  --heat-2: #a9a9a6;
-  --heat-3: #7a7a77;
-  --heat-4: #4a4a48;
-  --heat-5: #1c1c1c;
+  --accent-soft: #e8f1fd;
+  --sel: rgba(0, 0, 0, 0.055);
+  --sidebar: rgba(236, 236, 241, 0.78);
+  --seg: #ffffff;
+  --good: #248a3d;
+  --critical: #d70015;
+  --hl: rgba(255, 204, 0, 0.35);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --chart: #0071e3;
+  --dialogo: #b25000;
+  --heat-0: #e8e8ed;
+  --heat-1: #cfe3fd;
+  --heat-2: #9cc5f8;
+  --heat-3: #5a9ff0;
+  --heat-4: #0071e3;
+  --heat-5: #004a99;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #161616;
-    --surface: #1c1c1c;
-    --surface-2: #252525;
-    --border: #2c2c2c;
-    --text: #ededed;
-    --muted: #9b9b9b;
-    --faint: #6b6b6b;
-    --accent: #ededed;
-    --accent-ink: #161616;
-    --accent-soft: #2a2a2a;
-    --good: #7fb08a;
-    --critical: #d98a82;
-    --hl: rgba(201, 150, 40, 0.34);
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --border: #2c2c2e;
+    --text: #f5f5f7;
+    --muted: #98989d;
+    --faint: #636366;
+    --accent: #0a84ff;
+    --accent-ink: #ffffff;
+    --accent-soft: #0b2747;
+    --sel: rgba(255, 255, 255, 0.1);
+    --sidebar: rgba(22, 22, 24, 0.82);
+    --seg: #636366;
+    --good: #30d158;
+    --critical: #ff453a;
+    --hl: rgba(255, 214, 10, 0.3);
     --shadow: none;
-    --chart: #c8c8c8;
-    --dialogo: #d8be8a;
-    --heat-0: #232323;
-    --heat-1: #3a3a3a;
-    --heat-2: #5a5a5a;
-    --heat-3: #858585;
-    --heat-4: #b5b5b5;
-    --heat-5: #ededed;
+    --chart: #0a84ff;
+    --dialogo: #ffb340;
+    --heat-0: #2c2c2e;
+    --heat-1: #0d2d52;
+    --heat-2: #0f4c8a;
+    --heat-3: #0a6fd6;
+    --heat-4: #0a84ff;
+    --heat-5: #70b8ff;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #161616;
-  --surface: #1c1c1c;
-  --surface-2: #252525;
-  --border: #2c2c2c;
-  --text: #ededed;
-  --muted: #9b9b9b;
-  --faint: #6b6b6b;
-  --accent: #ededed;
-  --accent-ink: #161616;
-  --accent-soft: #2a2a2a;
-  --good: #7fb08a;
-  --critical: #d98a82;
-  --hl: rgba(201, 150, 40, 0.34);
+  --bg: #000000;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --border: #2c2c2e;
+  --text: #f5f5f7;
+  --muted: #98989d;
+  --faint: #636366;
+  --accent: #0a84ff;
+  --accent-ink: #ffffff;
+  --accent-soft: #0b2747;
+  --sel: rgba(255, 255, 255, 0.1);
+  --sidebar: rgba(22, 22, 24, 0.82);
+  --seg: #636366;
+  --good: #30d158;
+  --critical: #ff453a;
+  --hl: rgba(255, 214, 10, 0.3);
   --shadow: none;
-  --chart: #c8c8c8;
-  --dialogo: #d8be8a;
-  --heat-0: #232323;
-  --heat-1: #3a3a3a;
-  --heat-2: #5a5a5a;
-  --heat-3: #858585;
-  --heat-4: #b5b5b5;
-  --heat-5: #ededed;
+  --chart: #0a84ff;
+  --dialogo: #ffb340;
+  --heat-0: #2c2c2e;
+  --heat-1: #0d2d52;
+  --heat-2: #0f4c8a;
+  --heat-3: #0a6fd6;
+  --heat-4: #0a84ff;
+  --heat-5: #70b8ff;
 }
 
 @theme inline {
@@ -93,6 +102,9 @@
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-accent-ink: var(--accent-ink);
+  --color-sel: var(--sel);
+  --color-sidebar: var(--sidebar);
+  --color-seg: var(--seg);
   --color-good: var(--good);
   --color-critical: var(--critical);
   /* Interface: San Francisco (fonte do sistema da Apple) nos aparelhos Apple; nos demais, Inter,
@@ -117,7 +129,7 @@ body {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--text) 18%, transparent);
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 /* barras de rolagem discretas */
@@ -187,8 +199,8 @@ body {
   color: var(--faint);
 }
 .input:focus {
-  border-color: color-mix(in srgb, var(--text) 35%, var(--border));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 6%, transparent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .label {
   font-size: 0.78rem;

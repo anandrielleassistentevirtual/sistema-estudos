@@ -1,17 +1,19 @@
 /** Escrita: tipos, contagem de palavras, destaque de diálogo, escaleta e importação de .xlsx. */
 
+export type TipoProjeto = "conto" | "novela" | "romance" | "ensaio";
+
 export interface Projeto {
   id: string;
   titulo: string;
   autor: string;
-  tipo: "livro" | "artigo";
+  tipo: TipoProjeto;
   meta_palavras: number;
   meta_diaria: number;
   created_at: string;
   updated_at: string;
 }
 
-export type Secao = "manuscrito" | "enredo" | "personagens" | "lugares" | "pesquisa";
+export type Secao = "manuscrito" | "rascunhos" | "enredo" | "personagens" | "lugares" | "pesquisa";
 
 export interface Doc {
   id: string;
@@ -46,11 +48,46 @@ export interface Sessao {
 
 export const SECOES: { id: Secao; label: string }[] = [
   { id: "manuscrito", label: "Manuscrito" },
+  { id: "rascunhos", label: "Rascunhos" },
   { id: "enredo", label: "Enredo" },
   { id: "personagens", label: "Personagens" },
   { id: "lugares", label: "Lugares" },
   { id: "pesquisa", label: "Pesquisa" },
 ];
+
+/**
+ * Como cada tipo de projeto se organiza.
+ * - Romance e novela: capítulos → cenas, com escaleta.
+ * - Conto: só cenas (sem capítulos), com escaleta.
+ * - Ensaio: só partes (sem capítulos nem cenas), sem escaleta; tem referências bibliográficas.
+ * Sem capítulos, as cenas/partes ficam num capítulo "invisível" (o primeiro), que a tela não mostra.
+ */
+export const TIPOS: Record<TipoProjeto, {
+  label: string; descricao: string; capitulos: boolean; unidade: string; unidades: string; escaleta: boolean; referencias: boolean;
+  secoes: { id: Secao; label: string }[]; apoio: { secao: Secao; titulo: string }[];
+}> = {
+  conto: {
+    label: "Conto", descricao: "Cenas, sem capítulos", capitulos: false, unidade: "cena", unidades: "cenas", escaleta: true, referencias: false,
+    secoes: [{ id: "rascunhos", label: "Rascunhos" }, { id: "enredo", label: "Enredo" }, { id: "personagens", label: "Personagens" }, { id: "lugares", label: "Lugares" }, { id: "pesquisa", label: "Pesquisa" }],
+    apoio: [{ secao: "enredo", titulo: "Enredo" }, { secao: "personagens", titulo: "Protagonista" }],
+  },
+  novela: {
+    label: "Novela", descricao: "Capítulos e cenas", capitulos: true, unidade: "cena", unidades: "cenas", escaleta: true, referencias: false,
+    secoes: [{ id: "rascunhos", label: "Rascunhos" }, { id: "enredo", label: "Enredo" }, { id: "personagens", label: "Personagens" }, { id: "lugares", label: "Lugares" }, { id: "pesquisa", label: "Pesquisa" }],
+    apoio: [{ secao: "enredo", titulo: "Enredo principal" }, { secao: "personagens", titulo: "Protagonista" }, { secao: "lugares", titulo: "Lugar principal" }],
+  },
+  romance: {
+    label: "Romance", descricao: "Capítulos e cenas", capitulos: true, unidade: "cena", unidades: "cenas", escaleta: true, referencias: false,
+    secoes: [{ id: "rascunhos", label: "Rascunhos" }, { id: "enredo", label: "Enredo" }, { id: "personagens", label: "Personagens" }, { id: "lugares", label: "Lugares" }, { id: "pesquisa", label: "Pesquisa" }],
+    apoio: [{ secao: "enredo", titulo: "Enredo principal" }, { secao: "personagens", titulo: "Protagonista" }, { secao: "lugares", titulo: "Lugar principal" }, { secao: "pesquisa", titulo: "Pesquisa" }],
+  },
+  ensaio: {
+    label: "Ensaio", descricao: "Texto corrido em partes, com referências", capitulos: false, unidade: "parte", unidades: "partes", escaleta: false, referencias: true,
+    secoes: [{ id: "rascunhos", label: "Rascunhos" }, { id: "enredo", label: "Estrutura do argumento" }, { id: "pesquisa", label: "Fichamentos" }],
+    apoio: [{ secao: "enredo", titulo: "Tese e estrutura" }, { secao: "pesquisa", titulo: "Fichamento" }],
+  },
+};
+export const tipoDe = (t: string) => TIPOS[(t in TIPOS ? t : "romance") as TipoProjeto];
 
 export const STATUS: { id: string; label: string; cor: string }[] = [
   { id: "rascunho", label: "Rascunho", cor: "var(--faint)" },
@@ -153,7 +190,8 @@ export function manuscrito(docs: Doc[]) {
 }
 
 /** "C1, c3": capítulo 1, cena 3 (como na escaleta). */
-export const rotuloCena = (cap: number, cena: number) => `C${cap}, c${cena}`;
+export const rotuloCena = (cap: number, cena: number, comCapitulo = true, unidade = "cena") =>
+  comCapitulo ? `C${cap}, c${cena}` : unidade === "parte" ? `Parte ${cena}` : `c${cena}`;
 
 /* ---------- importação da escaleta (.xlsx) ---------- */
 
@@ -251,16 +289,102 @@ export function escaletaDeLinhas(linhas: string[][]): LinhaEscaleta[] {
 
 /* ---------- exportação ---------- */
 
-export function compilarMarkdown(p: Projeto, docs: Doc[]): string {
+export function compilarMarkdown(p: Projeto, docs: Doc[], refs: Referencia[] = []): string {
+  const tipo = tipoDe(p.tipo);
+  const grupos = manuscrito(docs);
+  const comCap = tipo.capitulos || grupos.length > 1;
   const partes = [`# ${p.titulo}`, p.autor ? `*${p.autor}*` : ""];
-  for (const { cap, cenas } of manuscrito(docs)) {
-    partes.push(`## ${cap.titulo}`);
+  for (const { cap, cenas } of grupos) {
+    if (comCap) partes.push(`## ${cap.titulo}`);
     if (cap.conteudo.trim()) partes.push(semComentarios(cap.conteudo));
-    partes.push(cenas.map((c) => semComentarios(c.conteudo)).filter(Boolean).join("\n\n* * *\n\n"));
+    if (tipo.unidade === "parte") {
+      for (const c of cenas) {
+        if (cenas.length > 1 && c.titulo.trim()) partes.push(`### ${c.titulo}`);
+        partes.push(semComentarios(c.conteudo));
+      }
+    } else partes.push(cenas.map((c) => semComentarios(c.conteudo)).filter(Boolean).join("\n\n* * *\n\n"));
   }
+  if (refs.length) partes.push("## Referências", ordenarReferencias(refs).map(abnt).join("\n\n"));
   return partes.filter(Boolean).join("\n\n") + "\n";
 }
 
 export function semComentarios(t: string) {
   return t.split("\n").filter((l) => !l.trimStart().startsWith("%")).join("\n").trim();
 }
+
+/** Parágrafos em HTML seguro (texto escapado; **negrito** e _itálico_ viram tags). Comentários (%) ficam de fora. */
+export function paragrafosHtml(t: string): string[] {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const fmt = (s: string) => esc(s)
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/(^|[^\p{L}\p{N}])[_*](?=\S)(.+?)(?<=\S)[_*](?![\p{L}\p{N}])/gu, "$1<i>$2</i>");
+  return semComentarios(t).split(/\n+/).map((l) => l.trim()).filter(Boolean).map(fmt);
+}
+
+
+/* ---------- referências (ABNT) ---------- */
+
+export interface Referencia {
+  id: string;
+  projeto_id: string;
+  autor: string;
+  titulo: string;
+  subtitulo: string;
+  edicao: string;
+  local: string;
+  editora: string;
+  ano: string;
+  url: string;
+  notas: string;
+  book_id: string | null;
+}
+
+/** "Nome Sobrenome" ou "Sobrenome, Nome" → "SOBRENOME, Nome". Vários autores separados por ";". */
+export function autorAbnt(autor: string): string {
+  return autor.split(";").map((a) => a.trim()).filter(Boolean).map((a) => {
+    if (a.includes(",")) {
+      const [sob, ...resto] = a.split(",");
+      return `${sob.trim().toUpperCase()}, ${resto.join(",").trim()}`;
+    }
+    const p = a.split(/\s+/);
+    if (p.length === 1) return p[0].toUpperCase();
+    const sob = p.pop()!;
+    return `${sob.toUpperCase()}, ${p.join(" ")}`;
+  }).join("; ");
+}
+
+/** Sobrenome do primeiro autor, para a citação no texto: (SOBRENOME, ano). */
+export function sobrenome(autor: string): string {
+  const a = autor.split(";")[0].trim();
+  if (!a) return "";
+  return (a.includes(",") ? a.split(",")[0] : a.split(/\s+/).pop() ?? a).trim().toUpperCase();
+}
+
+/** Referência no padrão ABNT (NBR 6023), em Markdown: título em **negrito**. */
+export function abnt(r: Referencia): string {
+  const partes: string[] = [];
+  if (r.autor.trim()) partes.push(`${autorAbnt(r.autor)}.`);
+  const tit = r.titulo.trim() ? `**${r.titulo.trim()}**${r.subtitulo.trim() ? `: ${r.subtitulo.trim()}` : ""}.` : "";
+  if (tit) partes.push(tit);
+  if (r.edicao.trim()) partes.push(`${r.edicao.trim().replace(/\.?$/, "")}. ed.`);
+  const pub = [r.local.trim() && `${r.local.trim()}:`, r.editora.trim()].filter(Boolean).join(" ");
+  const imp = [pub, r.ano.trim()].filter(Boolean).join(", ");
+  if (imp) partes.push(`${imp}.`);
+  if (r.url.trim()) partes.push(`Disponível em: ${r.url.trim()}.`);
+  return partes.join(" ").replace(/\.\./g, ".");
+}
+
+export const ordenarReferencias = (rs: Referencia[]) => [...rs].sort((a, b) => autorAbnt(a.autor).localeCompare(autorAbnt(b.autor), "pt-BR") || a.titulo.localeCompare(b.titulo, "pt-BR"));
+
+/** O que a tela mostra para este projeto (capítulos visíveis? cena ou parte? escaleta? referências?). */
+export function estrutura(p: Projeto, grupos: ReturnType<typeof manuscrito>) {
+  const t = tipoDe(p.tipo);
+  const comCap = t.capitulos || grupos.length > 1;
+  return {
+    ...t,
+    comCap,
+    Unidade: t.unidade[0].toUpperCase() + t.unidade.slice(1),
+    rotulo: (cap: number, cena: number) => rotuloCena(cap, cena, comCap, t.unidade),
+  };
+}
+export type Estrutura = ReturnType<typeof estrutura>;
