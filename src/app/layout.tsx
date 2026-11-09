@@ -1,5 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Literata, Tinos } from "next/font/google";
 import "./globals.css";
+
+// fontes servidas pelo próprio site (sem esperar o Google Fonts para desenhar a página)
+const inter = Inter({ subsets: ["latin"], axes: ["opsz"], variable: "--font-inter", display: "swap" });
+const literata = Literata({ subsets: ["latin"], axes: ["opsz"], style: ["normal", "italic"], variable: "--font-literata", display: "swap" });
+const tinos = Tinos({ subsets: ["latin"], weight: ["400", "700"], style: ["normal", "italic"], variable: "--font-tinos", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Sistema de Estudos",
@@ -28,14 +34,8 @@ const themeScript = `try{var t=localStorage.getItem("tema");document.documentEle
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning className={`${inter.variable} ${literata.variable} ${tinos.variable}`}>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Tinos:ital,wght@0,400;0,700;1,400&display=swap"
-          rel="stylesheet"
-        />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>{children}</body>

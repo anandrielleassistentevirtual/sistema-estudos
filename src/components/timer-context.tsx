@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { dayKey } from "@/lib/dates";
 
@@ -198,6 +198,15 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [remaining, s, save, target]);
 
+  const start = useCallback(() => {
+    if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
+    setNow(Date.now());
+    setS((p) => (p.running ? p : { ...p, running: true, startedAt: Date.now() }));
+  }, []);
+  const set = useCallback((patch: Partial<TimerState>) => setS((p) => ({ ...p, ...patch })), []);
+  // estado sem o relógio: só muda quando o timer liga, pausa ou troca de fase
+  const estado = useMemo<TimerEstado>(() => ({ running: s.running, phase: s.phase, set, start }), [s.running, s.phase, set, start]);
+
   const api: TimerApi = {
     ...s,
     seconds,
@@ -206,11 +215,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     pending,
     resolvePending,
     what: describe(s),
-    start: () => {
-      if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
-      setNow(Date.now());
-      setS((p) => (p.running ? p : { ...p, running: true, startedAt: Date.now() }));
-    },
+    start,
     pause: () =>
       setS((p) =>
         p.running && p.startedAt ? { ...p, running: false, elapsed: p.elapsed + (Date.now() - p.startedAt) / 1000, startedAt: null } : p,
@@ -222,10 +227,31 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       if (snapshot.phase === "foco") await save(secs, snapshot);
     },
     reset: () => setS((p) => ({ ...p, running: false, startedAt: null, elapsed: 0, phase: "foco" })),
-    set: (patch) => setS((p) => ({ ...p, ...patch })),
+    set,
   };
 
-  return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
+  return (
+    <EstadoCtx.Provider value={estado}>
+      <Ctx.Provider value={api}>{children}</Ctx.Provider>
+    </EstadoCtx.Provider>
+  );
+}
+
+/**
+ * Para telas que só precisam saber se o timer está ligado (leitor, aulas, escrita, lectio…).
+ * Não redesenha a tela a cada tique do relógio, ao contrário de useTimer().
+ */
+export interface TimerEstado {
+  running: boolean;
+  phase: TimerState["phase"];
+  set: (patch: Partial<TimerState>) => void;
+  start: () => void;
+}
+const EstadoCtx = createContext<TimerEstado | null>(null);
+export function useTimerEstado() {
+  const c = useContext(EstadoCtx);
+  if (!c) throw new Error("useTimerEstado fora do TimerProvider");
+  return c;
 }
 
 export function useTimer() {

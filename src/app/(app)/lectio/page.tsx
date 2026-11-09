@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import { addDays, dayKey, fmtClock, fmtDuration, parseDay } from "@/lib/dates";
 import { FONTS } from "@/components/reader/types";
 import { stepZoom, useReaderPrefs, ZOOM, zoomOf } from "@/components/reader/prefs";
-import { useTimer } from "@/components/timer-context";
+import { useTimerEstado } from "@/components/timer-context";
 
 interface Versiculo { n: number; texto: string }
 interface Comentario { autor: string; fonte: string; sobre: string; texto: string; destaque: boolean }
@@ -112,7 +112,7 @@ export default function Lectio() {
     document.addEventListener("keydown", k);
     return () => document.removeEventListener("keydown", k);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const timer = useTimer();
+  const timer = useTimerEstado();
   const tick = useRef<number | null>(null);
 
 

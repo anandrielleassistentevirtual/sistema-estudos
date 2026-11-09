@@ -15,7 +15,7 @@ import {
 import { Editor, type EditorHandle } from "@/components/escrita/editor";
 import { BarChart } from "@/components/bar-chart";
 import { FONTS } from "@/components/reader/types";
-import { useTimer } from "@/components/timer-context";
+import { useTimerEstado } from "@/components/timer-context";
 
 const SECOES_EXTRA: { id: Secao; label: string }[] = [
   { id: "enredo", label: "Enredo" }, { id: "personagens", label: "Personagens" }, { id: "lugares", label: "Lugares" }, { id: "pesquisa", label: "Pesquisa" },
@@ -26,7 +26,7 @@ const PREFS0: Prefs = { fonte: "times", tamanho: 13, entrelinha: 1.6, ocioso: 30
 
 export default function SalaDeEscrita() {
   const { id } = useParams<{ id: string }>();
-  const timer = useTimer();
+  const timer = useTimerEstado();
   const [projeto, setProjeto] = useState<Projeto | null>(null);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
@@ -174,6 +174,11 @@ export default function SalaDeEscrita() {
     } else if (m - n >= 5) teto.current.set(d.id, n);
     patch(d.id, { conteudo: v, palavras: n });
   }, [atividade, patch]);
+
+  // callback estável: o editor (memo) não redesenha a cada segundo do cronômetro
+  const docAtual = useRef<Doc | null>(null);
+  docAtual.current = docs.find((d) => d.id === atual) ?? null;
+  const aoEscrever = useCallback((v: string) => { if (docAtual.current) escrever(docAtual.current, v); }, [escrever]);
 
   useEffect(() => {
     let ult = Date.now();
@@ -392,7 +397,7 @@ export default function SalaDeEscrita() {
                 )}
                 <div className="flex-1 min-h-0">
                   <Editor key={doc.id} ref={editor} value={doc.conteudo}
-                    onChange={(v) => escrever(doc, v)}
+                    onChange={aoEscrever}
                     fonte={fonte} tamanhoPt={prefs.tamanho} entrelinha={prefs.entrelinha}
                     focoParagrafo={foco && prefs.paragrafo} maquina={prefs.maquina} destacarFalas={prefs.falas}
                     placeholder={doc.tipo === "cena" ? (E.unidade === "parte" ? "Comece o texto…" : "Comece a cena…") : doc.secao === "rascunhos" ? "Escreva à vontade: tudo o que você escreve aqui conta no esforço do dia." : "Escreva a nota…"} />

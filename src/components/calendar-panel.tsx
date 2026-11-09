@@ -2,16 +2,21 @@
 import { useEffect, useState } from "react";
 import { Heatmap } from "@/components/heatmap";
 import { addDays, dayKey, weekStart } from "@/lib/dates";
-import { DayStats, loadDaily, Metric, METRICS } from "@/lib/stats";
+import { DayStats, inicio12Meses, loadDaily, Metric, METRICS } from "@/lib/stats";
 
 export function CalendarPanel() {
   const [year, setYear] = useState<number | "12m">("12m");
   const [metric, setMetric] = useState<Metric>("tempo");
   const [daily, setDaily] = useState<Map<string, DayStats>>(new Map());
 
+  // começa com os últimos 12 meses (a mesma consulta do Dashboard); anos antigos só quando escolhidos
+  const [desde, setDesde] = useState(inicio12Meses);
   useEffect(() => {
-    void loadDaily(dayKey(addDays(weekStart(new Date()), -6 * 53 * 7))).then(setDaily);
-  }, []);
+    if (year === "12m") return;
+    const ini = dayKey(addDays(weekStart(new Date(year, 0, 1)), -7));
+    if (ini < desde) setDesde(ini);
+  }, [year, desde]);
+  useEffect(() => { void loadDaily(desde).then(setDaily); }, [desde]);
 
   const end = year === "12m" ? new Date() : new Date(year, 11, 31);
   const weeks = year === "12m" ? 53 : Math.ceil((end.getTime() - weekStart(new Date(year, 0, 1)).getTime()) / (7 * 864e5));

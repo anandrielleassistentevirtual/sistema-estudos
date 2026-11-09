@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TextReader } from "./text-reader";
 import { themeColors, type ReaderHandle, type ReaderPrefs } from "./types";
 import { ReadingTracker } from "@/lib/reading-tracker";
-import { useTimer } from "@/components/timer-context";
+import { useTimerEstado } from "@/components/timer-context";
 import { fmtClock, nf } from "@/lib/dates";
 import type { Note } from "@/lib/types";
 import { supabase, fire } from "@/lib/supabase/client";
@@ -18,7 +18,7 @@ export function LessonReader({ note, prefs, onProgress, onPosition }: {
 }) {
   const reader = useRef<ReaderHandle>(null);
   const tracker = useRef<ReadingTracker | null>(null);
-  const timer = useTimer();
+  const timer = useTimerEstado();
   const timerOn = useRef(false);
   timerOn.current = timer.running && timer.phase === "foco";
   const [session, setSession] = useState({ seconds: 0, words: 0 });
@@ -33,6 +33,7 @@ export function LessonReader({ note, prefs, onProgress, onPosition }: {
     try { return localStorage.getItem(key); } catch { return null; }
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   const pendingPos = useRef<string | null>(null);
+  const salva = useRef<string | null>(note.location ?? null);
   const onPositionRef = useRef(onPosition);
   onPositionRef.current = onPosition;
   const posTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,6 +42,8 @@ export function LessonReader({ note, prefs, onProgress, onPosition }: {
     const loc = pendingPos.current;
     if (!loc) return;
     pendingPos.current = null;
+    if (loc === salva.current) return; // nada mudou: não grava de novo
+    salva.current = loc;
     fire(supabase().from("notes").update({ location: loc }).eq("id", note.id));
     onPositionRef.current?.(loc);
   }, [note.id]);

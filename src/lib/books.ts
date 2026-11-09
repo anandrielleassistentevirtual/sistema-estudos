@@ -69,10 +69,23 @@ export async function uploadBook(file: File, folderId: string | null): Promise<B
   return data as Book;
 }
 
+/**
+ * Arquivo do livro. Fica guardado no aparelho (Cache Storage) depois da primeira vez:
+ * reabrir um livro não baixa o arquivo de novo. Os arquivos nunca são substituídos no
+ * mesmo caminho (upload sem upsert), então o caminho identifica a versão.
+ */
 export async function downloadBook(book: Book): Promise<Blob> {
   if (!book.file_path) throw new Error("Este é um livro físico: use o Timer (categoria Leitura) para registrar a leitura.");
+  const chave = `/__livros/${encodeURIComponent(book.file_path)}`;
+  let cache: Cache | null = null;
+  try {
+    cache = await caches.open("livros-v1");
+    const r = await cache.match(chave);
+    if (r) return await r.blob();
+  } catch {}
   const { data, error } = await supabase().storage.from("livros").download(book.file_path);
   if (error || !data) throw new Error(error?.message ?? "Arquivo não encontrado");
+  try { await cache?.put(chave, new Response(data, { headers: { "content-type": data.type || "application/octet-stream" } })); } catch {}
   return data;
 }
 

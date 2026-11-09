@@ -1,5 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
+import { addDays, dayKey, weekStart } from "./dates";
 
 export interface DayStats {
   study: number; // segundos no timer
@@ -14,8 +15,23 @@ export interface DayStats {
 
 export const emptyDay = (): DayStats => ({ study: 0, reading: 0, readingAll: 0, words: 0, reads: 0, listens: 0, anki: 0, written: 0 });
 
+/** Início padrão: as últimas 53 semanas (o que o Dashboard e o calendário mostram de cara). */
+export const inicio12Meses = () => dayKey(addDays(weekStart(new Date()), -53 * 7));
+
+// a mesma consulta pedida por vários painéis ao mesmo tempo vira uma só (vale por 20 s)
+const cache = new Map<string, { em: number; p: Promise<Map<string, DayStats>> }>();
+
 /** Agrega tudo por dia a partir de `from` (AAAA-MM-DD). */
-export async function loadDaily(from: string): Promise<Map<string, DayStats>> {
+export function loadDaily(from: string): Promise<Map<string, DayStats>> {
+  const c = cache.get(from);
+  if (c && Date.now() - c.em < 20000) return c.p;
+  const p = carregar(from);
+  cache.set(from, { em: Date.now(), p });
+  p.catch(() => cache.delete(from));
+  return p;
+}
+
+async function carregar(from: string): Promise<Map<string, DayStats>> {
   const sb = supabase();
   const [study, reading, lang, anki, escrita] = await Promise.all([
     sb.from("study_sessions").select("day,seconds").gte("day", from).limit(20000),

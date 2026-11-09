@@ -1,5 +1,5 @@
 "use client";
-import { forwardRef, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, memo, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { destacar, type Classe } from "@/lib/escrita";
 
 export interface EditorHandle {
@@ -23,7 +23,7 @@ const COR: Record<Classe, string | undefined> = {
  * falas destacadas, marcas de formatação apagadas, parágrafo atual em foco.
  * O espelho também diz onde está o cursor, para o modo máquina de escrever (linha no meio).
  */
-export const Editor = forwardRef<EditorHandle, {
+export const Editor = memo(forwardRef<EditorHandle, {
   value: string;
   onChange: (v: string) => void;
   fonte: string;
@@ -166,4 +166,4 @@ export const Editor = forwardRef<EditorHandle, {
       </div>
     </div>
   );
-});
+}));

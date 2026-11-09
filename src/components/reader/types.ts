@@ -17,9 +17,9 @@ export interface ReaderPrefs {
 export const DEFAULT_PREFS: ReaderPrefs = { theme: "auto", font: "times", sizePt: 12, justify: true, lineHeight: 1.5 };
 
 export const FONTS: Record<ReaderFont, { label: string; css: string }> = {
-  times: { label: "Times New Roman", css: '"Times New Roman", Tinos, Times, "Liberation Serif", serif' },
-  literata: { label: "Literata", css: "Literata, Georgia, serif" },
-  inter: { label: "Inter", css: "Inter, system-ui, sans-serif" },
+  times: { label: "Times New Roman", css: '"Times New Roman", var(--font-tinos), Tinos, Times, "Liberation Serif", serif' },
+  literata: { label: "Literata", css: "var(--font-literata), Literata, Georgia, serif" },
+  inter: { label: "Inter", css: "var(--font-inter), Inter, system-ui, sans-serif" },
 };
 
 export const THEMES: Record<ConcreteTheme, { bg: string; fg: string; label: string }> = {
@@ -68,3 +68,6 @@ export interface ReaderProps {
 export function themeColors(t: ReaderTheme) {
   return THEMES[t === "auto" ? "claro" : t];
 }
+
+/** Pilha de fontes sem var(): dentro do iframe do EPUB as variáveis da página não existem. */
+export const semVariaveis = (css: string) => css.replace(/var\([^)]*\),\s*/g, "");

@@ -1,7 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import dynamic from "next/dynamic";
 import { ChevronDown, ChevronRight, Download, Eye, FileText, Folder, FolderUp, Link as LinkIcon, Pencil, Plus, Search, Trash2, Upload, X, ZoomIn, ZoomOut, PanelLeftClose, PanelLeftOpen, CircleCheck, Circle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { countWords, slug, wikilinks } from "@/lib/text";
@@ -13,7 +12,12 @@ import { stepZoom, useEffectiveTheme, useReaderPrefs, zoomOf, ZOOM } from "@/com
 import { FONTS, THEMES } from "@/components/reader/types";
 import { LessonReader } from "@/components/reader/lesson-reader";
 
+// a pré-visualização em Markdown (react-markdown + GFM) só é baixada quando aparece na tela
+const Markdown = dynamic(() => import("@/components/markdown"), { ssr: false, loading: () => <p className="text-sm text-faint">…</p> });
+
 type Kind = Note["kind"];
+/** Colunas da lista de aulas: tudo menos o texto (as transcrições somam vários MB). */
+const COLUNAS_LISTA = "id,kind,title,folder,professor,course,created_at,updated_at,location,completed_at";
 type View = "editar" | "ler" | "dividir";
 
 /**
@@ -32,6 +36,10 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isStudy = kind === "estudo";
   const isAtomic = kind === "atomica";
+  // Estudos: a lista vem sem o texto; o texto de cada aula é baixado quando ela é aberta
+  const lazy = isStudy;
+  const [carregados, setCarregados] = useState<Set<string>>(new Set());
+  const [achados, setAchados] = useState<Set<string> | null>(null);
   const [prefs, setPrefs] = useReaderPrefs();
   const tema = useEffectiveTheme(prefs.theme);
   const zoom = zoomOf(prefs);
@@ -74,15 +82,29 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     setRenaming(null);
     const title = value.trim();
     if (!title || title === n.title) return;
-    const content = syncHeading(n.content, n.title, title);
+    let base: string | null = n.content;
+    if (lazy && !carregados.has(n.id)) {
+      const { data } = await supabase().from("notes").select("content").eq("id", n.id).single();
+      base = data ? (data as { content: string }).content ?? "" : null;
+    }
+    if (base === null) {
+      // sem o texto em mãos, muda só o título (nunca grava um texto vazio por cima)
+      setNotes((all) => all.map((x) => (x.id === n.id ? { ...x, title } : x)));
+      setCurrent((c) => (c?.id === n.id ? { ...c, title } : c));
+      await supabase().from("notes").update({ title }).eq("id", n.id);
+      return;
+    }
+    const content = syncHeading(base, n.title, title);
+    if (lazy) setCarregados((s) => new Set(s).add(n.id));
     setNotes((all) => all.map((x) => (x.id === n.id ? { ...x, title, content } : x)));
     setCurrent((c) => (c?.id === n.id ? { ...c, title, content } : c));
     await supabase().from("notes").update({ title, content }).eq("id", n.id);
   }
 
   const load = useCallback(async () => {
-    const { data } = await supabase().from("notes").select("*").eq("kind", kind).order("title");
-    const list = ((data as Note[]) ?? []).sort((a, b) =>
+    const { data } = await supabase().from("notes").select(lazy ? COLUNAS_LISTA : "*").eq("kind", kind).order("title");
+    if (lazy) setCarregados(new Set());
+    const list = ((data as unknown as Note[]) ?? []).map((n) => (lazy ? { ...n, content: "" } : n)).sort((a, b) =>
       isAtomic ? (b.zid ?? "").localeCompare(a.zid ?? "") : a.title.localeCompare(b.title, "pt-BR", { numeric: true }));
     setNotes(list);
     const want = new URLSearchParams(window.location.search).get("id");
@@ -124,6 +146,33 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     })();
   }, [isAtomic, current?.source_id]);
 
+  // texto da aula aberta (só quando ela é aberta)
+  useEffect(() => {
+    if (!lazy || !current || carregados.has(current.id)) return;
+    const id = current.id;
+    let vivo = true;
+    void supabase().from("notes").select("content").eq("id", id).single().then(({ data }) => {
+      if (!vivo || !data) return;
+      const content = (data as { content: string }).content ?? "";
+      setNotes((all) => all.map((x) => (x.id === id ? { ...x, content } : x)));
+      setCurrent((c) => (c?.id === id ? { ...c, content } : c));
+      setCarregados((s) => new Set(s).add(id));
+    });
+    return () => { vivo = false; };
+  }, [lazy, current?.id, carregados]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // busca dentro dos textos das aulas: feita no banco (sem baixar tudo)
+  useEffect(() => {
+    const t = q.trim();
+    if (!lazy || t.length < 3) { setAchados(null); return; }
+    const h = setTimeout(async () => {
+      const termo = t.replace(/[%_\\]/g, (c) => `\\${c}`);
+      const { data } = await supabase().from("notes").select("id").eq("kind", kind).ilike("content", `%${termo}%`).limit(500);
+      setAchados(new Set(((data as { id: string }[]) ?? []).map((x) => x.id)));
+    }, 300);
+    return () => clearTimeout(h);
+  }, [q, lazy, kind]);
+
   useEffect(() => {
     if (current) window.history.replaceState(null, "", `?id=${current.id}`);
   }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -132,7 +181,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
 
   const groups = useMemo(() => {
     const t = q.trim().toLowerCase();
-    const list = t ? notes.filter((n) => n.title.toLowerCase().includes(t) || n.content.toLowerCase().includes(t)) : notes;
+    const list = t ? notes.filter((n) => n.title.toLowerCase().includes(t) || (lazy ? achados?.has(n.id) : n.content.toLowerCase().includes(t))) : notes;
     const g = new Map<string, Note[]>();
     for (const n of list) {
       const key = isStudy ? [n.course || "Sem curso", n.folder].filter(Boolean).join(" › ") : isAtomic ? "" : n.folder || "";
@@ -142,16 +191,19 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
       g.set(k, isAtomic ? items : [...items].sort((a, b) => a.title.localeCompare(b.title, "pt-BR", { numeric: true, sensitivity: "base" })));
     }
     return [...g.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true }));
-  }, [notes, q, isStudy, isAtomic]);
+  }, [notes, q, isStudy, isAtomic, lazy, achados]);
 
   const backlinks = useMemo(() => {
-    if (!current) return [];
+    if (!current || lazy) return [];
     const t = current.title.toLowerCase();
     return notes.filter((n) => n.id !== current.id && wikilinks(n.content).some((l) => l.toLowerCase() === t));
-  }, [notes, current]);
+  }, [notes, current, lazy]);
+
+  const pronto = !lazy || (!!current && carregados.has(current.id));
 
   function patch(p: Partial<Note>) {
     if (!current) return;
+    if (lazy && !carregados.has(current.id)) return; // texto ainda chegando: não salva nada por cima
     if (p.title !== undefined && p.content === undefined) p = { ...p, content: syncHeading(current.content, current.title, p.title) };
     const next = { ...current, ...p };
     setCurrent(next);
@@ -184,6 +236,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
       .select()
       .single();
     if (data) {
+      if (lazy) setCarregados((s) => new Set(s).add((data as Note).id));
       setNotes((all) => [...all, data as Note].sort((a, b) => a.title.localeCompare(b.title, "pt-BR")));
       setCurrent(data as Note);
       setView(title ? "dividir" : "editar");
@@ -273,10 +326,15 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
   async function exportVault() {
     const JSZip = (await import("jszip")).default;
     const zip = new JSZip();
+    let textos = new Map(notes.map((n) => [n.id, n.content]));
+    if (lazy) {
+      const { data } = await supabase().from("notes").select("id,content").eq("kind", kind);
+      textos = new Map(((data as { id: string; content: string }[]) ?? []).map((x) => [x.id, x.content]));
+    }
     for (const n of notes) {
       const dir = isStudy ? [n.course, ...n.folder.split(" › ")].filter(Boolean).map(safe).join("/") : isAtomic ? "" : n.folder.split("/").filter(Boolean).map(safe).join("/");
       const front = isStudy ? `---\nprofessor: ${n.professor}\ncurso: ${n.course}\n---\n\n` : "";
-      zip.file(`${dir ? dir + "/" : ""}${safe(n.title)}.md`, front + n.content);
+      zip.file(`${dir ? dir + "/" : ""}${safe(n.title)}.md`, front + (textos.get(n.id) ?? ""));
     }
     const blob = await zip.generateAsync({ type: "blob" });
     const a = document.createElement("a");
@@ -436,9 +494,12 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                 ) : (
                   <input className="input py-1 w-auto flex-1" placeholder="Pasta (ex.: Filosofia/Platão)" value={current.folder} onChange={(e) => patch({ folder: e.target.value })} />
                 )}
-                <span className="text-xs text-faint self-center">{nf.format(countWords(current.content))} palavras</span>
+                <span className="text-xs text-faint self-center">{pronto ? `${nf.format(countWords(current.content))} palavras` : "…"}</span>
               </div>
             </div>
+            {!pronto ? (
+              <div className="flex-1 grid place-items-center text-sm text-muted">Abrindo a aula…</div>
+            ) : (
             <div className={`flex-1 min-h-0 grid ${view === "dividir" ? "lg:grid-cols-2" : ""}`}>
               {view !== "ler" && (
                 <textarea
@@ -464,9 +525,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                       textAlign: prefs.justify ? "justify" : "left",
                       hyphens: "auto",
                     } : undefined}>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      urlTransform={(u) => u}
+                    <Markdown
                       components={{
                         a: ({ href, children }) =>
                           href?.startsWith("#wiki:") ? (
@@ -478,9 +537,9 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                       }}
                     >
                       {rendered}
-                    </ReactMarkdown>
+                    </Markdown>
                   </article>
-                  <div className={`mt-10 pt-4 border-t border-line max-w-[72ch] ${isStudy ? "mx-auto font-sans text-sm" : ""}`}>
+                  {!lazy && <div className={`mt-10 pt-4 border-t border-line max-w-[72ch] ${isStudy ? "mx-auto font-sans text-sm" : ""}`}>
                     <div className="label mb-2">Backlinks ({backlinks.length})</div>
                     {backlinks.length === 0 ? (
                       <p className="text-sm text-faint">Nenhuma nota aponta para esta ainda. Escreva [[{current.title}]] em outra nota.</p>
@@ -491,10 +550,11 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                         ))}
                       </ul>
                     )}
-                  </div>
+                  </div>}
                 </div>
               )}
             </div>
+            )}
           </>
         )}
       </section>

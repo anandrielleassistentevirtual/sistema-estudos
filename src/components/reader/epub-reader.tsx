@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { countWords } from "@/lib/text";
-import { FONTS, HL_COLORS, ReaderHandle, ReaderProps, THEMES, themeColors } from "./types";
+import { FONTS, HL_COLORS, ReaderHandle, ReaderProps, THEMES, semVariaveis, themeColors } from "./types";
 
 type Pos = { index: number; page: number; total: number };
 
@@ -136,7 +136,7 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
     r.themes.fontSize(`${p.sizePt}pt`);
     r.themes.default({
       "body, p, div, li, blockquote, span, td": {
-        "font-family": `${FONTS[p.font].css} !important`,
+        "font-family": `${semVariaveis(FONTS[p.font].css)} !important`,
         "line-height": `${p.lineHeight} !important`,
       },
       "p, div, li, blockquote": {

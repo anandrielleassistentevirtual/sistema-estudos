@@ -18,14 +18,17 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const { data } = await supabase.auth.getUser();
+  // getClaims confere a assinatura do token localmente (chaves ES256 do projeto, em cache),
+  // sem ir ao servidor de autenticação a cada página como o getUser fazia. Renova a sessão se expirou.
+  const { data } = await supabase.auth.getClaims();
+  const logado = !!data?.claims?.sub;
   const isLogin = request.nextUrl.pathname.startsWith("/login");
-  if (!data.user && !isLogin) {
+  if (!logado && !isLogin) {
     const to = request.nextUrl.clone();
     to.pathname = "/login";
     return NextResponse.redirect(to);
   }
-  if (data.user && isLogin) {
+  if (logado && isLogin) {
     const to = request.nextUrl.clone();
     to.pathname = "/";
     return NextResponse.redirect(to);

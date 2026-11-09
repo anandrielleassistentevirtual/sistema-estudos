@@ -13,7 +13,7 @@ import { addBasicNote } from "@/lib/anki";
 import { ReadingTracker } from "@/lib/reading-tracker";
 import { supabase, fire } from "@/lib/supabase/client";
 import type { Annotation, Book } from "@/lib/types";
-import { useTimer } from "@/components/timer-context";
+import { useTimerEstado } from "@/components/timer-context";
 import { literaryFromHighlight } from "@/lib/zettel";
 
 const PREFS_KEY = "leitor-prefs-v2";
@@ -64,7 +64,7 @@ export default function Ler() {
   }, [savePos]);
   const bookRef = useRef<Book | null>(null);
   bookRef.current = book;
-  const timer = useTimer();
+  const timer = useTimerEstado();
   const timerOn = useRef(false);
   timerOn.current = timer.running && timer.phase === "foco";
 

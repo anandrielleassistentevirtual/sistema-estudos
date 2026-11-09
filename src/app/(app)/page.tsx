@@ -9,7 +9,7 @@ import { coverUrls } from "@/lib/covers";
 import { TimeBreakdown } from "@/components/time-breakdown";
 import { WritingPanel } from "@/components/writing-panel";
 import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
-import { DayStats, loadDaily } from "@/lib/stats";
+import { DayStats, inicio12Meses, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
 import type { Book } from "@/lib/types";
 
@@ -29,9 +29,8 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const from = dayKey(addDays(weekStart(new Date()), -52 * 7));
     Promise.all([
-      loadDaily(from),
+      loadDaily(inicio12Meses()),
       supabase().from("books").select("*").order("created_at", { ascending: false }),
     ]).then(([d, b]) => {
       setDaily(d);

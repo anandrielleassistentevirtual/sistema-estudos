@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { ACCEPT, addPhysicalBook, deleteBook, enqueue, saveBookFile, uploadBook } from "@/lib/books";
-import { useTimer } from "@/components/timer-context";
+import { useTimerEstado } from "@/components/timer-context";
 import { Cover } from "@/components/cover";
 import { coverUrls, epubCover, removeCover, setCover, setCoverFromLink } from "@/lib/covers";
 import { downloadBook } from "@/lib/books";
@@ -33,7 +33,7 @@ export default function Biblioteca() {
   const [drag, setDrag] = useState(false);
   const [wpm, setWpm] = useState(DEFAULT_WPM);
   const fileRef = useRef<HTMLInputElement>(null);
-  const timer = useTimer();
+  const timer = useTimerEstado();
   const [physical, setPhysical] = useState(false);
   const [editing, setEditing] = useState<Book | null>(null);
   const [folderModal, setFolderModal] = useState<null | { edit?: F; parentId: string | null }>(null);
