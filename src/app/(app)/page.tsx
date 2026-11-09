@@ -120,9 +120,9 @@ export default function Dashboard() {
         />
       </div>
 
-      <TimeBreakdown />
-
       <CalendarPanel />
+
+      <TimeBreakdown />
 
       <WritingPanel />
 
