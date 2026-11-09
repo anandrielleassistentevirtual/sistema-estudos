@@ -122,9 +122,9 @@ export default function Dashboard() {
 
       <TimeBreakdown />
 
-      <WritingPanel />
-
       <CalendarPanel />
+
+      <WritingPanel />
 
       <section className="mt-4 grid md:grid-cols-2 gap-4">
         <div className="card p-5">
