@@ -50,8 +50,10 @@ export default function SalaDeEscrita() {
     try {
       const p = localStorage.getItem("escrita-prefs");
       if (p) setPrefsState({ ...PREFS0, ...JSON.parse(p) });
-      setArvore(localStorage.getItem("escrita-arvore") !== "0");
-      setPainel(localStorage.getItem("escrita-painel") !== "0");
+      // no celular, árvore e painel começam fechados (viram gavetas sobre o texto)
+      const celular = window.innerWidth < 768;
+      setArvore(celular ? false : localStorage.getItem("escrita-arvore") !== "0");
+      setPainel(celular ? false : localStorage.getItem("escrita-painel") !== "0");
     } catch {}
   }, []);
   const setPrefs = (x: Partial<Prefs>) => setPrefsState((o) => {
@@ -59,7 +61,7 @@ export default function SalaDeEscrita() {
     try { localStorage.setItem("escrita-prefs", JSON.stringify(n)); } catch {}
     return n;
   });
-  useEffect(() => { try { localStorage.setItem("escrita-arvore", arvore ? "1" : "0"); localStorage.setItem("escrita-painel", painel ? "1" : "0"); } catch {} }, [arvore, painel]);
+  useEffect(() => { if (window.innerWidth < 768) return; try { localStorage.setItem("escrita-arvore", arvore ? "1" : "0"); localStorage.setItem("escrita-painel", painel ? "1" : "0"); } catch {} }, [arvore, painel]);
 
   /* ---------- carregar ---------- */
   useEffect(() => {
@@ -325,7 +327,7 @@ export default function SalaDeEscrita() {
   const rotulo = doc?.tipo === "cena" && capDoc ? E.rotulo(capDoc.n, capDoc.cenas.findIndex((c) => c.id === doc.id) + 1) : "";
 
   return (
-    <div ref={raiz} className="fixed inset-0 z-20 bg-bg text-ink flex flex-col">
+    <div ref={raiz} className="fixed inset-0 z-20 bg-bg text-ink flex flex-col pt-safe pb-safe">
       {/* cabeçalho */}
       {!foco && (
         <header className="h-12 shrink-0 flex items-center gap-2 px-3 border-b border-line">
@@ -333,7 +335,7 @@ export default function SalaDeEscrita() {
           <button className="p-1.5 text-muted hover:text-ink" title={arvore ? "Esconder o projeto" : "Mostrar o projeto"} onClick={() => setArvore(!arvore)}>
             {arvore ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
           </button>
-          <input className="min-w-0 w-48 mr-2 bg-transparent outline-none text-sm truncate rounded px-1.5 py-1 hover:bg-surface-2 focus:bg-surface-2"
+          <input className="min-w-0 w-24 sm:w-48 mr-1 sm:mr-2 bg-transparent outline-none text-sm truncate rounded px-1.5 py-1 hover:bg-surface-2 focus:bg-surface-2"
             title="Clique para renomear o projeto" value={projeto.titulo}
             onChange={(e) => setProjeto({ ...projeto, titulo: e.target.value })}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
@@ -346,23 +348,26 @@ export default function SalaDeEscrita() {
             ))}
           </nav>
           <div className="flex items-center gap-0.5">
-            <button className="p-1.5 text-muted hover:text-ink" title="Exportar em Markdown (.md)" onClick={baixarMd}><Download size={16} /></button>
-            <button className="p-1.5 text-muted hover:text-ink" title="Imprimir / salvar em PDF" onClick={imprimir}><Printer size={16} /></button>
+            <button className="hidden md:block p-1.5 text-muted hover:text-ink" title="Exportar em Markdown (.md)" onClick={baixarMd}><Download size={16} /></button>
+            <button className="hidden md:block p-1.5 text-muted hover:text-ink" title="Imprimir / salvar em PDF" onClick={imprimir}><Printer size={16} /></button>
             <button className="p-1.5 text-muted hover:text-ink" title="Aparência do editor" onClick={() => setVerPrefs(!verPrefs)}><Settings2 size={16} /></button>
             {aba === "escrever" && (
               <button className="p-1.5 text-muted hover:text-ink" title={painel ? "Esconder a escaleta da cena" : "Mostrar a escaleta da cena"} onClick={() => setPainel(!painel)}>
                 {painel ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
               </button>
             )}
-            <button className="btn ml-1 py-1" title="Modo foco: tela cheia, sem distrações (Ctrl + Shift + F)" onClick={entrarFoco}><Maximize2 size={14} /> Foco</button>
+            <button className="btn ml-1 py-1" title="Modo foco: tela cheia, sem distrações (Ctrl + Shift + F)" onClick={entrarFoco}><Maximize2 size={14} /> <span className="hidden sm:inline">Foco</span></button>
           </div>
         </header>
       )}
 
       <div className="flex-1 min-h-0 flex">
+        {(arvore || (painel && aba === "escrever")) && !foco && (
+          <div className="md:hidden fixed inset-0 z-20 bg-black/40" onClick={() => { setArvore(false); setPainel(false); }} />
+        )}
         {/* árvore do projeto */}
         {arvore && !foco && (
-          <Arvore E={E} docs={docs} ms={ms} atual={atual} onAbrir={(d) => { void flush(); setAtual(d.id); setAba("escrever"); }}
+          <Arvore E={E} docs={docs} ms={ms} atual={atual} onAbrir={(d) => { void flush(); setAtual(d.id); setAba("escrever"); if (window.innerWidth < 768) setArvore(false); }}
             onCriar={criar} onRenomear={(d, t) => patch(d.id, { titulo: t })} onApagar={apagar} onMover={mover} onTrocarCapitulo={trocarCapitulo} onParaManuscrito={paraManuscrito} />
         )}
 
@@ -443,7 +448,7 @@ export default function SalaDeEscrita() {
 
         {/* ao lado do texto: escaleta da cena e consulta (notas e referências) */}
         {aba === "escrever" && painel && !foco && doc && doc.tipo !== "capitulo" && doc.tipo !== "pasta" && (
-          <aside className="w-80 shrink-0 border-l border-line flex flex-col text-sm min-h-0">
+          <aside className="fixed md:static inset-y-0 right-0 z-30 w-[86vw] max-w-80 md:w-80 shrink-0 border-l border-line bg-bg flex flex-col text-sm min-h-0 shadow-2xl md:shadow-none pt-safe md:pt-0">
             {E.escaleta && doc.tipo === "cena" && (
               <div className="shrink-0 p-3 pb-0">
                 <div className="grid grid-cols-2 rounded-lg bg-surface-2 p-0.5 text-[13px]">
@@ -475,15 +480,15 @@ export default function SalaDeEscrita() {
       </div>
 
       {/* barra de status: cronômetro, palavras */}
-      <footer className={`h-8 shrink-0 flex items-center gap-4 px-4 text-xs text-muted border-t border-line tabular-nums transition-opacity ${foco ? "opacity-30 hover:opacity-100 border-transparent" : ""}`}>
+      <footer className={`h-8 shrink-0 flex items-center gap-3 sm:gap-4 px-4 overflow-hidden whitespace-nowrap text-xs text-muted border-t border-line tabular-nums transition-opacity ${foco ? "opacity-30 hover:opacity-100 border-transparent" : ""}`}>
         <span className="flex items-center gap-1.5" title={relogio.parado ? `Pausado: parado há mais de ${prefs.ocioso < 60 ? `${prefs.ocioso} s` : `${prefs.ocioso / 60} min`}` : "Escrevendo"}>
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: !sess.current.iniciada ? "var(--faint)" : relogio.parado ? "#d0a24a" : "var(--good)" }} />
           <span className="font-mono text-ink">{fmtClock(relogio.ativo)}</span>
           {relogio.ocioso >= 60 && <span className="text-faint">· parado {fmtDuration(relogio.ocioso)}</span>}
         </span>
         <span title="Palavras escritas nesta sessão, em qualquer texto (cenas, rascunhos, notas). Apagar não desconta.">+{nf.format(palavrasSessao)} escritas</span>
-        {doc && doc.tipo !== "capitulo" && doc.tipo !== "pasta" && <span title="Palavras neste texto">{nf.format(doc.palavras)} {doc.tipo === "cena" ? (E.unidade === "parte" ? "na parte" : "na cena") : doc.secao === "rascunhos" ? "no rascunho" : "na nota"}</span>}
-        <span title="Palavras do manuscrito">{nf.format(totalPalavras)}{projeto.meta_palavras ? ` / ${nf.format(projeto.meta_palavras)}` : ""} {E.unidade === "parte" || projeto.tipo === "conto" ? "no texto" : "no livro"}</span>
+        {doc && doc.tipo !== "capitulo" && doc.tipo !== "pasta" && <span className="hidden sm:inline" title="Palavras neste texto">{nf.format(doc.palavras)} {doc.tipo === "cena" ? (E.unidade === "parte" ? "na parte" : "na cena") : doc.secao === "rascunhos" ? "no rascunho" : "na nota"}</span>}
+        <span className="hidden sm:inline" title="Palavras do manuscrito">{nf.format(totalPalavras)}{projeto.meta_palavras ? ` / ${nf.format(projeto.meta_palavras)}` : ""} {E.unidade === "parte" || projeto.tipo === "conto" ? "no texto" : "no livro"}</span>
         <span title="Palavras escritas hoje neste projeto (esforço)">hoje {nf.format(Math.max(0, hoje))}{projeto.meta_diaria > 0 ? ` / ${nf.format(projeto.meta_diaria)}` : ""}</span>
         <span className="ml-auto">{salvo === "salvo" ? "salvo" : salvo === "salvando" ? "salvando…" : "…"}</span>
         {foco && <button className="flex items-center gap-1 hover:text-ink" onClick={sairFoco}><Minimize2 size={12} /> sair do foco (Esc)</button>}
@@ -540,7 +545,7 @@ function Arvore(p: {
   );
 
   return (
-    <aside className="w-64 shrink-0 border-r border-line overflow-y-auto py-3 px-2 select-none">
+    <aside className="fixed md:static inset-y-0 left-0 z-30 w-[80vw] max-w-72 md:w-64 shrink-0 border-r border-line bg-bg overflow-y-auto py-3 px-2 select-none shadow-2xl md:shadow-none pt-safe md:pt-3">
       {/* manuscrito */}
       <div className="flex items-center justify-between px-2 mb-1">
         <button className="flex items-center gap-1 text-xs text-faint hover:text-ink" onClick={() => alterna("manuscrito")}>

@@ -247,6 +247,10 @@ body {
 .reading-page li { line-height: inherit; }
 }
 
+/* iPhone: respeita o entalhe e a barra de início quando aberto como app */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
 /* menu lateral: recolhível (html[data-menu="oculto"]) */
 @media (min-width: 768px) {
   .app-main { padding-left: 15rem; }

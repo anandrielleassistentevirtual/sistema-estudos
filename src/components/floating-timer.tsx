@@ -26,7 +26,7 @@ export function FloatingTimer() {
     <>
       <PagesPrompt />
       {!onTimerPage && !salaEscrita && (
-        <div className="fixed right-4 z-[60] flex flex-col items-end gap-2" style={{ bottom: audioBar ? 96 : reader ? 48 : 16 }}>
+        <div className="fixed right-4 z-[60] flex flex-col items-end gap-2" style={{ bottom: `calc(${audioBar ? 96 : reader ? 48 : 16}px + env(safe-area-inset-bottom))` }}>
           {open && (
             <div className="card shadow-2xl p-4 w-[min(340px,calc(100vw-2rem))] max-h-[75vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-2">

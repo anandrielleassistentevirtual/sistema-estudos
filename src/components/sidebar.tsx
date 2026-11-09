@@ -77,6 +77,8 @@ export function Sidebar() {
 
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const showTimer = timer.running || timer.seconds > 0;
+  // leitor e sala de escrita ocupam a tela toda e têm o próprio cabeçalho
+  const telaCheia = /^\/(ler|escrita)\/[^/]+/.test(path);
 
   const nav = (
     <nav className="flex flex-col h-full p-3 gap-0.5">
@@ -123,7 +125,8 @@ export function Sidebar() {
 
   return (
     <>
-      <header className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-12 border-b border-line bg-bg">
+      {!telaCheia && <header className="md:hidden sticky top-0 z-30 pt-safe border-b border-line bg-bg/85 backdrop-blur-xl">
+        <div className="flex items-center justify-between px-4 h-12">
         <button className="btn btn-ghost px-2" onClick={() => setOpen(true)} aria-label="Abrir menu">
           <Menu size={18} />
         </button>
@@ -131,7 +134,8 @@ export function Sidebar() {
         <span className="w-8 text-xs font-mono tabular-nums text-muted">
           {showTimer ? fmtClock(timer.mode === "pomodoro" ? timer.remaining : timer.seconds) : ""}
         </span>
-      </header>
+        </div>
+      </header>}
       {!hidden && <aside className="hidden md:block fixed inset-y-0 left-0 w-60 border-r border-line bg-sidebar backdrop-blur-xl">{nav}</aside>}
       {hidden && (
         <button className="hidden md:flex fixed left-3 bottom-4 z-30 items-center gap-1.5 rounded-full border border-line bg-surface/90 backdrop-blur px-3 py-2 text-xs text-muted hover:text-ink shadow-sm"
@@ -142,7 +146,7 @@ export function Sidebar() {
       {open && (
         <div className="md:hidden fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-64 bg-surface border-r border-line">
+          <aside className="absolute inset-y-0 left-0 w-64 bg-surface border-r border-line pt-safe pb-safe">
             <button className="btn btn-ghost absolute right-2 top-2 px-2" onClick={() => setOpen(false)} aria-label="Fechar">
               <X size={18} />
             </button>

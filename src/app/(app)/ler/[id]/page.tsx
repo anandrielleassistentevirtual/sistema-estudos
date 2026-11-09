@@ -200,7 +200,7 @@ export default function Ler() {
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex flex-col" style={{ background: t.bg, color: t.fg }}>
+    <div className="fixed inset-0 z-20 flex flex-col pt-safe pb-safe" style={{ background: t.bg, color: t.fg }}>
       <header className="flex items-center gap-2 px-3 h-12 border-b shrink-0" style={{ borderColor: tema === "escuro" ? "#2f2f2c" : "#00000014" }}>
         <Link href="/biblioteca" className="p-2 opacity-70 hover:opacity-100" title="Voltar"><ChevronLeft size={18} /></Link>
         <div className="min-w-0 flex-1">
