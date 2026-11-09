@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookHeart, BookOpen, Pause, Play, RotateCcw, Square } from "lucide-react";
+import { BookHeart, BookOpen, Feather, Pause, Play, RotateCcw, Square } from "lucide-react";
 import { CATEGORIAS, useTimer } from "./timer-context";
 import { fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
@@ -173,7 +173,17 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
           </div>
         )}
 
-        {!["Leitura", "Estudos", "Idiomas", "Oração"].includes(t.category) && (
+        {t.category === "Escrita" && (
+          <div className="space-y-1">
+            <span className="label">Escrita</span>
+            <button type="button" className="btn btn-primary w-full justify-center" onClick={() => router.push("/escrita")}>
+              <Feather size={15} /> Abrir a sala de escrita
+            </button>
+            <span className="text-xs text-muted block">A sala de escrita tem cronômetro próprio, que pausa quando você para, e conta as palavras.</span>
+          </div>
+        )}
+
+        {!["Leitura", "Estudos", "Idiomas", "Oração", "Escrita"].includes(t.category) && (
           <label className="space-y-1">
             <span className="label">O que está estudando</span>
             <input className="input" value={t.label} placeholder="ex.: redação do capítulo 2" onChange={(e) => t.set({ label: e.target.value })} />

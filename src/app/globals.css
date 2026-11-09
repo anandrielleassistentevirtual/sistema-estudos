@@ -19,6 +19,7 @@
   --hl: rgba(232, 178, 60, 0.30);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
   --chart: #3d3d3b;
+  --dialogo: #94661c;
   --heat-0: #ececea;
   --heat-1: #d4d4d2;
   --heat-2: #a9a9a6;
@@ -44,8 +45,8 @@
     --critical: #d98a82;
     --hl: rgba(201, 150, 40, 0.34);
     --shadow: none;
-  --chart: #c8c8c8;
     --chart: #c8c8c8;
+    --dialogo: #d8be8a;
     --heat-0: #232323;
     --heat-1: #3a3a3a;
     --heat-2: #5a5a5a;
@@ -72,6 +73,7 @@
   --hl: rgba(201, 150, 40, 0.34);
   --shadow: none;
   --chart: #c8c8c8;
+  --dialogo: #d8be8a;
   --heat-0: #232323;
   --heat-1: #3a3a3a;
   --heat-2: #5a5a5a;

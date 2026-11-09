@@ -17,13 +17,15 @@ export function FloatingTimer() {
   const onTimerPage = path === "/timer";
   const audioBar = /^\/idiomas\/(playlist|[0-9a-f-]{36})$/.test(path);
   const reader = path.startsWith("/ler/");
+  // a sala de escrita tem o próprio cronômetro e não deve ter nada piscando na tela
+  const salaEscrita = /^\/escrita\/[^/]+/.test(path);
   const active = t.running || t.seconds > 0;
   const clock = fmtClock(t.mode === "pomodoro" ? t.remaining : t.seconds);
 
   return (
     <>
       <PagesPrompt />
-      {!onTimerPage && (
+      {!onTimerPage && !salaEscrita && (
         <div className="fixed right-4 z-[60] flex flex-col items-end gap-2" style={{ bottom: audioBar ? 96 : reader ? 48 : 16 }}>
           {open && (
             <div className="card shadow-2xl p-4 w-[min(340px,calc(100vw-2rem))] max-h-[75vh] overflow-y-auto">

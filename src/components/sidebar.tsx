@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BookHeart, GraduationCap, Languages, LayoutDashboard, Library,
+  BookHeart, Feather, GraduationCap, Languages, LayoutDashboard, Library,
   LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, NotebookPen, Sun, Timer, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -18,6 +18,7 @@ const NAV = [
   { href: "/biblioteca", label: "Mapa da Ignorância", icon: Library },
   { href: "/estudos", label: "Estudos", icon: GraduationCap },
   { href: "/idiomas", label: "Idiomas", icon: Languages },
+  { href: "/escrita", label: "Escrita", icon: Feather },
   { sep: true },
   { href: "/notas", label: "Notas", icon: NotebookPen },
 ] as const;
