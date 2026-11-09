@@ -11,9 +11,10 @@
   --text: #1d1d1f;
   --muted: #6e6e73;
   --faint: #a1a1a6;
-  --accent: #0071e3;
+  /* destaque na cor do ícone do app (grafite no claro, branco no escuro): o mesmo padrão do Dashboard */
+  --accent: #1d1d1f;
   --accent-ink: #ffffff;
-  --accent-soft: #e8f1fd;
+  --accent-soft: #e8e8ed;
   --sel: rgba(0, 0, 0, 0.055);
   --sidebar: rgba(236, 236, 241, 0.78);
   --seg: #ffffff;
@@ -48,9 +49,9 @@
     --text: #f5f5f7;
     --muted: #98989d;
     --faint: #636366;
-    --accent: #0a84ff;
-    --accent-ink: #ffffff;
-    --accent-soft: #0b2747;
+    --accent: #f5f5f7;
+    --accent-ink: #000000;
+    --accent-soft: #2c2c2e;
     --sel: rgba(255, 255, 255, 0.1);
     --sidebar: rgba(22, 22, 24, 0.82);
     --seg: #636366;
@@ -85,9 +86,9 @@
   --text: #f5f5f7;
   --muted: #98989d;
   --faint: #636366;
-  --accent: #0a84ff;
-  --accent-ink: #ffffff;
-  --accent-soft: #0b2747;
+  --accent: #f5f5f7;
+  --accent-ink: #000000;
+  --accent-soft: #2c2c2e;
   --sel: rgba(255, 255, 255, 0.1);
   --sidebar: rgba(22, 22, 24, 0.82);
   --seg: #636366;

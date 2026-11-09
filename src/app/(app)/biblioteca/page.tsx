@@ -2,12 +2,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BookOpen, ChevronDown, Download, ChevronRight, Folder, FolderOpen, FolderPlus, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
+  ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronUp, Download, ChevronRight, Folder, FolderOpen, FolderPlus, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { ACCEPT, addPhysicalBook, deleteBook, enqueue, saveBookFile, uploadBook } from "@/lib/books";
 import { useTimerEstado } from "@/components/timer-context";
 import { Cover } from "@/components/cover";
+import { RowMenu } from "@/components/row-menu";
+import { useRouter } from "next/navigation";
 import { coverUrls, epubCover, removeCover, setCover, setCoverFromLink } from "@/lib/covers";
 import { downloadBook } from "@/lib/books";
 import { cddCompare, flatTree, folderLabel, shelfOrder } from "@/lib/folders";
@@ -34,6 +36,7 @@ export default function Biblioteca() {
   const [wpm, setWpm] = useState(DEFAULT_WPM);
   const fileRef = useRef<HTMLInputElement>(null);
   const timer = useTimerEstado();
+  const router = useRouter();
   const [physical, setPhysical] = useState(false);
   const [editing, setEditing] = useState<Book | null>(null);
   const [folderModal, setFolderModal] = useState<null | { edit?: F; parentId: string | null }>(null);
@@ -173,78 +176,74 @@ export default function Biblioteca() {
     await supabase().from("books").update({ queue_position: null }).eq("id", b.id);
   }
 
-  const renderRow = (b: Book) => (
-                <div key={b.id} className="p-3 flex flex-wrap items-center gap-3">
-                  <Link href={b.format === "fisico" ? "#" : `/ler/${b.id}`} onClick={(e) => { if (b.format === "fisico") { e.preventDefault(); readPhysical(b); } }}
-                    className="flex items-center gap-3 min-w-0 basis-full 2xl:basis-0 2xl:flex-1">
-                    <Cover book={b} url={covers[b.id]} className="w-10 h-14" />
-                    <span className="min-w-0">
-                      <span className="block truncate" title={`${b.author ?? "Autor desconhecido"} — ${b.title}`}>
-                        {b.author ? <span className="font-medium">{b.author}</span> : <span className="text-faint">Autor desconhecido</span>}
-                        <span className="text-faint"> — </span>
-                        <span className="font-medium">{b.title}</span>
-                      </span>
-                      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted mt-0.5">
-                        {queueNo.has(b.id) && (
-                          <span className="inline-flex items-center rounded-md border border-accent/40 px-1.5 py-0.5 text-[11px] font-mono font-medium text-accent"
-                            title="Posição na fila de leitura">
-                            Nº {String(queueNo.get(b.id)).padStart(2, "0")}
-                          </span>
-                        )}
-                        {b.folder_id && folderById.get(b.folder_id) ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-1.5 py-0.5 text-[11px]" title={`Pasta: ${folderLabel(folderById.get(b.folder_id)!)}`}>
-                            {folderById.get(b.folder_id)!.code && <span className="font-mono font-medium">{folderById.get(b.folder_id)!.code}</span>}
-                            <span className="truncate max-w-[180px]">{folderById.get(b.folder_id)!.name}</span>
-                          </span>
-                        ) : (
-                          <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px]">sem pasta</span>
-                        )}
-                        <span className="truncate">
-                        {b.word_count ? ` · ${nf.format(b.word_count)} palavras · ≈ ${fmtDuration((b.word_count / wpm) * 60)}` : ""}
-                        {b.format === "fisico" ? ` · físico${b.total_pages ? ` · p. ${b.current_page ?? 0}/${b.total_pages}` : ""}` : ""}
-                        {b.progress > 0 ? ` · ${Math.round(b.progress * 100)}%` : ""}
-                        </span>
-                      </span>
-                    </span>
-                  </Link>
-                  <span className="hidden sm:block w-[52px] 2xl:hidden" />
-                  <select className="input w-auto text-xs py-1" value={b.status} onChange={(e) => update(b, { status: e.target.value as BookStatus })}>
-                    {STATUS.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-                  </select>
-                  <FolderSelect folders={folders} value={b.folder_id ?? ""} className="input w-auto text-xs py-1 max-w-[170px]" title="Pasta (CDD)"
-                    onChange={(id) => update(b, { folder_id: id || null })} />
-                  <div className="flex gap-1 ml-auto">
-                    {b.format === "fisico" ? (
-                      <button className="btn btn-ghost px-2" title="Ler (liga o timer)" onClick={() => readPhysical(b)}><Timer size={15} /></button>
-                    ) : (
-                      <Link className="btn btn-ghost px-2" href={`/ler/${b.id}`} title="Ler"><BookOpen size={15} /></Link>
-                    )}
-                    {b.format !== "fisico" && (
-                      <button className="btn btn-ghost px-2" title={`Baixar o arquivo (${b.format.toUpperCase()})`}
-                        onClick={async () => { setToast("Preparando o download…"); try { await saveBookFile(b); setToast(null); } catch (e) { setToast((e as Error).message); } }}>
-                        <Download size={15} />
-                      </button>
-                    )}
-                    <button className="btn btn-ghost px-2" title="Editar título e autor" onClick={() => setEditing(b)}><Pencil size={15} /></button>
-                    {queueNo.has(b.id) ? (
-                      <>
-                        <button className="btn btn-ghost px-1.5" title="Subir na fila" disabled={queueNo.get(b.id) === 1} onClick={() => moveQueue(b, -1)}><ArrowUp size={15} /></button>
-                        <button className="btn btn-ghost px-1.5" title="Descer na fila" disabled={queueNo.get(b.id) === queueNo.size} onClick={() => moveQueue(b, 1)}><ArrowDown size={15} /></button>
-                        <button className="btn btn-ghost px-1.5" title="Tirar da fila" onClick={() => dequeue(b)}><X size={15} /></button>
-                      </>
-                    ) : (
-                      <button className="btn btn-ghost px-2" title="Adicionar à fila (ganha o próximo número)" disabled={b.status === "lido"}
-                        onClick={async () => { const p = await enqueue(b); setBooks((all) => all.map((x) => (x.id === b.id ? { ...x, queue_position: p } : x))); }}>
-                        <ListOrdered size={15} />
-                      </button>
-                    )}
-                    <button className="btn btn-ghost px-2 hover:text-critical" title="Apagar"
-                      onClick={async () => { if (confirm(`Apagar "${b.title}" e suas anotações?`)) { await deleteBook(b); void load(); } }}>
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
-  );
+  const renderRow = (b: Book) => {
+    const naFila = queueNo.has(b.id);
+    const pasta = b.folder_id ? folderById.get(b.folder_id) : undefined;
+    return (
+      <div key={b.id} className="group flex items-center gap-2 pr-2 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
+        <Link href={b.format === "fisico" ? "#" : `/ler/${b.id}`} onClick={(e) => { if (b.format === "fisico") { e.preventDefault(); readPhysical(b); } }}
+          title={b.format === "fisico" ? "Ler (liga o timer)" : "Abrir no leitor"}
+          className="flex items-center gap-3 min-w-0 flex-1 p-3">
+          <Cover book={b} url={covers[b.id]} className="w-10 h-14" />
+          <span className="min-w-0">
+            <span className="block truncate" title={`${b.author ?? "Autor desconhecido"} — ${b.title}`}>
+              {b.author ? <span className="font-medium">{b.author}</span> : <span className="text-faint">Autor desconhecido</span>}
+              <span className="text-faint"> — </span>
+              <span className="font-medium">{b.title}</span>
+            </span>
+            <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted mt-0.5">
+              {naFila && (
+                <span className="inline-flex items-center rounded-md border border-line px-1.5 py-0.5 text-[11px] font-mono font-medium text-ink"
+                  title="Posição na fila de leitura">
+                  Nº {String(queueNo.get(b.id)).padStart(2, "0")}
+                </span>
+              )}
+              {pasta ? (
+                <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px]" title={`Pasta: ${folderLabel(pasta)}`}>
+                  {pasta.code && <span className="font-mono font-medium">{pasta.code}</span>}
+                  <span className="truncate max-w-[180px]">{pasta.name}</span>
+                </span>
+              ) : (
+                <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px]">sem pasta</span>
+              )}
+              <span className="truncate">
+                {b.word_count ? ` · ${nf.format(b.word_count)} palavras · ≈ ${fmtDuration((b.word_count / wpm) * 60)}` : ""}
+                {b.format === "fisico" ? ` · físico${b.total_pages ? ` · p. ${b.current_page ?? 0}/${b.total_pages}` : ""}` : ""}
+                {b.progress > 0 ? ` · ${Math.round(b.progress * 100)}%` : ""}
+              </span>
+            </span>
+          </span>
+        </Link>
+        {naFila && (
+          <span className="hidden sm:flex flex-col opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            <button className="p-0.5 text-faint hover:text-ink disabled:opacity-30" title="Subir na fila" disabled={queueNo.get(b.id) === 1} onClick={() => moveQueue(b, -1)}><ChevronUp size={15} /></button>
+            <button className="p-0.5 text-faint hover:text-ink disabled:opacity-30" title="Descer na fila" disabled={queueNo.get(b.id) === queueNo.size} onClick={() => moveQueue(b, 1)}><ChevronDown size={15} /></button>
+          </span>
+        )}
+        <StatusPill value={b.status} onChange={(st) => update(b, { status: st })} />
+        <RowMenu items={[
+          b.format === "fisico"
+            ? { label: "Ler (liga o timer)", icon: Timer, onClick: () => readPhysical(b) }
+            : { label: "Abrir no leitor", icon: BookOpen, onClick: () => router.push(`/ler/${b.id}`) },
+          ...(b.format !== "fisico" ? [{
+            label: `Baixar o arquivo (${b.format.toUpperCase()})`, icon: Download,
+            onClick: async () => { setToast("Preparando o download…"); try { await saveBookFile(b); setToast(null); } catch (e) { setToast((e as Error).message); } },
+          }] : []),
+          { label: "Editar título, autor e pasta", icon: Pencil, onClick: () => setEditing(b) },
+          naFila
+            ? { label: "Tirar da fila", icon: X, onClick: () => dequeue(b), separar: true }
+            : { label: "Adicionar à fila", icon: ListOrdered, disabled: b.status === "lido", separar: true,
+                onClick: async () => { const p = await enqueue(b); setBooks((all) => all.map((x) => (x.id === b.id ? { ...x, queue_position: p } : x))); } },
+          ...(naFila ? [
+            { label: "Subir na fila", icon: ArrowUp, disabled: queueNo.get(b.id) === 1, onClick: () => moveQueue(b, -1) },
+            { label: "Descer na fila", icon: ArrowDown, disabled: queueNo.get(b.id) === queueNo.size, onClick: () => moveQueue(b, 1) },
+          ] : []),
+          { label: "Apagar livro", icon: Trash2, danger: true, separar: true,
+            onClick: async () => { if (confirm(`Apagar "${b.title}" e suas anotações?`)) { await deleteBook(b); void load(); } } },
+        ]} />
+      </div>
+    );
+  };
 
   const stats = (list: Book[]) => {
     const total = list.reduce((a, b) => a + (b.word_count ?? 0), 0);
@@ -408,7 +407,7 @@ export default function Biblioteca() {
           onSaved={(id) => { setFolderModal(null); void load(); if (id) setSel(id); }} />
       )}
       {editing && (
-        <EditBookModal book={editing} coverUrl={covers[editing.id]} onClose={() => setEditing(null)}
+        <EditBookModal book={editing} folders={folders} coverUrl={covers[editing.id]} onClose={() => setEditing(null)}
           onCover={(id, url) => setCovers((c) => { const n = { ...c }; if (url) n[id] = url; else delete n[id]; return n; })}
           onSaved={(b) => { setEditing(null); setBooks((all) => all.map((x) => (x.id === b.id ? b : x)).sort((x, y) => x.title.localeCompare(y.title, "pt-BR"))); }} />
       )}
@@ -485,8 +484,8 @@ function splitTitle(title: string): { title: string; author: string } | null {
   return { title: m[1].trim(), author: m[2].trim() };
 }
 
-function EditBookModal({ book, coverUrl, onClose, onSaved, onCover }: {
-  book: Book; coverUrl?: string; onClose: () => void; onSaved: (b: Book) => void; onCover: (id: string, url: string | null) => void;
+function EditBookModal({ book, folders, coverUrl, onClose, onSaved, onCover }: {
+  book: Book; folders: F[]; coverUrl?: string; onClose: () => void; onSaved: (b: Book) => void; onCover: (id: string, url: string | null) => void;
 }) {
   const [coverPath, setCoverPath] = useState(book.cover_path ?? null);
   const [preview, setPreview] = useState<string | undefined>(coverUrl);
@@ -537,6 +536,7 @@ function EditBookModal({ book, coverUrl, onClose, onSaved, onCover }: {
 
   const [title, setTitle] = useState(book.title);
   const [author, setAuthor] = useState(book.author ?? "");
+  const [folderId, setFolderId] = useState(book.folder_id ?? "");
   const [pages, setPages] = useState(book.total_pages ? String(book.total_pages) : "");
   const [current, setCurrent] = useState(book.current_page ? String(book.current_page) : "");
   const [wpp, setWpp] = useState(String(book.words_per_page ?? 300));
@@ -548,7 +548,7 @@ function EditBookModal({ book, coverUrl, onClose, onSaved, onCover }: {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const patch: Partial<Book> = { title: title.trim(), author: author.trim() || null };
+    const patch: Partial<Book> = { title: title.trim(), author: author.trim() || null, folder_id: folderId || null };
     if (physical) {
       const total = Number(pages) || null;
       const cur = Number(current) || null;
@@ -610,6 +610,9 @@ function EditBookModal({ book, coverUrl, onClose, onSaved, onCover }: {
         )}
         <label className="block space-y-1"><span className="label">Autor</span>
           <input className="input" name="autor" value={author} placeholder="Sobrenome, Nome" onChange={(e) => setAuthor(e.target.value)} />
+        </label>
+        <label className="block space-y-1"><span className="label">Pasta (CDD)</span>
+          <FolderSelect folders={folders} value={folderId} className="input" onChange={setFolderId} />
         </label>
         {physical && (
           <div className="grid grid-cols-3 gap-3">
@@ -697,5 +700,26 @@ function FolderModal({ folders, edit, parentId, onClose, onSaved }: {
         </div>
       </form>
     </div>
+  );
+}
+
+/** Status como etiqueta colorida; clicando abre a lista de status (o menu nativo do aparelho). */
+const COR_STATUS: Record<BookStatus, string> = {
+  lendo: "var(--accent)",
+  aguardando: "var(--muted)",
+  pausado: "#c98a1a",
+  lido: "var(--good)",
+};
+function StatusPill({ value, onChange }: { value: BookStatus; onChange: (s: BookStatus) => void }) {
+  const cor = COR_STATUS[value];
+  return (
+    <span className="relative shrink-0">
+      <select aria-label="Status do livro" title="Mudar o status" value={value} onChange={(e) => onChange(e.target.value as BookStatus)}
+        className="appearance-none cursor-pointer rounded-full pl-5 pr-2.5 py-1 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+        style={{ color: cor, background: `color-mix(in srgb, ${cor} 14%, transparent)` }}>
+        {STATUS.map((st) => <option key={st} value={st}>{STATUS_LABEL[st]}</option>)}
+      </select>
+      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: cor }} />
+    </span>
   );
 }
