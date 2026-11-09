@@ -145,7 +145,7 @@ export default function Dashboard() {
                         <span className="font-medium">{b.title}</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
-                        <div className="h-full bg-accent rounded-full" style={{ width: `${Math.round(b.progress * 100)}%` }} />
+                        <div className="h-full bg-chart rounded-full" style={{ width: `${Math.round(b.progress * 100)}%` }} />
                       </div>
                     </div>
                     <span className="text-xs text-muted tabular-nums">{Math.round(b.progress * 100)}%</span>

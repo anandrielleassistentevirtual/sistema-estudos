@@ -22,7 +22,7 @@
   --critical: #d70015;
   --hl: rgba(255, 204, 0, 0.35);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
-  --chart: #0071e3;
+  --chart: #3a3a3c;
   --dialogo: #b25000;
   --heat-0: #e8e8ed;
   --heat-1: #cfe3fd;
@@ -59,7 +59,7 @@
     --critical: #ff453a;
     --hl: rgba(255, 214, 10, 0.3);
     --shadow: none;
-    --chart: #0a84ff;
+    --chart: #e5e5ea;
     --dialogo: #ffb340;
     --heat-0: #2c2c2e;
     --heat-1: #0d2d52;
@@ -96,7 +96,7 @@
   --critical: #ff453a;
   --hl: rgba(255, 214, 10, 0.3);
   --shadow: none;
-  --chart: #0a84ff;
+  --chart: #e5e5ea;
   --dialogo: #ffb340;
   --heat-0: #2c2c2e;
   --heat-1: #0d2d52;
@@ -127,6 +127,7 @@
   --color-sidebar: var(--sidebar);
   --color-seg: var(--seg);
   --color-icon: var(--icon);
+  --color-chart: var(--chart);
   --color-good: var(--good);
   --color-critical: var(--critical);
   /* Interface: San Francisco (fonte do sistema da Apple) nos aparelhos Apple; nos demais, Inter,

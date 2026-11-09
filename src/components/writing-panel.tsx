@@ -71,7 +71,7 @@ export function WritingPanel() {
             <div className="text-[1.6rem] tracking-tight tabular-nums leading-tight">{nf.format(hoje)}</div>
             {metaDia > 0 ? (
               <>
-                <div className="mt-1.5 h-1.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${pctDia * 100}%` }} /></div>
+                <div className="mt-1.5 h-1.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full bg-chart" style={{ width: `${pctDia * 100}%` }} /></div>
                 <div className="text-xs text-faint mt-1">{hoje >= metaDia ? "meta do dia cumprida" : `meta ${nf.format(metaDia)}`}</div>
               </>
             ) : <div className="text-xs text-faint">palavras escritas</div>}
@@ -107,7 +107,7 @@ export function WritingPanel() {
                     </span>
                   </div>
                   {p.meta_palavras > 0 && (
-                    <div className="mt-1.5 h-1 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${pct * 100}%` }} /></div>
+                    <div className="mt-1.5 h-1 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full bg-chart" style={{ width: `${pct * 100}%` }} /></div>
                   )}
                 </Link>
               </li>
