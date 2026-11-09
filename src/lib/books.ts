@@ -2,7 +2,6 @@
 import { supabase, userId } from "./supabase/client";
 import { countWords } from "./text";
 import type { Book } from "./types";
-import { epubCover, setCover } from "./covers";
 
 export const ACCEPT = ".epub,.txt,.md,.markdown";
 
@@ -60,12 +59,8 @@ export async function uploadBook(file: File, folderId: string | null): Promise<B
     .select()
     .single();
   if (error) throw new Error(error.message);
-  if (format === "epub") {
-    const img = await epubCover(file);
-    if (img) {
-      try { (data as Book).cover_path = await setCover(data as Book, img); } catch {}
-    }
-  }
+  // a capa do EPUB não é guardada automaticamente (economiza espaço): o sistema desenha uma capa
+  // tipográfica; quem quiser, usa "Usar a capa do EPUB" na edição do livro.
   return data as Book;
 }
 

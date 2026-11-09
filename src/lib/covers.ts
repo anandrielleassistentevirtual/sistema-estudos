@@ -2,23 +2,30 @@
 import { supabase, userId } from "./supabase/client";
 import type { Book } from "./types";
 
-/** Reduz a imagem para no máximo 600px de altura e converte para JPEG. */
+/** Reduz a imagem para no máximo 420px de altura (nítida nas miniaturas e no cadastro) e converte para WebP/JPEG leve. */
 async function shrink(img: Blob): Promise<Blob> {
   const bmp = await createImageBitmap(img);
-  const scale = Math.min(1, 600 / bmp.height);
+  const scale = Math.min(1, 420 / bmp.height);
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bmp.width * scale);
   canvas.height = Math.round(bmp.height * scale);
   canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-  return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("Imagem inválida"))), "image/jpeg", 0.85));
+  // WebP fica com cerca de um terço do tamanho do JPEG; se o navegador não gerar WebP, cai no JPEG
+  const gerar = (tipo: string, q: number) => new Promise<Blob | null>((res) => canvas.toBlob(res, tipo, q));
+  const webp = await gerar("image/webp", 0.8);
+  if (webp && webp.type === "image/webp") return webp;
+  const jpg = await gerar("image/jpeg", 0.8);
+  if (!jpg) throw new Error("Imagem inválida");
+  return jpg;
 }
 
 export async function setCover(book: Pick<Book, "id" | "cover_path">, image: Blob): Promise<string> {
   const uid = await userId();
   const jpg = await shrink(image);
-  const path = `${uid}/capas/${book.id}-${Date.now()}.jpg`;
+  const ext = jpg.type === "image/webp" ? "webp" : "jpg";
+  const path = `${uid}/capas/${book.id}-${Date.now()}.${ext}`;
   const sb = supabase();
-  const up = await sb.storage.from("livros").upload(path, jpg, { contentType: "image/jpeg" });
+  const up = await sb.storage.from("livros").upload(path, jpg, { contentType: jpg.type });
   if (up.error) throw new Error(up.error.message);
   if (book.cover_path && !isLink(book.cover_path)) await sb.storage.from("livros").remove([book.cover_path]);
   await sb.from("books").update({ cover_path: path }).eq("id", book.id);
