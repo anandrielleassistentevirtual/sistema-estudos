@@ -83,9 +83,13 @@ export function Sidebar() {
   const nav = (
     <nav className="flex flex-col h-full p-3 gap-0.5">
       <div className="flex items-center gap-2 mb-3">
-        <div className="flex-1 min-w-0 px-2.5 py-1.5">
-          <div className="text-[14px] font-semibold tracking-tight truncate leading-tight">Sistema de Estudos</div>
-          <div className="text-[11px] text-faint truncate leading-tight mt-0.5">studium · lectio · memoria</div>
+        <div className="flex-1 min-w-0 flex items-center gap-2 px-1 py-1.5">
+          {/* o mesmo ícone do app na tela de início */}
+          <img src="/icons/icon-192.png" alt="" width={28} height={28} className="w-7 h-7 shrink-0 rounded-[7px] ring-1 ring-black/10 dark:ring-white/10" />
+          <div className="min-w-0">
+            <div className="text-[14px] font-semibold tracking-tight truncate leading-tight">Sistema de Estudos</div>
+            <div className="text-[10.5px] text-faint truncate leading-tight mt-0.5">studium · lectio · memoria</div>
+          </div>
         </div>
         <button className="hidden md:block p-1 text-faint hover:text-ink rounded-md hover:bg-surface-2" title="Recolher o menu (Ctrl + \)"
           onClick={() => setHidden(true)}>
