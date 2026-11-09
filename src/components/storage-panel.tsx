@@ -28,7 +28,7 @@ export function StoragePanel() {
     try {
       const r = await baixarCopia(setMsg);
       setUltima(new Date().toISOString());
-      setMsg(`Cópia baixada (${r.arquivos} ${r.arquivos === 1 ? "arquivo" : "arquivos"})${r.falhas.length ? ` , ${r.falhas.length} não puderam ser copiados` : ""}. Guarde no seu computador ou no Drive.`);
+      setMsg(`Cópia baixada (${r.arquivos} ${r.arquivos === 1 ? "arquivo" : "arquivos"})${r.falhas.length ? `, ${r.falhas.length} não puderam ser copiados` : ""}. Guarde no seu computador ou no Drive.`);
     } catch (e) {
       setMsg(`Não consegui terminar a cópia: ${(e as Error).message}`);
     } finally {
