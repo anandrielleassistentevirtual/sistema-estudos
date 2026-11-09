@@ -63,18 +63,6 @@ export interface Note {
   completed_at?: string | null;
 }
 
-export interface Lesson {
-  id: string;
-  language: string;
-  collection: string;
-  title: string;
-  level: string;
-  position: number;
-  audio_path: string | null;
-  read_goal: number;
-  listen_count: number;
-  created_at: string;
-}
 
 export interface Sentence {
   id: string;

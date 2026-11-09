@@ -71,7 +71,7 @@ export default function Dashboard() {
     let streak = 0;
     for (let d = new Date(now); ; d = addDays(d, -1)) {
       const v = daily.get(dayKey(d));
-      const any = v && (v.study + v.reading > 0 || v.reads > 0 || v.anki > 0);
+      const any = v && (v.study + v.reading > 0 || v.anki > 0 || v.written > 0);
       if (any) streak++;
       else if (dayKey(d) !== today) break;
       if (streak > 400) break;
@@ -80,7 +80,7 @@ export default function Dashboard() {
       today: time(daily.get(today) ?? ({} as DayStats)) || 0,
       week: sum(ws, now, time),
       weekWords: sum(ws, now, (d) => d.words),
-      weekReads: sum(ws, now, (d) => d.reads),
+      weekWritten: sum(ws, now, (d) => d.written),
       weekAnki: sum(ws, now, (d) => d.anki),
       wpm: secs30 > 60 ? Math.round(words30 / (secs30 / 60)) : 0,
       avgWeek,
@@ -110,7 +110,7 @@ export default function Dashboard() {
         <Stat label="Sequência" value={`${s.streak} ${s.streak === 1 ? "dia" : "dias"}`} />
         <Stat label="Velocidade" value={s.wpm ? `${s.wpm} ppm` : "—"} hint="palavras/min, últimos 30 dias" />
         <Stat label="Palavras na semana" value={nf.format(s.weekWords)} hint={`média semanal: ${nf.format(Math.round(s.avgWeek))}`} />
-        <Stat label="Frases lidas (idiomas)" value={nf.format(s.weekReads)} hint="esta semana" />
+        <Stat label="Palavras escritas" value={nf.format(s.weekWritten)} hint="esta semana" />
         <Stat label="Revisões Anki" value={nf.format(s.weekAnki)} hint="esta semana (sincronizado)" />
         <Stat
           label="Mapa da Ignorância"

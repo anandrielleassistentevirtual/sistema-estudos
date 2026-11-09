@@ -12,7 +12,7 @@ const mb = (b: number) => (b >= 1024 * 1024 * 1024 ? `${(b / 1024 ** 3).toFixed(
 
 /** Quanto do plano está em uso + cópia de segurança de tudo (para nunca depender só da nuvem). */
 export function StoragePanel() {
-  const [uso, setUso] = useState<{ banco: number; arquivos: number; qtd_arquivos: number } | null>(null);
+  const [uso, setUso] = useState<{ banco: number; dados?: number; arquivos: number; qtd_arquivos: number } | null>(null);
   const [ultima, setUltima] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [rodando, setRodando] = useState(false);
@@ -47,9 +47,18 @@ export function StoragePanel() {
     <section className="card p-5">
       <div className="grid md:grid-cols-[1fr_1fr_1.2fr] gap-6 items-start">
         <div>
-          <div className="text-[13px] text-muted">Banco de dados</div>
-          <div className="text-sm mt-0.5 tabular-nums">{uso ? `${mb(uso.banco)} de 500 MB` : "…"}</div>
-          {uso && barra(uso.banco, LIMITE_BANCO)}
+          <div className="text-[13px] text-muted">Seus dados</div>
+          <div className="text-sm mt-0.5 tabular-nums">{uso ? `${mb(uso.dados ?? uso.banco)} de 500 MB` : "…"}</div>
+          {uso && (
+            <div className="mt-1.5 h-1.5 rounded-full bg-surface-2 overflow-hidden flex">
+              {/* parte fixa do Supabase (cinza claro) + seus dados */}
+              <div className="h-full bg-faint/50" style={{ width: `${Math.min(100, ((uso.banco - (uso.dados ?? 0)) / LIMITE_BANCO) * 100)}%` }} />
+              <div className="h-full bg-chart" style={{ width: `${Math.max(1, Math.min(100, ((uso.dados ?? uso.banco) / LIMITE_BANCO) * 100))}%` }} />
+            </div>
+          )}
+          {uso?.dados !== undefined && (
+            <div className="text-xs text-faint mt-1">+ {mb(uso.banco - uso.dados)} fixos do Supabase, que não crescem com o uso</div>
+          )}
         </div>
         <div>
           <div className="text-[13px] text-muted">Arquivos</div>

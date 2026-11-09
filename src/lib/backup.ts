@@ -5,7 +5,7 @@ import { compilarMarkdown, type Doc, type Projeto, type Referencia } from "./esc
 /** Todas as tabelas com dados da conta (cada uma vira dados/<tabela>.json na cópia). */
 const TABELAS = [
   "folders", "books", "annotations", "reading_sessions", "study_sessions", "notes",
-  "languages", "lessons", "lesson_sentences", "language_daily", "anki_daily",
+  "languages", "anki_daily",
   "lectio_dias", "lectio_registros",
   "escrita_projetos", "escrita_docs", "escrita_sessoes", "escrita_referencias",
 ] as const;
@@ -32,7 +32,7 @@ const ehLink = (s: string) => /^https?:\/\//.test(s);
  * Gera um .zip com uma cópia completa da conta:
  * - dados/*.json: todas as tabelas, completas (dá para reconstruir tudo a partir delas);
  * - versões legíveis: aulas, notas, diário da Lectio e textos da Escrita em Markdown;
- * - arquivos/: livros, capas e áudios.
+ * - arquivos/: livros e capas.
  */
 export async function baixarCopia(progresso: (msg: string) => void): Promise<{ arquivos: number; falhas: string[] }> {
   const JSZip = (await import("jszip")).default;
@@ -76,14 +76,11 @@ export async function baixarCopia(progresso: (msg: string) => void): Promise<{ a
     for (const d of ds.filter((x) => x.secao !== "manuscrito")) zip.file(`${base}/${d.secao}/${seguro(d.titulo)}.md`, d.conteudo);
   }
 
-  // arquivos (livros, capas, áudios)
+  // arquivos (livros e capas)
   const lista: { bucket: string; path: string }[] = [];
   for (const b of dados.books as Linha[]) {
     if (b.file_path) lista.push({ bucket: "livros", path: String(b.file_path) });
     if (b.cover_path && !ehLink(String(b.cover_path))) lista.push({ bucket: "livros", path: String(b.cover_path) });
-  }
-  for (const l of [...(dados.lessons as Linha[]), ...(dados.lesson_sentences as Linha[])]) {
-    if (l.audio_path) lista.push({ bucket: "audios", path: String(l.audio_path) });
   }
   const unicos = [...new Map(lista.map((x) => [`${x.bucket}/${x.path}`, x])).values()];
   const falhas: string[] = [];
@@ -100,7 +97,7 @@ export async function baixarCopia(progresso: (msg: string) => void): Promise<{ a
     `Feita em ${new Date().toLocaleString("pt-BR")}.`,
     "",
     "legivel/  → para ler: aulas, notas, diário da Lectio e textos da Escrita, em Markdown (abre no Obsidian ou em qualquer editor).",
-    "arquivos/ → os livros (EPUB, TXT, MD), as capas e os áudios das lições, como você enviou.",
+    "arquivos/ → os livros (EPUB, TXT, MD) e as capas, como você enviou.",
     "dados/    → todas as tabelas completas em JSON: com elas é possível reconstruir o sistema inteiro em outro banco.",
     falhas.length ? `\nNão foi possível copiar: ${falhas.join(", ")}` : "",
   ].join("\n"));

@@ -2,17 +2,15 @@
 /**
  * Importa conteúdo para o Sistema de Estudos usando a chave service_role.
  *
- *   npm run importar -- licao   <pasta> [...]          (pasta com licao.json, ou uma pasta-mãe com várias)
  *   npm run importar -- livro   <arquivo> [...] --pasta "Filosofia/Platão" [--status aguardando] [--fila]
  *   npm run importar -- estudo  <arquivo.md> [...] [--professor "Nome"] [--curso "Curso"]
  *
  * Variáveis: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DONO_EMAIL (em .env.local).
- * Formato das pastas: veja conteudo/README.md.
  */
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { basename, extname, join } from "node:path";
+import { readFileSync } from "node:fs";
+import { basename, extname } from "node:path";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -68,73 +66,6 @@ function parseCues(src) {
     out.push({ start: toSec(a), end: toSec(z) });
   }
   return out;
-}
-
-const MIME = { ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".ogg": "audio/ogg", ".wav": "audio/wav", ".opus": "audio/ogg" };
-
-function findLessonDirs(p) {
-  if (existsSync(join(p, "licao.json"))) return [p];
-  return readdirSync(p)
-    .map((n) => join(p, n))
-    .filter((x) => statSync(x).isDirectory())
-    .sort()
-    .flatMap(findLessonDirs);
-}
-
-async function importLesson(uid, dir) {
-  const meta = JSON.parse(readFileSync(join(dir, "licao.json"), "utf8"));
-  const read = (n) => (existsSync(join(dir, n)) ? readFileSync(join(dir, n), "utf8") : "");
-  const text = lines(read("texto.txt") || read("texto.md"));
-  const tr = lines(read("traducao.txt") || read("traducao.md"));
-  const cuesSrc = read("tempos.vtt") || read("tempos.srt");
-  const cues = cuesSrc ? parseCues(cuesSrc) : [];
-  if (!text.length) throw new Error(`${dir}: texto.txt vazio`);
-  if (tr.length && tr.length !== text.length) console.warn(`  ⚠ ${basename(dir)}: ${text.length} frases e ${tr.length} traduções`);
-
-  const audioFile = readdirSync(dir).find((n) => n.startsWith("audio") && MIME[extname(n).toLowerCase()]);
-
-  const { data: existing } = await sb.from("lessons").select("id,audio_path")
-    .eq("user_id", uid).eq("language", meta.idioma).eq("collection", meta.colecao ?? "").eq("title", meta.titulo).maybeSingle();
-  const id = existing?.id ?? randomUUID();
-
-  let audio_path = existing?.audio_path ?? null;
-  if (audioFile) {
-    const ext = extname(audioFile).toLowerCase();
-    audio_path = `${uid}/${id}${ext}`;
-    const up = await sb.storage.from("audios").upload(audio_path, readFileSync(join(dir, audioFile)), { contentType: MIME[ext], upsert: true });
-    if (up.error) throw up.error;
-  }
-
-  const row = {
-    id, user_id: uid, language: meta.idioma, collection: meta.colecao ?? "", title: meta.titulo,
-    level: meta.nivel ?? "", position: meta.ordem ?? 0, read_goal: meta.meta ?? 10, audio_path,
-  };
-  const r = await sb.from("lessons").upsert(row);
-  if (r.error) throw r.error;
-
-  const { data: old } = await sb.from("lesson_sentences").select("idx,text,read_count").eq("lesson_id", id);
-  const keep = new Map((old ?? []).map((s) => [s.idx, s]));
-  const rows = text.map((t, idx) => ({
-    lesson_id: id, user_id: uid, idx, text: t, translation: tr[idx] ?? "",
-    start_s: cues[idx]?.start ?? null, end_s: cues[idx]?.end ?? null,
-    read_count: keep.get(idx)?.text === t ? keep.get(idx).read_count : 0,
-  }));
-  // áudio individual de cada frase: versos/v001.mp3, v002.mp3… (na ordem do texto)
-  const versosDir = join(dir, "versos");
-  if (existsSync(versosDir)) {
-    const files = readdirSync(versosDir).filter((n) => MIME[extname(n).toLowerCase()]).sort();
-    for (let k = 0; k < Math.min(files.length, rows.length); k++) {
-      const ext = extname(files[k]).toLowerCase();
-      const p = `${uid}/${id}/v${String(k + 1).padStart(3, "0")}${ext}`;
-      const up = await sb.storage.from("audios").upload(p, readFileSync(join(versosDir, files[k])), { contentType: MIME[ext], upsert: true });
-      if (up.error) throw up.error;
-      rows[k].audio_path = p;
-    }
-  }
-  await sb.from("lesson_sentences").delete().eq("lesson_id", id).gte("idx", rows.length);
-  const s = await sb.from("lesson_sentences").upsert(rows, { onConflict: "lesson_id,idx" });
-  if (s.error) throw s.error;
-  console.log(`  ✓ ${meta.idioma} · ${meta.colecao ?? ""} · ${meta.titulo} — ${rows.length} frases${audioFile ? " + áudio" : ""}${cues.length ? " + tempos" : ""}${rows.some((r) => r.audio_path) ? " + áudio por verso" : ""}`);
 }
 
 async function folderPath(uid, path) {
@@ -203,11 +134,7 @@ async function importStudy(uid, file) {
 }
 
 const uid = await ownerId();
-if (cmd === "licao") {
-  const dirs = args.flatMap(findLessonDirs);
-  console.log(`Importando ${dirs.length} lição(ões)…`);
-  for (const d of dirs) await importLesson(uid, d);
-} else if (cmd === "livro") {
+if (cmd === "livro") {
   const folderId = flags.pasta ? await folderPath(uid, flags.pasta) : null;
   console.log(`Importando ${args.length} livro(s)${flags.pasta ? ` em “${flags.pasta}”` : ""}…`);
   for (const f of args) await importBook(uid, f, folderId);
@@ -215,6 +142,6 @@ if (cmd === "licao") {
   console.log(`Importando ${args.length} transcrição(ões)…`);
   for (const f of args) await importStudy(uid, f);
 } else {
-  console.log("Uso: npm run importar -- licao|livro|estudo <caminhos…> (veja o topo deste arquivo)");
+  console.log("Uso: npm run importar -- livro|estudo <caminhos…> (veja o topo deste arquivo)");
   process.exit(1);
 }

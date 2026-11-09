@@ -1,61 +1,43 @@
 "use client";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock, Headphones, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Clock, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { IdiomasTabs } from "@/components/idiomas-tabs";
 import { BarChart } from "@/components/bar-chart";
-import { createLesson } from "@/lib/lessons";
 import { Language, loadLanguages, ONDE, SUGESTOES } from "@/lib/languages";
 import { addDays, dayKey, fmtDuration, nf, parseDay, weekStart } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
-import type { Lesson } from "@/lib/types";
 
-interface Row extends Lesson { sentences: number; reads: number; minReads: number }
 interface Sess { day: string; seconds: number; language: string | null; label: string }
 
 const WEEKS = 12;
 
 export default function Idiomas() {
   const [langs, setLangs] = useState<Language[]>([]);
-  const [lessons, setLessons] = useState<Row[]>([]);
   const [sessions, setSessions] = useState<Sess[]>([]);
   const [lang, setLang] = useState<string | null>(null);
-  const [modal, setModal] = useState<null | "licao" | "idioma" | "tempo" | { edit: Language }>(null);
+  const [modal, setModal] = useState<null | "idioma" | "tempo" | { edit: Language }>(null);
 
   const load = useCallback(async () => {
     const sb = supabase();
-    const [l, s, st, lg] = await Promise.all([
-      sb.from("lessons").select("*").order("collection").order("position"),
-      sb.from("lesson_sentences").select("lesson_id,read_count").limit(50000),
+    const [st, lg] = await Promise.all([
       sb.from("study_sessions").select("day,seconds,language,label").eq("category", "Idiomas").limit(50000),
       loadLanguages(),
     ]);
-    const agg = new Map<string, { n: number; sum: number; min: number }>();
-    for (const r of s.data ?? []) {
-      const a = agg.get(r.lesson_id) ?? { n: 0, sum: 0, min: Infinity };
-      a.n++; a.sum += r.read_count; a.min = Math.min(a.min, r.read_count);
-      agg.set(r.lesson_id, a);
-    }
-    const rows = ((l.data as Lesson[]) ?? []).map((x) => {
-      const a = agg.get(x.id);
-      return { ...x, sentences: a?.n ?? 0, reads: a?.sum ?? 0, minReads: a && isFinite(a.min) ? a.min : 0 };
-    });
-    setLessons(rows);
     setSessions((st.data as Sess[]) ?? []);
     setLangs(lg);
-    setLang((cur) => cur ?? lg[0]?.name ?? rows[0]?.language ?? null);
+    setLang((cur) => cur ?? lg[0]?.name ?? null);
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  // idiomas cadastrados + qualquer idioma que já tenha lição ou tempo
+  // idiomas cadastrados + qualquer idioma que já tenha tempo registrado
   const allLangs = useMemo(() => {
     const names = new Set(langs.map((l) => l.name));
-    const extra = [...new Set([...lessons.map((l) => l.language), ...sessions.map((s) => s.language).filter(Boolean) as string[]])]
+    const extra = [...new Set(sessions.map((s) => s.language).filter(Boolean) as string[])]
       .filter((n) => !names.has(n))
       .map((name) => ({ id: `extra-${name}`, name, weekly_goal_min: null, position: 999 }) as Language);
     return [...langs, ...extra];
-  }, [langs, lessons, sessions]);
+  }, [langs, sessions]);
 
   const time = useMemo(() => {
     const now = new Date();
@@ -98,24 +80,17 @@ export default function Idiomas() {
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [sessions, lang]);
 
-  const collections = useMemo(() => {
-    const m = new Map<string, Row[]>();
-    for (const l of lessons.filter((x) => x.language === lang)) m.set(l.collection || "Sem coleção", [...(m.get(l.collection || "Sem coleção") ?? []), l]);
-    return [...m.entries()];
-  }, [lessons, lang]);
-
   const recent = sessions.filter((s) => s.language === lang).sort((a, b) => (a.day < b.day ? 1 : -1)).slice(0, 6);
 
   return (
     <Page
       tabs={<IdiomasTabs />}
       title="Idiomas"
-      subtitle="Quanto tempo vai para cada idioma, e as lições de leitura e escuta."
+      subtitle="Quanto tempo vai para cada idioma. As revisões ficam no Anki."
       actions={
         <>
           <button className="btn" onClick={() => setModal("idioma")}><Plus size={15} /> Cadastrar idioma</button>
           <button className="btn" onClick={() => setModal("tempo")} disabled={!allLangs.length}><Clock size={15} /> Registrar tempo</button>
-          <button className="btn btn-primary" onClick={() => setModal("licao")}><Plus size={15} /> Nova lição</button>
         </>
       }
     >
@@ -147,7 +122,7 @@ export default function Idiomas() {
                 </div>
                 {goal > 0 && (
                   <div className="mt-2 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: pct >= 1 ? "var(--good)" : "var(--accent)" }} />
+                    <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: pct >= 1 ? "var(--good)" : "var(--chart)" }} />
                   </div>
                 )}
                 <div className="mt-2 flex justify-between text-xs text-muted">
@@ -198,48 +173,6 @@ export default function Idiomas() {
         </div>
       )}
 
-      {lang && (
-        <>
-          <h2 className="font-medium mb-3">Lições de {lang}</h2>
-          {collections.length === 0 ? (
-            <Empty>Nenhuma lição de {lang} ainda.</Empty>
-          ) : (
-            collections.map(([c, list]) => (
-              <section key={c} className="mb-6">
-                <h3 className="label mb-2">{c}</h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {list.map((l) => {
-                    const pct = Math.min(1, l.minReads / Math.max(1, l.read_goal));
-                    return (
-                      <Link key={l.id} href={`/idiomas/${l.id}`} className="card p-4 hover:border-faint transition-colors">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            {l.level && <div className="text-xs text-faint">{l.level}</div>}
-                            <div className="font-medium truncate">{l.title}</div>
-                          </div>
-                          {l.audio_path && <Headphones size={15} className="text-faint shrink-0 mt-1" />}
-                        </div>
-                        <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: pct >= 1 ? "var(--good)" : "var(--accent)" }} />
-                        </div>
-                        <div className="mt-2 flex justify-between text-xs text-muted">
-                          <span>{l.minReads}/{l.read_goal} leituras completas</span>
-                          <span>{l.listen_count} escutas · {l.sentences} frases</span>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </section>
-            ))
-          )}
-        </>
-      )}
-
-      {modal === "licao" && (
-        <NewLessonModal langs={allLangs.map((l) => l.name)} defaultLang={lang ?? allLangs[0]?.name ?? "Inglês"}
-          onClose={() => setModal(null)} onCreated={() => { setModal(null); void load(); }} />
-      )}
       {(modal === "idioma" || (modal && typeof modal === "object")) && (
         <LanguageModal edit={typeof modal === "object" ? modal.edit : null} existing={langs.map((l) => l.name)}
           onClose={() => setModal(null)} onSaved={(name) => { setModal(null); setLang(name); void load(); }} />
@@ -283,7 +216,6 @@ function LanguageModal({ edit, existing, onClose, onSaved }: { edit: Language | 
     if (error) return setErr(error.code === "23505" ? "Esse idioma já está cadastrado." : error.message);
     if (edit && n !== edit.name) {
       await sb.from("study_sessions").update({ language: n }).eq("language", edit.name);
-      await sb.from("lessons").update({ language: n }).eq("language", edit.name);
     }
     onSaved(n);
   }
@@ -373,79 +305,6 @@ function TimeModal({ langs, defaultLang, onClose, onSaved }: { langs: string[]; 
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" className="btn" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" disabled={busy}>{busy ? "Salvando…" : "Registrar"}</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function NewLessonModal({ langs, defaultLang, onClose, onCreated }: { langs: string[]; defaultLang: string; onClose: () => void; onCreated: () => void }) {
-  const [f, setF] = useState({ language: defaultLang, collection: "", title: "", level: "", text: "", translation: "", read_goal: 10 });
-  const [audio, setAudio] = useState<File | null>(null);
-  const [cues, setCues] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const n = f.text.split("\n").filter((x) => x.trim()).length;
-  const m = f.translation.split("\n").filter((x) => x.trim()).length;
-  const options = langs.length ? langs : SUGESTOES;
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setErr(null);
-    try {
-      await createLesson({ ...f, audio, cues });
-      if (!langs.includes(f.language)) await supabase().from("languages").insert({ name: f.language }).then(() => {});
-      onCreated();
-    } catch (x) {
-      setErr((x as Error).message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal title="Nova lição" onClose={onClose} wide>
-      <form onSubmit={submit} className="space-y-3">
-        <div className="grid sm:grid-cols-4 gap-3">
-          <label className="space-y-1"><span className="label">Idioma</span>
-            <select className="input" value={f.language} onChange={(e) => setF({ ...f, language: e.target.value })}>
-              {options.map((l) => <option key={l}>{l}</option>)}
-            </select>
-          </label>
-          <label className="space-y-1 sm:col-span-2"><span className="label">Coleção</span>
-            <input className="input" placeholder="ex.: Divina Commedia — Inferno" value={f.collection} onChange={(e) => setF({ ...f, collection: e.target.value })} />
-          </label>
-          <label className="space-y-1"><span className="label">Nível</span>
-            <input className="input" placeholder="A1, B2…" value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })} />
-          </label>
-          <label className="space-y-1 sm:col-span-3"><span className="label">Título</span>
-            <input className="input" required value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
-          </label>
-          <label className="space-y-1"><span className="label">Meta de leituras</span>
-            <input className="input" type="number" min={1} max={100} value={f.read_goal} onChange={(e) => setF({ ...f, read_goal: Number(e.target.value) || 10 })} />
-          </label>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <label className="space-y-1"><span className="label">Texto — uma frase por linha ({n})</span>
-            <textarea className="input min-h-[220px] font-serif" required value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} />
-          </label>
-          <label className="space-y-1"><span className="label">Tradução — mesma ordem ({m}{n && m && n !== m ? " ⚠ quantidade diferente" : ""})</span>
-            <textarea className="input min-h-[220px] font-serif" value={f.translation} onChange={(e) => setF({ ...f, translation: e.target.value })} />
-          </label>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <label className="space-y-1"><span className="label">Áudio (MP3, M4A, OGG)</span>
-            <input className="input" type="file" accept="audio/*" onChange={(e) => setAudio(e.target.files?.[0] ?? null)} />
-          </label>
-          <label className="space-y-1"><span className="label">Tempos das frases (.vtt/.srt, opcional)</span>
-            <input className="input" type="file" accept=".vtt,.srt" onChange={(e) => setCues(e.target.files?.[0] ?? null)} />
-          </label>
-        </div>
-        <p className="text-xs text-muted">Sem arquivo de tempos, você pode sincronizar depois dentro da lição (modo “Sincronizar”), tocando o áudio e marcando o início de cada frase.</p>
-        {err && <p className="text-sm text-critical">{err}</p>}
-        <div className="flex justify-end gap-2">
-          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" disabled={busy}>{busy ? "Salvando…" : "Criar lição"}</button>
         </div>
       </form>
     </Modal>

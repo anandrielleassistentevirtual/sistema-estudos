@@ -7,13 +7,11 @@ export interface DayStats {
   reading: number; // segundos lendo fora do timer (para não contar duas vezes)
   readingAll: number; // todo o tempo de leitura medido (para palavras/minuto)
   words: number; // palavras lidas
-  reads: number; // frases lidas (idiomas)
-  listens: number; // escutas completas (idiomas)
   anki: number; // revisões no Anki
   written: number; // palavras escritas (Escrita: esforço do dia)
 }
 
-export const emptyDay = (): DayStats => ({ study: 0, reading: 0, readingAll: 0, words: 0, reads: 0, listens: 0, anki: 0, written: 0 });
+export const emptyDay = (): DayStats => ({ study: 0, reading: 0, readingAll: 0, words: 0, anki: 0, written: 0 });
 
 /** Início padrão: as últimas 53 semanas (o que o Dashboard e o calendário mostram de cara). */
 export const inicio12Meses = () => dayKey(addDays(weekStart(new Date()), -53 * 7));
@@ -33,10 +31,9 @@ export function loadDaily(from: string): Promise<Map<string, DayStats>> {
 
 async function carregar(from: string): Promise<Map<string, DayStats>> {
   const sb = supabase();
-  const [study, reading, lang, anki, escrita] = await Promise.all([
+  const [study, reading, anki, escrita] = await Promise.all([
     sb.from("study_sessions").select("day,seconds").gte("day", from).limit(20000),
     sb.from("reading_sessions").select("day,seconds,words,during_timer").gte("day", from).limit(20000),
-    sb.from("language_daily").select("day,reads,listens").gte("day", from),
     sb.from("anki_daily").select("day,reviews").gte("day", from),
     sb.from("escrita_sessoes").select("dia,palavras").gte("dia", from).limit(20000),
   ]);
@@ -53,23 +50,17 @@ async function carregar(from: string): Promise<Map<string, DayStats>> {
     v.readingAll += r.seconds;
     v.words += r.words;
   }
-  for (const r of lang.data ?? []) {
-    const v = get(r.day);
-    v.reads += r.reads;
-    v.listens += r.listens;
-  }
   for (const r of anki.data ?? []) get(r.day).anki += r.reviews;
   for (const r of (escrita.data as { dia: string; palavras: number }[]) ?? []) get(r.dia).written += Math.max(0, r.palavras);
   return map;
 }
 
-export type Metric = "tempo" | "palavras" | "escritas" | "frases" | "anki";
+export type Metric = "tempo" | "palavras" | "escritas" | "anki";
 
 export const METRICS: { id: Metric; label: string; unit: string }[] = [
   { id: "tempo", label: "Tempo", unit: "min" },
   { id: "palavras", label: "Lidas", unit: "palavras lidas" },
   { id: "escritas", label: "Escritas", unit: "palavras escritas" },
-  { id: "frases", label: "Idiomas", unit: "leituras" },
   { id: "anki", label: "Anki", unit: "revisões" },
 ];
 
@@ -82,8 +73,6 @@ export function metricValue(d: DayStats | undefined, m: Metric): number {
       return d.words;
     case "escritas":
       return d.written;
-    case "frases":
-      return d.reads;
     case "anki":
       return d.anki;
   }
