@@ -95,7 +95,11 @@
   --color-accent-ink: var(--accent-ink);
   --color-good: var(--good);
   --color-critical: var(--critical);
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* Interface: San Francisco (fonte do sistema da Apple) nos aparelhos Apple; nos demais, Inter,
+     a fonte livre mais próxima dela (o SF não pode ser usado fora dos sistemas da Apple).
+     Leitura, Lectio e Escrita continuam com as fontes escolhidas no leitor/editor. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   --font-serif: "Literata", Georgia, "Times New Roman", serif;
 }
 
@@ -107,6 +111,7 @@ body {
 
 body {
   font-family: var(--font-sans);
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
