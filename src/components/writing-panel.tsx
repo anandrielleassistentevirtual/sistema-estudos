@@ -26,7 +26,18 @@ export function WritingPanel() {
     })();
   }, []);
 
-  if (!dados || !dados.projetos.length) return null;
+  if (!dados) return null;
+  if (!dados.projetos.length) {
+    return (
+      <section className="card p-5 mt-4 flex items-center justify-between gap-4">
+        <div>
+          <h2 className="font-medium flex items-center gap-2"><Feather size={16} className="text-accent" /> Escrita</h2>
+          <p className="text-sm text-muted mt-1">Nenhum projeto ainda. As palavras escritas por dia, a sequência e o ritmo aparecem aqui.</p>
+        </div>
+        <Link href="/escrita" className="btn shrink-0">Criar projeto</Link>
+      </section>
+    );
+  }
   const { projetos, sessoes, totais } = dados;
 
   const hojeK = dayKey();

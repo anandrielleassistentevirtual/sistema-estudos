@@ -29,6 +29,12 @@
   --heat-3: #5a9ff0;
   --heat-4: #0071e3;
   --heat-5: #004a99;
+  --out-0: #e8e8ed;
+  --out-1: #ffe3c2;
+  --out-2: #ffc680;
+  --out-3: #ffa53d;
+  --out-4: #ff9500;
+  --out-5: #c45f00;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -59,6 +65,12 @@
     --heat-3: #0a6fd6;
     --heat-4: #0a84ff;
     --heat-5: #70b8ff;
+    --out-0: #2c2c2e;
+    --out-1: #4a2e05;
+    --out-2: #7a4a06;
+    --out-3: #b86b06;
+    --out-4: #ff9f0a;
+    --out-5: #ffc670;
   }
 }
 
@@ -89,6 +101,12 @@
   --heat-3: #0a6fd6;
   --heat-4: #0a84ff;
   --heat-5: #70b8ff;
+  --out-0: #2c2c2e;
+  --out-1: #4a2e05;
+  --out-2: #7a4a06;
+  --out-3: #b86b06;
+  --out-4: #ff9f0a;
+  --out-5: #ffc670;
 }
 
 @theme inline {
