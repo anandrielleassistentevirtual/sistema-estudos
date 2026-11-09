@@ -8,7 +8,6 @@ import { Cover } from "@/components/cover";
 import { coverUrls } from "@/lib/covers";
 import { TimeBreakdown } from "@/components/time-breakdown";
 import { WritingPanel } from "@/components/writing-panel";
-import { StoragePanel } from "@/components/storage-panel";
 import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { DayStats, inicio12Meses, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
@@ -172,8 +171,6 @@ export default function Dashboard() {
           )}
         </div>
       </section>
-
-      <StoragePanel />
     </Page>
   );
 }

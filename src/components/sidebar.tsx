@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BookHeart, Feather, GraduationCap, Languages, LayoutDashboard, Library,
+  BookHeart, Feather, GraduationCap, HardDrive, Languages, LayoutDashboard, Library,
   LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, NotebookPen, Sun, Timer, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -113,6 +113,9 @@ export function Sidebar() {
         ),
       )}
       <div className="mt-auto pt-3 space-y-0.5">
+        <Link href="/armazenamento" className={`btn btn-ghost w-full justify-start ${active("/armazenamento") ? "text-ink bg-sel" : "text-muted"}`}>
+          <HardDrive size={16} /> Armazenamento
+        </Link>
         <ThemeToggle />
         <button
           className="btn btn-ghost w-full justify-start text-muted"

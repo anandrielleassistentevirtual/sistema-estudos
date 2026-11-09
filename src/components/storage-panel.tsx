@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { HardDrive, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { baixarCopia } from "@/lib/backup";
 
@@ -44,23 +44,18 @@ export function StoragePanel() {
   );
 
   return (
-    <section className="card p-5 mt-4">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <h2 className="font-medium flex items-center gap-2"><HardDrive size={16} className="text-icon" /> Armazenamento</h2>
-        <span className="text-xs text-faint">plano gratuito</span>
-      </div>
+    <section className="card p-5">
       <div className="grid md:grid-cols-[1fr_1fr_1.2fr] gap-6 items-start">
         <div>
           <div className="text-[13px] text-muted">Banco de dados</div>
           <div className="text-sm mt-0.5 tabular-nums">{uso ? `${mb(uso.banco)} de 500 MB` : "…"}</div>
           {uso && barra(uso.banco, LIMITE_BANCO)}
-          <div className="text-xs text-faint mt-1">aulas, notas, diário, escrita, sessões</div>
         </div>
         <div>
           <div className="text-[13px] text-muted">Arquivos</div>
           <div className="text-sm mt-0.5 tabular-nums">{uso ? `${mb(uso.arquivos)} de 1 GB` : "…"}</div>
           {uso && barra(uso.arquivos, LIMITE_ARQUIVOS)}
-          <div className="text-xs text-faint mt-1">{uso ? `${uso.qtd_arquivos} arquivos: livros, capas e áudios` : "livros, capas e áudios"}</div>
+          {uso && <div className="text-xs text-faint mt-1">{uso.qtd_arquivos} arquivos</div>}
         </div>
         <div>
           <div className="text-[13px] text-muted">Cópia de segurança</div>
