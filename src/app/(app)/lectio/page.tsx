@@ -201,7 +201,7 @@ export default function Lectio() {
           <div className="text-center min-w-0">
             <div className="text-xs uppercase tracking-wider text-muted first-letter:uppercase">{dataLonga}</div>
             <h1 className="text-xl font-medium flex items-center justify-center gap-2">
-              <BookHeart size={18} className="text-accent" /> Lectio Divina
+              <BookHeart size={18} className="text-icon" /> Lectio Divina
             </h1>
           </div>
           <button className="btn btn-ghost px-2" onClick={() => setDia(dayKey(addDays(parseDay(dia), 1)))} disabled={rodando}><ChevronRight size={16} /></button>

@@ -31,7 +31,7 @@ export function WritingPanel() {
     return (
       <section className="card p-5 mt-4 flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-medium flex items-center gap-2"><Feather size={16} className="text-accent" /> Escrita</h2>
+          <h2 className="font-medium flex items-center gap-2"><Feather size={16} className="text-icon" /> Escrita</h2>
           <p className="text-sm text-muted mt-1">Nenhum projeto ainda. As palavras escritas por dia, a sequência e o ritmo aparecem aqui.</p>
         </div>
         <Link href="/escrita" className="btn shrink-0">Criar projeto</Link>
@@ -61,7 +61,7 @@ export function WritingPanel() {
   return (
     <section className="card p-5 mt-4">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="font-medium flex items-center gap-2"><Feather size={16} className="text-accent" /> Escrita</h2>
+        <h2 className="font-medium flex items-center gap-2"><Feather size={16} className="text-icon" /> Escrita</h2>
         <Link href="/escrita" className="text-sm text-accent flex items-center gap-0.5">Abrir <ChevronRight size={15} /></Link>
       </div>
       <div className="grid md:grid-cols-[1fr_1.2fr] gap-6">

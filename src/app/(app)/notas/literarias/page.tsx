@@ -133,7 +133,7 @@ export default function Literarias() {
                   onClick={(e) => { e.stopPropagation(); setOpen((o) => { const x = new Set(o); if (x.has(f.id)) x.delete(f.id); else x.add(f.id); return x; }); }}>
                   {open.has(f.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
-                {sel === f.id ? <FolderOpen size={15} className="text-accent" /> : <Folder size={15} className="text-muted" />}
+                {sel === f.id ? <FolderOpen size={15} className="text-icon" /> : <Folder size={15} className="text-muted" />}
                 <span className="truncate flex-1 py-1.5" title={folderLabel(f)}>
                   {f.code && <span className={`font-mono text-xs mr-1 ${depth === 0 ? "font-medium text-ink" : "text-muted"}`}>{f.code} –</span>}
                   <span className={depth === 0 ? "font-medium" : ""}>{f.name}</span>

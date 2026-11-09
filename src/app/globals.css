@@ -17,6 +17,7 @@
   --sel: rgba(0, 0, 0, 0.055);
   --sidebar: rgba(236, 236, 241, 0.78);
   --seg: #ffffff;
+  --icon: #2c2c2e;
   --good: #248a3d;
   --critical: #d70015;
   --hl: rgba(255, 204, 0, 0.35);
@@ -53,6 +54,7 @@
     --sel: rgba(255, 255, 255, 0.1);
     --sidebar: rgba(22, 22, 24, 0.82);
     --seg: #636366;
+    --icon: #f5f5f7;
     --good: #30d158;
     --critical: #ff453a;
     --hl: rgba(255, 214, 10, 0.3);
@@ -89,6 +91,7 @@
   --sel: rgba(255, 255, 255, 0.1);
   --sidebar: rgba(22, 22, 24, 0.82);
   --seg: #636366;
+  --icon: #f5f5f7;
   --good: #30d158;
   --critical: #ff453a;
   --hl: rgba(255, 214, 10, 0.3);
@@ -123,6 +126,7 @@
   --color-sel: var(--sel);
   --color-sidebar: var(--sidebar);
   --color-seg: var(--seg);
+  --color-icon: var(--icon);
   --color-good: var(--good);
   --color-critical: var(--critical);
   /* Interface: San Francisco (fonte do sistema da Apple) nos aparelhos Apple; nos demais, Inter,

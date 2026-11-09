@@ -120,7 +120,7 @@ export default function Playlist() {
                 <li key={l.id}>
                   <button onClick={() => playAt(i)} className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left ${i === cur ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
                     <span className="w-5 text-xs text-faint tabular-nums">{i + 1}</span>
-                    {i === cur && playing ? <Headphones size={14} className="text-accent" /> : null}
+                    {i === cur && playing ? <Headphones size={14} className="text-icon" /> : null}
                     <span className="truncate flex-1">{l.title}</span>
                     <Link href={`/idiomas/${l.id}`} onClick={(e) => e.stopPropagation()} className="text-xs text-accent">texto</Link>
                   </button>

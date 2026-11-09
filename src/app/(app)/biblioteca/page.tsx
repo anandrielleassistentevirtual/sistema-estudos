@@ -273,7 +273,7 @@ export default function Biblioteca() {
                 >
                   {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
-                {sel === f.id ? <FolderOpen size={15} className="text-accent" /> : <Folder size={15} className="text-muted" />}
+                {sel === f.id ? <FolderOpen size={15} className="text-icon" /> : <Folder size={15} className="text-muted" />}
                 <span className="truncate flex-1 py-1.5" title={folderLabel(f)}>
                   {f.code && <span className={`font-mono text-xs mr-1 ${depth === 0 ? "font-medium text-ink" : "text-muted"}`}>{f.code} –</span>}
                   <span className={depth === 0 ? "font-medium" : ""}>{f.name}</span>
@@ -377,7 +377,7 @@ export default function Biblioteca() {
               {queued.length > 0 && (
                 <section className="mb-6">
                   <div className="flex items-baseline justify-between mb-2 px-1">
-                    <h2 className="font-medium flex items-center gap-2"><ListOrdered size={16} className="text-accent" /> Fila de leitura</h2>
+                    <h2 className="font-medium flex items-center gap-2"><ListOrdered size={16} className="text-icon" /> Fila de leitura</h2>
                     <span className="text-xs text-muted">
                       {queued.length} {queued.length === 1 ? "livro" : "livros"}
                       {queueLeft ? ` · ≈ ${fmtDuration((queueLeft / wpm) * 60)} de leitura` : ""}

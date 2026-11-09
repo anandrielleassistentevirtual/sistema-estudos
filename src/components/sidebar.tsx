@@ -107,7 +107,7 @@ export function Sidebar() {
               active(item.href) ? "bg-sel border-transparent text-ink font-medium" : "border-transparent text-ink/80 hover:bg-sel"
             }`}
           >
-            <item.icon size={16} strokeWidth={1.8} className="text-accent" />
+            <item.icon size={16} strokeWidth={1.8} className="text-icon" />
             {item.label}
           </Link>
         ),
