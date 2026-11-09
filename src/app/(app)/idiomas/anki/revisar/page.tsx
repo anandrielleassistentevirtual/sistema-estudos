@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, Play, RotateCcw, Undo2, Volume2 } from "lucide-react";
-import { anki } from "@/lib/anki";
+import { ANKI_INICIO, anki } from "@/lib/anki";
 import { Language, loadLanguages } from "@/lib/languages";
 import { dayKey, fmtClock } from "@/lib/dates";
 import { supabase, fire } from "@/lib/supabase/client";
@@ -193,7 +193,7 @@ export default function RevisarAnki() {
         }));
       }
       void anki<[string, number][]>("getNumCardsReviewedByDay").then((rows) => {
-        const today = rows.filter(([d]) => d >= dayKey(new Date(Date.now() - 7 * 864e5)));
+        const today = rows.filter(([d]) => d >= dayKey(new Date(Date.now() - 7 * 864e5)) && d >= ANKI_INICIO);
         if (today.length) fire(supabase().from("anki_daily").upsert(today.map(([day, reviews]) => ({ day, reviews }))));
       }).catch(() => {});
     };

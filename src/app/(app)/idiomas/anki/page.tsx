@@ -5,7 +5,7 @@ import { Play, RefreshCw } from "lucide-react";
 import { Page, Stat } from "@/components/page";
 import { IdiomasTabs } from "@/components/idiomas-tabs";
 import { Heatmap } from "@/components/heatmap";
-import { anki, ankiOnline, ankiUrl } from "@/lib/anki";
+import { ANKI_INICIO, anki, ankiOnline, ankiUrl } from "@/lib/anki";
 import { addDays, dayKey, nf, weekStart } from "@/lib/dates";
 import { DayStats, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
@@ -34,9 +34,9 @@ export default function AnkiPage() {
         setDecks(Object.values(stats).sort((a, b) => a.name.localeCompare(b.name)));
         const byDay = await anki<[string, number][]>("getNumCardsReviewedByDay");
         if (byDay.length) {
-          const rows = byDay.map(([day, reviews]) => ({ day, reviews }));
+          const rows = byDay.filter(([day]) => day >= ANKI_INICIO).map(([day, reviews]) => ({ day, reviews }));
           for (let i = 0; i < rows.length; i += 500) await supabase().from("anki_daily").upsert(rows.slice(i, i + 500));
-          setMsg(`${rows.length} dias de revisões sincronizados com o calendário.`);
+          setMsg(`${rows.length} ${rows.length === 1 ? "dia" : "dias"} de revisões sincronizados com o calendário (contagem desde 08/11/2026).`);
         }
       } catch (e) {
         setMsg((e as Error).message);
