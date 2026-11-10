@@ -11,7 +11,7 @@ import { bookName } from "@/lib/folders";
 import { Combobox } from "./combobox";
 
 interface BookOpt { id: string; title: string; author: string | null; format: string; status: string; current_page: number | null; total_pages: number | null }
-interface NoteOpt { id: string; title: string; professor: string; course: string }
+interface NoteOpt { id: string; title: string; professor: string; course: string; completed_at: string | null; progresso?: number }
 
 /** Controles do timer (usados na tela Timer e no timer flutuante). */
 export function TimerControls({ compact = false }: { compact?: boolean }) {
@@ -31,10 +31,13 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     const sb = supabase();
-    void sb.from("books").select("id,title,author,format,status,current_page,total_pages").neq("status", "lido").order("author").order("title")
-      .then(({ data }) => setBooks((data as BookOpt[]) ?? []));
-    void sb.from("notes").select("id,title,professor,course").eq("kind", "estudo")
+    // o que já foi concluído continua na lista, mas vai para o fim
+    const ordemLivro: Record<string, number> = { lendo: 0, aguardando: 1, pausado: 1, lido: 2 };
+    void sb.from("books").select("id,title,author,format,status,current_page,total_pages").order("author").order("title")
+      .then(({ data }) => setBooks(((data as BookOpt[]) ?? []).sort((a, b) => (ordemLivro[a.status] ?? 1) - (ordemLivro[b.status] ?? 1))));
+    void sb.from("notes").select("id,title,professor,course,completed_at,progresso").eq("kind", "estudo")
       .then(({ data }) => setNotes(((data as NoteOpt[]) ?? []).sort((a, b) =>
+        Number(!!a.completed_at) - Number(!!b.completed_at) ||
         a.course.localeCompare(b.course, "pt-BR") || a.title.localeCompare(b.title, "pt-BR", { numeric: true }))));
     void loadLanguages().then(setLangs);
   }, [t.lastSaved]);
@@ -46,8 +49,6 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
   const R = compact ? 64 : 110;
   const C = 2 * Math.PI * R;
   const book = books.find((b) => b.id === t.bookId);
-  const digital = books.filter((b) => b.format !== "fisico");
-  const fisicos = books.filter((b) => b.format === "fisico");
 
   return (
     <div className="flex flex-col items-center w-full">
@@ -103,10 +104,13 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
               value={t.bookId}
               placeholder="Digite o título ou o autor…"
               emptyText="Nenhum livro com esse nome"
-              options={[...digital, ...fisicos].map((b) => ({
+              options={books.map((b) => ({
                 value: b.id,
                 label: `${b.format === "fisico" ? "📖 " : ""}${bookName(b)}`,
-                hint: b.format === "fisico" ? `livro físico${b.current_page ? ` · p. ${b.current_page}` : ""}` : b.status === "lendo" ? "lendo" : undefined,
+                hint: [
+                  b.format === "fisico" ? `livro físico${b.current_page ? ` · p. ${b.current_page}` : ""}` : null,
+                  b.status === "lendo" ? "lendo" : b.status === "lido" ? "✓ lido" : null,
+                ].filter(Boolean).join(" · ") || undefined,
               }))}
               onChange={(id) => {
                 const b = books.find((x) => x.id === id);
@@ -131,7 +135,14 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
               value={t.noteId}
               placeholder="Digite o nome da aula ou do curso…"
               emptyText="Nenhuma aula com esse nome"
-              options={notes.map((n) => ({ value: n.id, label: n.title, hint: [n.course, n.professor].filter(Boolean).join(" · ") || undefined }))}
+              options={notes.map((n) => ({
+                value: n.id,
+                label: n.title,
+                hint: [
+                  n.completed_at ? "✓ concluída" : (n.progresso ?? 0) > 0.01 ? `${Math.round((n.progresso ?? 0) * 100)}% lido` : null,
+                  n.course, n.professor,
+                ].filter(Boolean).join(" · ") || undefined,
+              }))}
               onChange={(id) => {
                 const n = notes.find((x) => x.id === id);
                 t.set({ noteId: n?.id ?? "", noteTitle: n?.title ?? "" });

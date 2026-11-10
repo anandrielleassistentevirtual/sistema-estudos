@@ -155,7 +155,8 @@ export default function Biblioteca() {
   }
 
   const queued = useMemo(() => visible.filter((b) => queueNo.has(b.id)).sort((a, b) => queueNo.get(a.id)! - queueNo.get(b.id)!), [visible, queueNo]);
-  const rest = useMemo(() => visible.filter((b) => !queueNo.has(b.id)), [visible, queueNo]);
+  // fora da fila: os já lidos continuam aparecendo, mas no fim
+  const rest = useMemo(() => visible.filter((b) => !queueNo.has(b.id)).sort((a, b) => Number(a.status === "lido") - Number(b.status === "lido")), [visible, queueNo]);
   const queueLeft = queued.reduce((a, b) => a + (b.word_count ?? 0) * (1 - b.progress), 0);
 
   /** Reordena a fila (troca com o vizinho) e renumera 1, 2, 3… */
