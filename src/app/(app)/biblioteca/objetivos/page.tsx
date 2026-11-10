@@ -40,12 +40,11 @@ export default function Mesas() {
   const resumo = (m: Objetivo) => {
     const lista = itens.filter((i) => i.objetivo_id === m.id);
     const lidos = lista.filter((i) => i.feito || (i.book_id && porLivro.get(i.book_id)?.status === "lido")).length;
-    const naBiblioteca = lista.filter((i) => i.book_id && porLivro.has(i.book_id)).length;
     const faltam = lista.reduce((n, i) => {
       const b = i.book_id ? porLivro.get(i.book_id) : undefined;
       return n + (b && b.status !== "lido" && b.word_count ? b.word_count * (1 - b.progress) : 0);
     }, 0);
-    return { total: lista.length, lidos, naBiblioteca, faltam };
+    return { total: lista.length, lidos, faltam };
   };
 
   async function mover(m: Objetivo, dir: -1 | 1) {
@@ -88,8 +87,8 @@ export default function Mesas() {
             <div key={m.id} className="card p-5 relative group hover:border-faint transition-colors">
               <Link href={`/biblioteca/objetivos/${m.id}`} className="absolute inset-0" aria-label={`Abrir ${m.titulo}`} />
               <div className="flex items-start justify-between gap-2">
-                <span className="text-xs text-faint font-mono">Bloco {k}</span>
-                <span className="relative z-10">
+                <h2 className="text-lg leading-snug">{m.titulo}</h2>
+                <span className="relative z-10 -mr-1">
                   <RowMenu items={[
                     { label: "Renomear", icon: Pencil, onClick: () => setModal({ renomear: m }) },
                     { label: "Mover para antes", icon: ArrowUp, disabled: k === 0, onClick: () => mover(m, -1) },
@@ -98,7 +97,6 @@ export default function Mesas() {
                   ]} />
                 </span>
               </div>
-              <h2 className="text-lg leading-snug mt-1">{m.titulo}</h2>
               {m.descricao && <p className="text-sm text-muted mt-1 line-clamp-2">{m.descricao}</p>}
               <div className="mt-4 flex items-baseline justify-between text-sm tabular-nums">
                 <span>{r.lidos} de {r.total} <span className="text-muted">{r.total === 1 ? "livro lido" : "livros lidos"}</span></span>
@@ -107,9 +105,7 @@ export default function Mesas() {
               <div className="mt-1.5 h-1.5 rounded-full bg-surface-2 overflow-hidden">
                 <div className="h-full rounded-full bg-chart" style={{ width: `${pct * 100}%` }} />
               </div>
-              <div className="mt-2 text-xs text-faint">
-                {r.naBiblioteca} na biblioteca{r.faltam ? ` · ≈ ${fmtDuration((r.faltam / ppm) * 60)} de leitura` : ""}
-              </div>
+              {r.faltam > 0 && <div className="mt-2 text-xs text-faint">≈ {fmtDuration((r.faltam / ppm) * 60)} de leitura pela frente</div>}
             </div>
           );
         })}
@@ -167,9 +163,13 @@ function NomeMesa({ titulo, inicial, onClose, onSalvar }: {
 function ColarLista({ livros, inicio, onClose, onFeito }: { livros: LivroLite[]; inicio: number; onClose: () => void; onFeito: () => void }) {
   const [texto, setTexto] = useState("");
   const [salvando, setSalvando] = useState(false);
-  const lidas = useMemo(() => lerLista(texto), [texto]);
-  const total = lidas.reduce((n, m) => n + m.itens.length, 0);
-  const achados = lidas.reduce((n, m) => n + m.itens.filter((i) => acharLivro(i, livros)).length, 0);
+  // só entram livros que já estão na biblioteca; mesa sem nenhum deles não é criada
+  const todas = useMemo(() => lerLista(texto).map((m) => ({
+    ...m, itens: m.itens.flatMap((i) => { const b = acharLivro(i, livros); return b ? [{ ...i, book: b }] : []; }), lidos: m.itens.length,
+  })), [texto, livros]);
+  const lidas = todas.filter((m) => m.itens.length);
+  const total = todas.reduce((n, m) => n + m.lidos, 0);
+  const achados = lidas.reduce((n, m) => n + m.itens.length, 0);
 
   async function importar() {
     setSalvando(true);
@@ -180,7 +180,7 @@ function ColarLista({ livros, inicio, onClose, onFeito }: { livros: LivroLite[];
       if (!oid || !m.itens.length) continue;
       await sb.from("objetivo_itens").insert(m.itens.map((i, p) => ({
         objetivo_id: oid, posicao: p, secao: i.secao, cdd: i.cdd, autor: i.autor, titulo: i.titulo,
-        feito: i.feito, feito_em: i.feito ? new Date().toISOString() : null, book_id: acharLivro(i, livros)?.id ?? null,
+        feito: i.feito, feito_em: i.feito ? new Date().toISOString() : null, book_id: i.book.id,
       })));
     }
     onFeito();
@@ -189,20 +189,23 @@ function ColarLista({ livros, inicio, onClose, onFeito }: { livros: LivroLite[];
   return (
     <Janela titulo="Colar uma lista" onClose={onClose} larga>
       <p className="text-sm text-muted">
-        Cada <b>“Bloco N — Nome”</b> vira uma mesa; linhas como <b>“1.1. Nome”</b> viram seções; e cada
-        <b> “- [ ] 709 AUTOR – Título”</b> vira um livro, na ordem da lista. Os livros que já estão na biblioteca são ligados sozinhos.
+        Cada linha de título (como <b>“Bloco 1 — Nome”</b>) vira uma mesa, com o nome exatamente como você escreveu; linhas como <b>“1.1. Nome”</b> viram seções; e cada
+        <b> “- [ ] 709 AUTOR – Título”</b> é procurado na sua biblioteca. Só entram os livros que já estão lá, na ordem da lista; os outros ficam de fora.
       </p>
       <textarea className="input min-h-[260px] font-mono text-xs leading-relaxed" value={texto} onChange={(e) => setTexto(e.target.value)} autoFocus
         placeholder={"Bloco 0 — Aprender a estudar\n- [ ] 700.92 CURREY, Mason – Os segredos dos grandes artistas\n- [ ] 650.1 NEWPORT, Cal – Trabalho focado\n\nBloco 1 — Os fundamentos estéticos\n1.1. História da arte e educação do olhar\n- [ ] 709 GOMBRICH, Ernst – A história da arte"} />
-      {lidas.length > 0 && (
+      {total > 0 && (
         <div className="rounded-lg bg-surface-2 p-3 text-sm space-y-1">
           {lidas.map((m, k) => (
             <div key={k} className="flex justify-between gap-3">
-              <span className="truncate"><span className="text-faint font-mono text-xs">Bloco {inicio + k}</span> · {m.titulo}</span>
-              <span className="text-muted tabular-nums shrink-0">{m.itens.length} livros</span>
+              <span className="truncate">{m.titulo}</span>
+              <span className="text-muted tabular-nums shrink-0">{m.itens.length} {m.itens.length === 1 ? "livro" : "livros"}</span>
             </div>
           ))}
-          <div className="text-xs text-muted pt-1">{total} livros no total · {achados} já estão na sua biblioteca</div>
+          <div className="text-xs text-muted pt-1">
+            {achados} de {total} livros da lista estão na sua biblioteca.
+            {todas.length > lidas.length && ` ${todas.length - lidas.length} ${todas.length - lidas.length === 1 ? "mesa ficou" : "mesas ficaram"} de fora por não ter nenhum livro lá.`}
+          </div>
         </div>
       )}
       <div className="flex justify-end gap-2">

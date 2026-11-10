@@ -49,7 +49,8 @@ export function lerLista(texto: string): MesaLida[] {
   for (const bruta of texto.split(/\r?\n/)) {
     const l = bruta.trim();
     if (!l || l.startsWith("```")) continue;
-    const bloco = l.match(/^(?:#+\s*)?bloco\s+\d+\s*[—–:.-]\s*(.+)$/i);
+    // "Bloco 0 — Aprender a estudar": o nome fica inteiro, do jeito que você escreveu (a numeração é sua)
+    const bloco = l.match(/^(?:#+\s*)?(bloco\s+\S+\s*[—–:.-]\s*.+)$/i);
     if (bloco) { atual = { titulo: bloco[1].trim(), itens: [] }; mesas.push(atual); secao = ""; continue; }
     const item = l.match(/^[-*]\s*\[([ xX])\]\s*(.+)$/) ?? l.match(/^[-*]\s+(.+)$/);
     if (item) {

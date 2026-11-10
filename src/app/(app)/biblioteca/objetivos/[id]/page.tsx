@@ -2,47 +2,47 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, BookOpen, Check, Link2, Pencil, Plus, Search, Trash2, Unlink, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, BookOpen, Check, Link2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { Page } from "@/components/page";
 import { BibliotecaTabs } from "@/components/biblioteca-tabs";
 import { RowMenu } from "@/components/row-menu";
 import { OPCOES_LIVRO, StatusPill } from "@/components/status-pill";
 import { supabase } from "@/lib/supabase/client";
 import { fmtDuration } from "@/lib/dates";
-import { acharLivro, lerLinhaDeLivro, type ItemObjetivo, type Objetivo } from "@/lib/objetivos";
+import type { ItemObjetivo, Objetivo } from "@/lib/objetivos";
 import type { Book, BookStatus } from "@/lib/types";
 
-type LivroLite = Pick<Book, "id" | "title" | "author" | "status" | "word_count" | "progress" | "format">;
+type LivroLite = Pick<Book, "id" | "title" | "author" | "status" | "word_count" | "progress" | "format" | "folder_id">;
 
 export default function Mesa() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [mesa, setMesa] = useState<Objetivo | null>(null);
-  const [posicaoMesa, setPosicaoMesa] = useState(0);
   const [itens, setItens] = useState<ItemObjetivo[]>([]);
   const [livros, setLivros] = useState<LivroLite[]>([]);
   const [ppm, setPpm] = useState(220);
   const [ligando, setLigando] = useState<ItemObjetivo | null>(null);
   const [editando, setEditando] = useState<ItemObjetivo | "mesa" | null>(null);
-  const [novo, setNovo] = useState("");
+  const [adicionando, setAdicionando] = useState(false);
+  const [cdd, setCdd] = useState<Map<string, string>>(new Map());
   const [secaoNova, setSecaoNova] = useState("");
   const [naoAchada, setNaoAchada] = useState(false);
 
   async function load() {
     const sb = supabase();
-    const [m, todas, i, b, r] = await Promise.all([
+    const [m, i, b, r, f] = await Promise.all([
       sb.from("objetivos").select("*").eq("id", id).maybeSingle(),
-      sb.from("objetivos").select("id").order("posicao"),
       sb.from("objetivo_itens").select("*").eq("objetivo_id", id).order("posicao"),
-      sb.from("books").select("id,title,author,status,word_count,progress,format"),
+      sb.from("books").select("id,title,author,status,word_count,progress,format,folder_id"),
       sb.from("reading_sessions").select("seconds,words").order("started_at", { ascending: false }).limit(200),
+      sb.from("folders").select("id,code"),
     ]);
     if (!m.data) { setNaoAchada(true); return; }
     setMesa(m.data as Objetivo);
-    setPosicaoMesa(Math.max(0, ((todas.data as { id: string }[]) ?? []).findIndex((x) => x.id === id)));
     const lista = (i.data as ItemObjetivo[]) ?? [];
     setItens(lista);
     setLivros((b.data as LivroLite[]) ?? []);
+    setCdd(new Map(((f.data as { id: string; code: string | null }[]) ?? []).filter((x) => x.code).map((x) => [x.id, x.code as string])));
     setSecaoNova((s) => s || lista[lista.length - 1]?.secao || "");
     const rs = (r.data as { seconds: number; words: number }[]) ?? [];
     const secs = rs.reduce((a, x) => a + x.seconds, 0);
@@ -71,6 +71,11 @@ export default function Mesa() {
     return n + (b && b.status !== "lido" && b.word_count ? b.word_count * (1 - b.progress) : 0);
   }, 0);
   const proximo = itens.find((i) => !lido(i));
+  // o que aparece na lista vem do próprio livro da biblioteca (se ele mudar de nome lá, muda aqui também)
+  const titulo = (i: ItemObjetivo) => livroDe(i)?.title ?? i.titulo;
+  const autor = (i: ItemObjetivo) => (livroDe(i) ? livroDe(i)?.author ?? "" : i.autor);
+  const codigo = (i: ItemObjetivo) => { const b = livroDe(i); return (b?.folder_id && cdd.get(b.folder_id)) || i.cdd; };
+  const naMesa = useMemo(() => new Set(itens.map((i) => i.book_id).filter(Boolean)), [itens]);
 
   function trocar(i: ItemObjetivo, campos: Partial<ItemObjetivo>) {
     setItens((l) => l.map((x) => (x.id === i.id ? { ...x, ...campos } : x)));
@@ -111,9 +116,7 @@ export default function Mesa() {
     await supabase().from("objetivo_itens").delete().eq("id", i.id);
   }
 
-  async function adicionar() {
-    const l = lerLinhaDeLivro(novo);
-    if (!l || !l.titulo) return;
+  async function adicionar(b: LivroLite) {
     // entra no fim da seção escolhida (ou no fim da mesa)
     const ultimoDaSecao = [...itens].reverse().find((x) => x.secao === secaoNova.trim());
     const pos = ultimoDaSecao ? ultimoDaSecao.posicao + 1 : itens.length;
@@ -121,9 +124,9 @@ export default function Mesa() {
     const depois = itens.filter((x) => x.posicao >= pos);
     await Promise.all(depois.map((x) => sb.from("objetivo_itens").update({ posicao: x.posicao + 1 }).eq("id", x.id)));
     await sb.from("objetivo_itens").insert({
-      objetivo_id: id, posicao: pos, secao: secaoNova.trim(), ...l, book_id: acharLivro(l, livros)?.id ?? null,
+      objetivo_id: id, posicao: pos, secao: secaoNova.trim(), book_id: b.id,
+      titulo: b.title, autor: b.author ?? "", cdd: (b.folder_id && cdd.get(b.folder_id)) || "",
     });
-    setNovo("");
     void load();
   }
 
@@ -152,15 +155,14 @@ export default function Mesa() {
         </>
       }>
       <div className="card p-5 mb-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 text-sm">
-          <span className="text-xs text-faint font-mono">Bloco {posicaoMesa}</span>
+        <div className="flex flex-wrap items-baseline justify-end gap-x-6 gap-y-1 text-sm">
           <span className="tabular-nums">{lidos} de {itens.length} <span className="text-muted">lidos · {Math.round(pct * 100)}%</span></span>
         </div>
         <div className="mt-2 h-1.5 rounded-full bg-surface-2 overflow-hidden">
           <div className="h-full rounded-full bg-chart" style={{ width: `${pct * 100}%` }} />
         </div>
         <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-muted">
-          <span>{proximo ? <>Próximo: <span className="text-ink">{proximo.titulo}</span></> : itens.length ? "Mesa concluída." : "Nenhum livro ainda."}</span>
+          <span>{proximo ? <>Próximo: <span className="text-ink">{titulo(proximo)}</span></> : itens.length ? "Mesa concluída." : "Nenhum livro ainda."}</span>
           {faltamPalavras > 0 && <span>≈ {fmtDuration((faltamPalavras / ppm) * 60)} de leitura nos livros da biblioteca · {ppm} ppm</span>}
         </div>
       </div>
@@ -184,22 +186,21 @@ export default function Mesa() {
                     <div className="min-w-0 flex-1">
                       <div className={`truncate ${feito ? "text-muted line-through decoration-faint" : ""}`}>
                         {b && b.format !== "fisico"
-                          ? <Link href={`/ler/${b.id}`} className="hover:underline">{i.titulo}</Link>
-                          : i.titulo}
+                          ? <Link href={`/ler/${b.id}`} className="hover:underline">{titulo(i)}</Link>
+                          : titulo(i)}
                       </div>
                       <div className="text-xs text-muted truncate flex items-center gap-2">
-                        {i.cdd && <span className="font-mono text-faint">{i.cdd}</span>}
-                        {i.autor && <span className="truncate">{i.autor}</span>}
-                        {!b && <span className="text-faint shrink-0 hidden sm:inline">· fora da biblioteca</span>}
+                        {codigo(i) && <span className="font-mono text-faint">{codigo(i)}</span>}
+                        {autor(i) && <span className="truncate">{autor(i)}</span>}
+                        {!b && <span className="text-faint shrink-0">· saiu da biblioteca</span>}
                         {b && b.status === "lendo" && b.progress > 0 && <span>· {Math.round(b.progress * 100)}%</span>}
                       </div>
                     </div>
-                    {b && <StatusPill label="Status do livro" value={b.status} options={OPCOES_LIVRO} onChange={(st) => statusDoLivro(b, st)} />}
+                    {b && <span className="hidden sm:block"><StatusPill label="Status do livro" value={b.status} options={OPCOES_LIVRO} onChange={(st) => statusDoLivro(b, st)} /></span>}
                     <RowMenu items={[
                       ...(b ? [{ label: b.format === "fisico" ? "Ver na biblioteca" : "Abrir no leitor", icon: BookOpen, onClick: () => abrir(b) }] : []),
-                      { label: b ? "Trocar o livro ligado" : "Ligar a um livro da biblioteca", icon: Link2, onClick: () => setLigando(i) },
-                      ...(b ? [{ label: "Desligar do livro", icon: Unlink, onClick: () => trocar(i, { book_id: null }) }] : []),
-                      { label: "Editar", icon: Pencil, onClick: () => setEditando(i) },
+                      { label: b ? "Trocar por outro livro" : "Escolher o livro na biblioteca", icon: Link2, onClick: () => setLigando(i) },
+                      { label: "Mudar de seção", icon: Pencil, onClick: () => setEditando(i) },
                       { label: "Subir", icon: ArrowUp, separar: true, disabled: k === 0 || itens[k - 1]?.secao !== i.secao, onClick: () => mover(i, -1) },
                       { label: "Descer", icon: ArrowDown, disabled: k === itens.length - 1 || itens[k + 1]?.secao !== i.secao, onClick: () => mover(i, 1) },
                       { label: "Tirar da mesa", icon: Trash2, danger: true, separar: true, onClick: () => remover(i) },
@@ -212,20 +213,23 @@ export default function Mesa() {
         ))}
       </div>
 
+      {!itens.length && <p className="text-sm text-muted">Esta mesa ainda está vazia. Adicione os livros da sua biblioteca, na ordem em que quer ler.</p>}
+
       <div className="card p-4 mt-8 space-y-2">
-        <div className="label">Adicionar um livro</div>
+        <div className="label">Adicionar um livro da biblioteca</div>
         <div className="flex flex-wrap gap-2">
-          <input className="input flex-1 min-w-[240px]" value={novo} onChange={(e) => setNovo(e.target.value)}
-            placeholder="709 GOMBRICH, Ernst – A história da arte" onKeyDown={(e) => e.key === "Enter" && adicionar()} />
-          <input className="input w-full sm:w-64" list="secoes-mesa" value={secaoNova} onChange={(e) => setSecaoNova(e.target.value)} placeholder="Seção (opcional)" />
+          <input className="input flex-1 min-w-[200px]" list="secoes-mesa" value={secaoNova} onChange={(e) => setSecaoNova(e.target.value)} placeholder="Seção (opcional), ex.: 1.1. História da arte" />
           <datalist id="secoes-mesa">{nomesDeSecao.map((s) => <option key={s} value={s} />)}</datalist>
-          <button className="btn btn-primary" disabled={!novo.trim()} onClick={adicionar}><Plus size={15} /> Adicionar</button>
+          <button className="btn btn-primary" onClick={() => setAdicionando(true)}><Plus size={15} /> Escolher livro</button>
         </div>
-        <p className="text-xs text-faint">Entra no fim da seção. Se o livro já estiver na biblioteca, ele é ligado sozinho.</p>
+        <p className="text-xs text-faint">Só entram livros que já estão na biblioteca. O livro vai para o fim da seção; depois é só subir ou descer.</p>
       </div>
 
-      {ligando && <Ligar item={ligando} livros={livros} onClose={() => setLigando(null)}
-        onEscolher={(b) => { trocar(ligando, { book_id: b.id }); setLigando(null); }} />}
+      {adicionando && <EscolherLivro titulo="Adicionar à mesa" livros={livros.filter((b) => !naMesa.has(b.id))} onClose={() => setAdicionando(false)}
+        onEscolher={async (b) => { setAdicionando(false); await adicionar(b); }} />}
+      {ligando && <EscolherLivro titulo="Escolher o livro" livros={livros.filter((b) => !naMesa.has(b.id))} inicial={ligando.titulo.split(/[:—–]/)[0].trim()}
+        onClose={() => setLigando(null)}
+        onEscolher={(b) => { trocar(ligando, { book_id: b.id, titulo: b.title, autor: b.author ?? "" }); setLigando(null); }} />}
       {editando === "mesa" && <EditarMesa mesa={mesa} onClose={() => setEditando(null)}
         onSalvar={async (titulo, descricao) => {
           setMesa({ ...mesa, titulo, descricao });
@@ -233,9 +237,20 @@ export default function Mesa() {
           await supabase().from("objetivos").update({ titulo, descricao }).eq("id", mesa.id);
         }} />}
       {editando && editando !== "mesa" && <EditarItem item={editando} secoes={nomesDeSecao} onClose={() => setEditando(null)}
-        onSalvar={async (campos) => {
+        onSalvar={async ({ secao }) => {
           setEditando(null);
-          await supabase().from("objetivo_itens").update(campos).eq("id", editando.id);
+          if (secao === editando.secao) return;
+          // o livro vai para o fim da seção nova (ou para o fim da mesa, se a seção for nova)
+          const resto = itens.filter((x) => x.id !== editando.id);
+          let k = resto.length;
+          for (let p = resto.length - 1; p >= 0; p--) if (resto[p].secao === secao) { k = p + 1; break; }
+          const nova = [...resto.slice(0, k), { ...editando, secao }, ...resto.slice(k)];
+          const sb = supabase();
+          await Promise.all(nova.map((x, p) => {
+            const antes = itens.find((y) => y.id === x.id);
+            return antes && antes.posicao === p && antes.secao === x.secao ? null
+              : sb.from("objetivo_itens").update({ posicao: p, secao: x.secao }).eq("id", x.id);
+          }));
           void load();
         }} />}
     </Page>
@@ -256,25 +271,32 @@ function Janela({ titulo, onClose, children }: { titulo: string; onClose: () => 
   );
 }
 
-function Ligar({ item, livros, onClose, onEscolher }: { item: ItemObjetivo; livros: LivroLite[]; onClose: () => void; onEscolher: (b: LivroLite) => void }) {
-  const [q, setQ] = useState(item.titulo.split(/[:—–]/)[0].trim());
+function EscolherLivro({ titulo, livros, inicial = "", onClose, onEscolher }: {
+  titulo: string; livros: LivroLite[]; inicial?: string; onClose: () => void; onEscolher: (b: LivroLite) => void;
+}) {
+  const [q, setQ] = useState(inicial);
   const dobra = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  const achados = livros.filter((b) => dobra(q).split(/\s+/).filter(Boolean).every((w) => dobra(`${b.title} ${b.author ?? ""}`).includes(w)));
+  const achados = livros
+    .filter((b) => dobra(q).split(/\s+/).filter(Boolean).every((w) => dobra(`${b.title} ${b.author ?? ""}`).includes(w)))
+    .sort((a, b) => a.title.localeCompare(b.title, "pt-BR"));
   return (
-    <Janela titulo="Ligar a um livro" onClose={onClose}>
-      <p className="text-sm text-muted">{item.autor ? `${item.autor} – ` : ""}{item.titulo}</p>
+    <Janela titulo={titulo} onClose={onClose}>
       <label className="input flex items-center gap-2 py-1.5">
         <Search size={15} className="text-faint shrink-0" />
-        <input autoFocus className="bg-transparent outline-none flex-1 min-w-0" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar na biblioteca" />
+        <input autoFocus className="bg-transparent outline-none flex-1 min-w-0" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por título ou autor" />
       </label>
-      <div className="max-h-72 overflow-y-auto -mx-2">
-        {achados.slice(0, 40).map((b) => (
+      <div className="max-h-80 overflow-y-auto -mx-2">
+        {achados.slice(0, 60).map((b) => (
           <button key={b.id} onClick={() => onEscolher(b)} className="w-full text-left px-2 py-2 rounded-lg hover:bg-surface-2">
             <div className="truncate">{b.title}</div>
             <div className="text-xs text-muted truncate">{b.author}</div>
           </button>
         ))}
-        {!achados.length && <p className="px-2 text-sm text-muted">Nenhum livro com esse nome. Envie o livro na Biblioteca e volte aqui.</p>}
+        {!achados.length && (
+          <p className="px-2 text-sm text-muted">
+            {livros.length ? "Nenhum livro com esse nome na biblioteca." : "Todos os livros da biblioteca já estão nesta mesa."} Para usar um livro novo, envie-o primeiro na <Link href="/biblioteca" className="underline">Biblioteca</Link>.
+          </p>
+        )}
       </div>
     </Janela>
   );
@@ -298,24 +320,18 @@ function EditarMesa({ mesa, onClose, onSalvar }: { mesa: Objetivo; onClose: () =
 }
 
 function EditarItem({ item, secoes, onClose, onSalvar }: {
-  item: ItemObjetivo; secoes: string[]; onClose: () => void; onSalvar: (c: Pick<ItemObjetivo, "cdd" | "autor" | "titulo" | "secao">) => void;
+  item: ItemObjetivo; secoes: string[]; onClose: () => void; onSalvar: (c: Pick<ItemObjetivo, "secao">) => void;
 }) {
-  const [c, setC] = useState({ cdd: item.cdd, autor: item.autor, titulo: item.titulo, secao: item.secao });
-  const campo = (k: keyof typeof c, rotulo: string, extra?: React.InputHTMLAttributes<HTMLInputElement>) => (
-    <label className="block"><span className="label">{rotulo}</span>
-      <input className="input mt-1" value={c[k]} onChange={(e) => setC({ ...c, [k]: e.target.value })} {...extra} /></label>
-  );
+  const [secao, setSecao] = useState(item.secao);
   return (
-    <Janela titulo="Editar livro da mesa" onClose={onClose}>
-      {campo("titulo", "Título", { autoFocus: true })}
-      {campo("autor", "Autor")}
-      {campo("cdd", "CDD")}
-      {campo("secao", "Seção", { list: "secoes-editar" })}
+    <Janela titulo="Mudar de seção" onClose={onClose}>
+      <label className="block"><span className="label">Seção</span>
+        <input autoFocus className="input mt-1" list="secoes-editar" value={secao} placeholder="Sem seção" onChange={(e) => setSecao(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onSalvar({ secao: secao.trim() })} /></label>
       <datalist id="secoes-editar">{secoes.map((s) => <option key={s} value={s} />)}</datalist>
       <div className="flex justify-end gap-2">
         <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-        <button className="btn btn-primary" disabled={!c.titulo.trim()}
-          onClick={() => onSalvar({ cdd: c.cdd.trim(), autor: c.autor.trim(), titulo: c.titulo.trim(), secao: c.secao.trim() })}>Salvar</button>
+        <button className="btn btn-primary" onClick={() => onSalvar({ secao: secao.trim() })}>Salvar</button>
       </div>
     </Janela>
   );
