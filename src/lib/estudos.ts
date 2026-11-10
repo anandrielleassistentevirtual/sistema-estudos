@@ -3,9 +3,39 @@ import { supabase } from "./supabase/client";
 import type { Note } from "./types";
 
 /** Aula na lista (sem a transcrição, que é baixada só ao abrir a aula). */
-export type Aula = Pick<Note, "id" | "title" | "folder" | "professor" | "course" | "created_at" | "updated_at" | "location" | "completed_at"> & { anotacoes: string };
+export type Aula = Pick<Note, "id" | "title" | "folder" | "professor" | "course" | "created_at" | "updated_at" | "location" | "completed_at"> & {
+  anotacoes: string;
+  /** palavras da transcrição (contadas pelo banco quando o texto muda) */
+  palavras: number;
+  /** quanto já foi lido (0 a 1) */
+  progresso: number;
+};
 
-export const COLUNAS_AULA = "id,title,folder,professor,course,created_at,updated_at,location,completed_at,anotacoes";
+export const COLUNAS_AULA = "id,title,folder,professor,course,created_at,updated_at,location,completed_at,anotacoes,palavras,progresso";
+
+/** Palavras que faltam ler numa aula. */
+export const faltam = (a: Pick<Aula, "palavras" | "progresso" | "completed_at">) =>
+  a.completed_at ? 0 : Math.max(0, (a.palavras ?? 0) * (1 - (a.progresso ?? 0)));
+
+const PPM_PADRAO = 220;
+
+/**
+ * Seu ritmo de leitura (palavras por minuto), pelas últimas sessões medidas no leitor.
+ * Usa as sessões das aulas se houver o bastante; senão, todas as leituras; senão, 220.
+ */
+export async function ppmMedio(): Promise<{ ppm: number; origem: "aulas" | "leituras" | "padrão" }> {
+  const { data } = await supabase().from("reading_sessions").select("seconds,words,note_id").order("started_at", { ascending: false }).limit(300);
+  const linhas = (data as { seconds: number; words: number; note_id: string | null }[]) ?? [];
+  const calc = (xs: typeof linhas) => {
+    const s = xs.reduce((a, x) => a + x.seconds, 0);
+    return s > 300 ? Math.round(xs.reduce((a, x) => a + x.words, 0) / (s / 60)) : 0;
+  };
+  const aulas = calc(linhas.filter((x) => x.note_id));
+  if (aulas) return { ppm: aulas, origem: "aulas" };
+  const todas = calc(linhas);
+  if (todas) return { ppm: todas, origem: "leituras" };
+  return { ppm: PPM_PADRAO, origem: "padrão" };
+}
 
 export const porTitulo = (a: { title: string }, b: { title: string }) =>
   a.title.localeCompare(b.title, "pt-BR", { numeric: true, sensitivity: "base" });

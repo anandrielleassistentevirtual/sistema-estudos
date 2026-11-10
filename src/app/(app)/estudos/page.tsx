@@ -8,8 +8,9 @@ import { Empty, Page } from "@/components/page";
 import { RowMenu } from "@/components/row-menu";
 import { supabase } from "@/lib/supabase/client";
 import {
-  baixarAula, baixarTodas, COLUNAS_AULA, importarAulas, lugarDoArquivo, nivelProvavel, numeroDaAula, porTitulo, syncHeading, type Aula,
+  baixarAula, baixarTodas, COLUNAS_AULA, faltam, importarAulas, lugarDoArquivo, nivelProvavel, numeroDaAula, porTitulo, ppmMedio, syncHeading, type Aula,
 } from "@/lib/estudos";
+import { fmtDuration, nf } from "@/lib/dates";
 
 type Filtro = "todas" | "pendentes" | "concluidas";
 const SEM_CURSO = "Sem curso";
@@ -25,6 +26,8 @@ export default function Estudos() {
   const [preview, setPreview] = useState<{ files: File[]; nivel: 0 | 1 } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [editando, setEditando] = useState<Aula | null>(null);
+  const [ppm, setPpm] = useState<{ ppm: number; origem: string }>({ ppm: 220, origem: "padrão" });
+  const tempo = (palavras: number) => fmtDuration((palavras / ppm.ppm) * 60);
   const pastaRef = useRef<HTMLInputElement>(null);
   const arquivosRef = useRef<HTMLInputElement>(null);
 
@@ -37,6 +40,7 @@ export default function Estudos() {
     const id = new URLSearchParams(window.location.search).get("id");
     if (id) { router.replace(`/estudos/${id}`); return; }
     void load();
+    void ppmMedio().then(setPpm);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // busca dentro das transcrições: feita no banco (sem baixar tudo)
@@ -97,8 +101,9 @@ export default function Estudos() {
 
   async function alternarConcluida(a: Aula) {
     const completed_at = a.completed_at ? null : new Date().toISOString();
-    setAulas((all) => all?.map((x) => (x.id === a.id ? { ...x, completed_at } : x)) ?? null);
-    await supabase().from("notes").update({ completed_at }).eq("id", a.id);
+    const extra = completed_at ? { progresso: 1 } : {};
+    setAulas((all) => all?.map((x) => (x.id === a.id ? { ...x, completed_at, ...extra } : x)) ?? null);
+    await supabase().from("notes").update({ completed_at, ...extra }).eq("id", a.id);
   }
 
   async function apagar(a: Aula) {
@@ -137,11 +142,14 @@ export default function Estudos() {
 
   const total = aulas?.length ?? 0;
   const feitas = aulas?.filter((a) => a.completed_at).length ?? 0;
+  const pelaFrente = (aulas ?? []).reduce((n, a) => n + faltam(a), 0);
   const alterna = (k: string) => setAbertos((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   return (
     <Page wide title="Estudos"
-      subtitle={total ? `${total} ${total === 1 ? "aula" : "aulas"} · ${feitas} ${feitas === 1 ? "concluída" : "concluídas"}` : "Cursos e transcrições de aulas."}
+      subtitle={total
+        ? `${total - feitas} ${total - feitas === 1 ? "aula pendente" : "aulas pendentes"} · ≈ ${tempo(pelaFrente)} de leitura pela frente a ${ppm.ppm} ppm`
+        : "Cursos e transcrições de aulas."}
       actions={
         <>
           <button className="btn" onClick={() => pastaRef.current?.click()}><FolderUp size={15} /> Importar curso</button>
@@ -170,7 +178,7 @@ export default function Estudos() {
                 <button className="p-1.5 text-faint hover:text-ink disabled:opacity-0" disabled={!x.modulos.size} onClick={() => alterna(c)}>
                   {abertos.has(c) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </button>
-                <button onClick={() => setSel(`c:${c}`)} className={`flex-1 min-w-0 flex items-center gap-2 py-1.5 pr-2.5 text-left ${sel === `c:${c}` ? "text-ink font-medium" : "text-ink/90"}`}>
+                <button onClick={() => setSel(`c:${c}`)} title={`≈ ${tempo((aulas ?? []).filter((a) => (a.course || SEM_CURSO) === c).reduce((n, a) => n + faltam(a), 0))} de leitura pela frente`} className={`flex-1 min-w-0 flex items-center gap-2 py-1.5 pr-2.5 text-left ${sel === `c:${c}` ? "text-ink font-medium" : "text-ink/90"}`}>
                   <FolderOpen size={14} className="text-icon shrink-0" />
                   <span className="truncate flex-1">{c}</span>
                   <span className="text-xs text-faint tabular-nums">{x.feitas}/{x.total}</span>
@@ -212,12 +220,15 @@ export default function Estudos() {
               <div key={g}>
                 <div className="flex items-baseline justify-between mb-2 px-1">
                   <h2 className="text-sm text-muted truncate">{g}</h2>
-                  <span className="text-xs text-faint tabular-nums">{lista.filter((a) => a.completed_at).length}/{lista.length}</span>
+                  <span className="text-xs text-faint tabular-nums">
+                    {lista.filter((a) => a.completed_at).length}/{lista.length}
+                    {lista.some((a) => !a.completed_at) && ` · ≈ ${tempo(lista.reduce((n, a) => n + faltam(a), 0))} pela frente`}
+                  </span>
                 </div>
                 <div className="card divide-y divide-line">
                   {lista.map((a) => {
                     const n = numeroDaAula(a.title);
-                    const comecada = !a.completed_at && !!a.location && a.location !== "p:0";
+                    const comecada = !a.completed_at && (a.progresso ?? 0) > 0.01;
                     return (
                       <div key={a.id} className="group flex items-center gap-2 pr-2 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
                         <button onClick={() => router.push(`/estudos/${a.id}`)} className="flex items-center gap-3 min-w-0 flex-1 p-3 text-left" title="Abrir a aula">
@@ -227,11 +238,14 @@ export default function Estudos() {
                           <span className="min-w-0">
                             <span className="block truncate font-medium">{a.title}</span>
                             <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted mt-0.5">
-                              {a.professor && <span className="truncate">{a.professor}</span>}
-                              {comecada && <span>{a.professor ? "· " : ""}em andamento</span>}
+                              {[
+                                a.professor || null,
+                                a.palavras ? `${nf.format(a.palavras)} palavras · ≈ ${tempo(a.palavras)}` : null,
+                                comecada ? `${Math.round((a.progresso ?? 0) * 100)}% lido · faltam ≈ ${tempo(faltam(a))}` : null,
+                              ].filter(Boolean).join(" · ")}
                               {(a.anotacoes ?? "").trim() && (
                                 <span className="inline-flex items-center gap-1" title="Esta aula tem anotações suas">
-                                  {(a.professor || comecada) && "· "}<NotebookPen size={11} /> anotações
+                                  · <NotebookPen size={11} /> anotações
                                 </span>
                               )}
                             </span>

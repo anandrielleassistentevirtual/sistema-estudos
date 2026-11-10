@@ -12,12 +12,12 @@ import { THEMES, type ReaderHandle, type TocItem } from "@/components/reader/typ
 import { ReadingTracker } from "@/lib/reading-tracker";
 import { useTimerEstado } from "@/components/timer-context";
 import { supabase, fire } from "@/lib/supabase/client";
-import { fmtClock, nf } from "@/lib/dates";
+import { fmtClock, fmtDuration, nf } from "@/lib/dates";
 import { countWords } from "@/lib/text";
-import { baixarAula } from "@/lib/estudos";
+import { baixarAula, ppmMedio } from "@/lib/estudos";
 import type { Note } from "@/lib/types";
 
-type AulaCompleta = Note & { anotacoes: string };
+type AulaCompleta = Note & { anotacoes: string; palavras: number; progresso: number };
 
 /** Uma aula aberta: o mesmo leitor dos livros, com as suas anotações ao lado. */
 export default function AulaAberta() {
@@ -43,6 +43,8 @@ export default function AulaAberta() {
   const [sel, setSel] = useState<{ location: string; quote: string } | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [salvo, setSalvo] = useState<"salvo" | "salvando" | "pendente">("salvo");
+  const [ppmBase, setPpmBase] = useState(220);
+  useEffect(() => { void ppmMedio().then((r) => setPpmBase(r.ppm)); }, []);
   const reader = useRef<ReaderHandle>(null);
   const tracker = useRef<ReadingTracker | null>(null);
   const timer = useTimerEstado();
@@ -72,17 +74,17 @@ export default function AulaAberta() {
   const blob = useMemo(() => (aula ? new Blob([aula.content], { type: "text/markdown" }) : null), [aula?.id, versao]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // posição: grava com atraso curto e na hora ao sair
-  const posPendente = useRef<string | null>(null);
+  const posPendente = useRef<{ loc: string; p: number } | null>(null);
   const posSalva = useRef<string | null>(null);
   useEffect(() => { posSalva.current = aula?.location ?? "p:0"; }, [aula?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const tPos = useRef<ReturnType<typeof setTimeout> | null>(null);
   const salvarPos = useCallback(() => {
     if (tPos.current) { clearTimeout(tPos.current); tPos.current = null; }
-    const loc = posPendente.current;
+    const pos = posPendente.current;
     posPendente.current = null;
-    if (!loc || loc === posSalva.current) return;
-    posSalva.current = loc;
-    fire(supabase().from("notes").update({ location: loc }).eq("id", id));
+    if (!pos || pos.loc === posSalva.current) return;
+    posSalva.current = pos.loc;
+    fire(supabase().from("notes").update({ location: pos.loc, progresso: Math.round(pos.p * 1000) / 1000 }).eq("id", id));
   }, [id]);
 
   // salvar textos (anotações / transcrição) com atraso curto
@@ -132,8 +134,9 @@ export default function AulaAberta() {
   async function alternarConcluida() {
     if (!aula) return;
     const completed_at = aula.completed_at ? null : new Date().toISOString();
-    setAula({ ...aula, completed_at });
-    await supabase().from("notes").update({ completed_at }).eq("id", id);
+    const extra = completed_at ? { progresso: 1 } : {};
+    setAula({ ...aula, completed_at, ...extra });
+    await supabase().from("notes").update({ completed_at, ...extra }).eq("id", id);
     if (completed_at) setAviso("Aula concluída. Muito bem!");
   }
 
@@ -182,7 +185,10 @@ export default function AulaAberta() {
               <span>{nf.format(sessao.words)} pal.</span>
               <span>{wpm ? `${wpm} ppm` : "— ppm"}</span>
             </div>
-            <span className="text-xs opacity-70 tabular-nums w-10 text-right" title="Progresso na aula">{Math.round(progresso * 100)}%</span>
+            <span className="text-xs opacity-70 tabular-nums text-right whitespace-nowrap" title={`Progresso na aula · tempo que falta no seu ritmo médio (${ppmBase} ppm)`}>
+              {Math.round(progresso * 100)}%
+              {aula?.palavras ? <span className="hidden sm:inline"> · faltam ≈ {fmtDuration((aula.palavras * (1 - progresso)) / ppmBase * 60)}</span> : null}
+            </span>
             <div className="hidden sm:flex items-center rounded-lg border mx-1" style={{ borderColor: linha }} title="Zoom (teclas + e −)">
               <button className="p-1.5 opacity-70 hover:opacity-100 disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, -1))} disabled={zoom <= ZOOM[0]} aria-label="Diminuir"><ZoomOut size={16} /></button>
               <button className="text-xs tabular-nums w-11 text-center opacity-80 hover:opacity-100" onClick={() => setPrefs((p) => ({ ...p, sizePt: 12 }))} title="Voltar a 100%">{zoom}%</button>
@@ -239,7 +245,7 @@ export default function AulaAberta() {
                 setProgresso(p);
                 if (l) setRotulo(l);
                 if (!loc) return;
-                posPendente.current = loc;
+                posPendente.current = { loc, p };
                 if (tPos.current) clearTimeout(tPos.current);
                 tPos.current = setTimeout(salvarPos, 1200);
               }}
