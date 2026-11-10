@@ -91,3 +91,36 @@ export function acharLivro(item: { autor: string; titulo: string }, livros: Pick
 
 /** Nome para exibir: "AUTOR – Título" */
 export const nomeDoItem = (i: Pick<ItemObjetivo, "autor" | "titulo">) => (i.autor ? `${i.autor} – ${i.titulo}` : i.titulo);
+
+/**
+ * Progresso da mesa medido em palavras: livros lidos contam inteiros, os que estão em leitura contam
+ * o quanto já foi lido. Livro sem contagem de palavras entra com a média dos outros da mesa.
+ */
+export function progressoDaMesa(
+  itens: Pick<ItemObjetivo, "feito" | "book_id">[],
+  porLivro: Map<string, Pick<Book, "status" | "word_count" | "progress">>,
+) {
+  const conhecidos = itens.map((i) => (i.book_id ? porLivro.get(i.book_id)?.word_count : null)).filter((w): w is number => !!w && w > 0);
+  const media = conhecidos.length ? conhecidos.reduce((a, w) => a + w, 0) / conhecidos.length : 60000;
+  let total = 0, lidas = 0, livrosLidos = 0;
+  for (const i of itens) {
+    const b = i.book_id ? porLivro.get(i.book_id) : undefined;
+    const w = b?.word_count && b.word_count > 0 ? b.word_count : media;
+    const feito = i.feito || b?.status === "lido";
+    total += w;
+    if (feito) { lidas += w; livrosLidos++; }
+    else if (b) lidas += w * Math.min(1, Math.max(0, b.progress || 0));
+  }
+  return { total, lidas, faltam: total - lidas, pct: total ? lidas / total : 0, livrosLidos, livros: itens.length };
+}
+
+/** 118000 → "118 mil"; 1250000 → "1,25 mi" */
+export function palavrasCurto(n: number) {
+  if (n >= 1e6) return `${(n / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mi`;
+  if (n >= 1e3) return `${Math.round(n / 1e3).toLocaleString("pt-BR")} mil`;
+  return String(Math.round(n));
+}
+
+/** 0.034 → "3,4%"; 0.42 → "42%" (com uma casa enquanto é pequeno, para o avanço aparecer) */
+export const pctTexto = (p: number) =>
+  `${(p * 100).toLocaleString("pt-BR", { maximumFractionDigits: p > 0 && p < 0.1 ? 1 : 0 })}%`;

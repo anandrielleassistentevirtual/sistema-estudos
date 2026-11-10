@@ -7,7 +7,7 @@ import { BibliotecaTabs } from "@/components/biblioteca-tabs";
 import { RowMenu } from "@/components/row-menu";
 import { supabase } from "@/lib/supabase/client";
 import { fmtDuration } from "@/lib/dates";
-import { acharLivro, lerLista, type ItemObjetivo, type Objetivo } from "@/lib/objetivos";
+import { acharLivro, lerLista, palavrasCurto, pctTexto, progressoDaMesa, type ItemObjetivo, type Objetivo } from "@/lib/objetivos";
 import type { Book } from "@/lib/types";
 
 type LivroLite = Pick<Book, "id" | "title" | "author" | "status" | "word_count" | "progress">;
@@ -37,15 +37,7 @@ export default function Mesas() {
   useEffect(() => { void load(); }, []);
 
   const porLivro = useMemo(() => new Map(livros.map((b) => [b.id, b])), [livros]);
-  const resumo = (m: Objetivo) => {
-    const lista = itens.filter((i) => i.objetivo_id === m.id);
-    const lidos = lista.filter((i) => i.feito || (i.book_id && porLivro.get(i.book_id)?.status === "lido")).length;
-    const faltam = lista.reduce((n, i) => {
-      const b = i.book_id ? porLivro.get(i.book_id) : undefined;
-      return n + (b && b.status !== "lido" && b.word_count ? b.word_count * (1 - b.progress) : 0);
-    }, 0);
-    return { total: lista.length, lidos, faltam };
-  };
+  const resumo = (m: Objetivo) => progressoDaMesa(itens.filter((i) => i.objetivo_id === m.id), porLivro);
 
   async function mover(m: Objetivo, dir: -1 | 1) {
     if (!mesas) return;
@@ -82,7 +74,6 @@ export default function Mesas() {
       <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {mesas?.map((m, k) => {
           const r = resumo(m);
-          const pct = r.total ? r.lidos / r.total : 0;
           return (
             <div key={m.id} className="card p-5 relative group hover:border-faint transition-colors">
               <Link href={`/biblioteca/objetivos/${m.id}`} className="absolute inset-0" aria-label={`Abrir ${m.titulo}`} />
@@ -98,14 +89,18 @@ export default function Mesas() {
                 </span>
               </div>
               {m.descricao && <p className="text-sm text-muted mt-1 line-clamp-2">{m.descricao}</p>}
-              <div className="mt-4 flex items-baseline justify-between text-sm tabular-nums">
-                <span>{r.lidos} de {r.total} <span className="text-muted">{r.total === 1 ? "livro lido" : "livros lidos"}</span></span>
-                <span className="text-xs text-muted">{Math.round(pct * 100)}%</span>
+              <div className="mt-4 flex items-baseline justify-between gap-2 tabular-nums">
+                <span className="text-2xl font-medium tracking-tight">{pctTexto(r.pct)}</span>
+                <span className="text-xs text-muted">{r.livrosLidos} de {r.livros} {r.livros === 1 ? "livro lido" : "livros lidos"}</span>
               </div>
               <div className="mt-1.5 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                <div className="h-full rounded-full bg-chart" style={{ width: `${pct * 100}%` }} />
+                <div className="h-full rounded-full bg-chart" style={{ width: `${r.pct * 100}%` }} />
               </div>
-              {r.faltam > 0 && <div className="mt-2 text-xs text-faint">≈ {fmtDuration((r.faltam / ppm) * 60)} de leitura pela frente</div>}
+              {r.livros > 0 && (
+                <div className="mt-2 text-xs text-faint tabular-nums">
+                  {palavrasCurto(r.lidas)} de {palavrasCurto(r.total)} palavras{r.faltam > 0 ? ` · ≈ ${fmtDuration((r.faltam / ppm) * 60)} pela frente` : ""}
+                </div>
+              )}
             </div>
           );
         })}

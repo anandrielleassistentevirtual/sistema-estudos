@@ -9,7 +9,7 @@ import { RowMenu } from "@/components/row-menu";
 import { OPCOES_LIVRO, StatusPill } from "@/components/status-pill";
 import { supabase } from "@/lib/supabase/client";
 import { fmtDuration } from "@/lib/dates";
-import type { ItemObjetivo, Objetivo } from "@/lib/objetivos";
+import { palavrasCurto, pctTexto, progressoDaMesa, type ItemObjetivo, type Objetivo } from "@/lib/objetivos";
 import type { Book, BookStatus } from "@/lib/types";
 
 type LivroLite = Pick<Book, "id" | "title" | "author" | "status" | "word_count" | "progress" | "format" | "folder_id">;
@@ -65,11 +65,7 @@ export default function Mesa() {
   }, [itens]);
   const nomesDeSecao = useMemo(() => [...new Set(itens.map((i) => i.secao).filter(Boolean))], [itens]);
 
-  const lidos = itens.filter(lido).length;
-  const faltamPalavras = itens.reduce((n, i) => {
-    const b = livroDe(i);
-    return n + (b && b.status !== "lido" && b.word_count ? b.word_count * (1 - b.progress) : 0);
-  }, 0);
+  const prog = useMemo(() => progressoDaMesa(itens, porLivro), [itens, porLivro]);
   const proximo = itens.find((i) => !lido(i));
   // o que aparece na lista vem do próprio livro da biblioteca (se ele mudar de nome lá, muda aqui também)
   const titulo = (i: ItemObjetivo) => livroDe(i)?.title ?? i.titulo;
@@ -144,7 +140,6 @@ export default function Mesa() {
   }
   if (!mesa) return <Page tabs={<BibliotecaTabs />} title="…">{null}</Page>;
 
-  const pct = itens.length ? lidos / itens.length : 0;
   return (
     <Page tabs={<BibliotecaTabs />} title={mesa.titulo}
       subtitle={mesa.descricao || undefined}
@@ -155,15 +150,16 @@ export default function Mesa() {
         </>
       }>
       <div className="card p-5 mb-6">
-        <div className="flex flex-wrap items-baseline justify-end gap-x-6 gap-y-1 text-sm">
-          <span className="tabular-nums">{lidos} de {itens.length} <span className="text-muted">lidos · {Math.round(pct * 100)}%</span></span>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 tabular-nums">
+          <span className="text-3xl font-medium tracking-tight">{pctTexto(prog.pct)} <span className="text-sm font-normal text-muted">lido</span></span>
+          <span className="text-sm text-muted">{palavrasCurto(prog.lidas)} de {palavrasCurto(prog.total)} palavras · {prog.livrosLidos} de {prog.livros} {prog.livros === 1 ? "livro" : "livros"}</span>
         </div>
         <div className="mt-2 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-          <div className="h-full rounded-full bg-chart" style={{ width: `${pct * 100}%` }} />
+          <div className="h-full rounded-full bg-chart" style={{ width: `${prog.pct * 100}%` }} />
         </div>
         <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-muted">
           <span>{proximo ? <>Próximo: <span className="text-ink">{titulo(proximo)}</span></> : itens.length ? "Mesa concluída." : "Nenhum livro ainda."}</span>
-          {faltamPalavras > 0 && <span>≈ {fmtDuration((faltamPalavras / ppm) * 60)} de leitura nos livros da biblioteca · {ppm} ppm</span>}
+          {prog.faltam > 0 && <span>≈ {fmtDuration((prog.faltam / ppm) * 60)} de leitura pela frente · {ppm} ppm</span>}
         </div>
       </div>
 
