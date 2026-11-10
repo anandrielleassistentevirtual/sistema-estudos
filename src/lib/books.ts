@@ -2,6 +2,7 @@
 import { supabase, userId } from "./supabase/client";
 import { countWords } from "./text";
 import type { Book } from "./types";
+import { aliviarEpub, COMPRIMIR_ACIMA, LIMITE_ENVIO, mb } from "./epub-leve";
 
 export const ACCEPT = ".epub,.txt,.md,.markdown";
 
@@ -18,6 +19,7 @@ async function epubMeta(file: File): Promise<{ title?: string; author?: string }
     const ePub = (await import("epubjs")).default;
     const book = ePub(await file.arrayBuffer());
     const meta = await book.loaded.metadata;
+    await book.ready.catch(() => {}); // fechar antes disso deixa o epubjs com tarefas pela metade (erros soltos)
     book.destroy();
     return { title: meta.title || undefined, author: meta.creator || undefined };
   } catch {
@@ -25,7 +27,7 @@ async function epubMeta(file: File): Promise<{ title?: string; author?: string }
   }
 }
 
-export async function uploadBook(file: File, folderId: string | null): Promise<Book> {
+export async function uploadBook(file: File, folderId: string | null, avisar: (msg: string) => void = () => {}): Promise<Book> {
   const format = extOf(file.name);
   if (!format) throw new Error(`Formato não suportado: ${file.name}. Use EPUB, TXT ou MD.`);
   const uid = await userId();
@@ -40,6 +42,15 @@ export async function uploadBook(file: File, folderId: string | null): Promise<B
     const m = await epubMeta(file);
     title = m.title || base;
     author = m.author || null;
+    // livro muito ilustrado: comprime as imagens aqui mesmo, antes de enviar
+    if (file.size > COMPRIMIR_ACIMA) {
+      const r = await aliviarEpub(file, avisar);
+      if (r.depois > LIMITE_ENVIO) {
+        throw new Error(`“${title}” continua grande demais mesmo com as imagens comprimidas (${mb(r.antes)} → ${mb(r.depois)}). O limite por arquivo é 50 MB.`);
+      }
+      file = r.arquivo;
+      avisar(`Imagens comprimidas: ${mb(r.antes)} → ${mb(r.depois)}. Enviando…`);
+    }
   } else {
     const text = await file.text();
     word_count = countWords(text);

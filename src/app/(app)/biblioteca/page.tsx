@@ -127,8 +127,8 @@ export default function Biblioteca() {
   async function onFiles(files: FileList | File[]) {
     setError(null);
     for (const f of Array.from(files)) {
-      setUploading(f.name);
-      try { await uploadBook(f, currentFolderId); } catch (e) { setError((e as Error).message); }
+      setUploading(`Enviando ${f.name}…`);
+      try { await uploadBook(f, currentFolderId, (msg) => setUploading(`${f.name}: ${msg}`)); } catch (e) { setError((e as Error).message); }
     }
     setUploading(null);
     void load();
@@ -369,7 +369,7 @@ export default function Biblioteca() {
           </div>
 
           {error && <p className="text-sm text-critical mb-3">{error}</p>}
-          {uploading && <p className="text-sm text-muted mb-3">Enviando {uploading}…</p>}
+          {uploading && <p className="text-sm text-muted mb-3" aria-live="polite">{uploading}</p>}
 
           {visible.length === 0 ? (
             <Empty>
