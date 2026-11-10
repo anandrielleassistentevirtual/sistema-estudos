@@ -46,10 +46,10 @@ export async function uploadBook(file: File, folderId: string | null, avisar: (m
     if (file.size > COMPRIMIR_ACIMA) {
       const r = await aliviarEpub(file, avisar);
       if (r.depois > LIMITE_ENVIO) {
-        throw new Error(`“${title}” continua grande demais mesmo com as imagens comprimidas (${mb(r.antes)} → ${mb(r.depois)}). O limite por arquivo é 50 MB.`);
+        throw new Error(`“${title}” continua grande demais mesmo com as imagens comprimidas (${mb(r.antes)} → ${mb(r.depois)}). O limite por arquivo é 50 MB. ${r.detalhe ?? ""}`);
       }
       file = r.arquivo;
-      avisar(`Imagens comprimidas: ${mb(r.antes)} → ${mb(r.depois)}. Enviando…`);
+      avisar(`Imagens comprimidas: ${mb(r.antes)} → ${mb(r.depois)} (${r.detalhe}). Enviando…`);
     }
   } else {
     const text = await file.text();
