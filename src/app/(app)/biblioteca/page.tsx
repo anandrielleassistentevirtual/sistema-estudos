@@ -18,7 +18,7 @@ import { cddCompare, flatTree, folderLabel, shelfOrder } from "@/lib/folders";
 import { FolderSelect } from "@/components/folder-select";
 import { fmtDuration, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
-import { Book, BookStatus, Folder as F, STATUS_LABEL } from "@/lib/types";
+import { Book, BookStatus, Folder as F, STATUS_LABEL, progressoDoLivro } from "@/lib/types";
 
 type Sel = "todos" | "sem-pasta" | string;
 const STATUS: BookStatus[] = ["aguardando", "lendo", "pausado", "lido"];
@@ -159,7 +159,7 @@ export default function Biblioteca() {
   const queued = useMemo(() => visible.filter((b) => queueNo.has(b.id)).sort((a, b) => queueNo.get(a.id)! - queueNo.get(b.id)!), [visible, queueNo]);
   // fora da fila: os já lidos continuam aparecendo, mas no fim
   const rest = useMemo(() => visible.filter((b) => !queueNo.has(b.id)).sort((a, b) => Number(a.status === "lido") - Number(b.status === "lido")), [visible, queueNo]);
-  const queueLeft = queued.reduce((a, b) => a + (b.word_count ?? 0) * (1 - b.progress), 0);
+  const queueLeft = queued.reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
 
   /** Reordena a fila (troca com o vizinho) e renumera 1, 2, 3… */
   async function moveQueue(b: Book, dir: -1 | 1) {
@@ -212,7 +212,7 @@ export default function Biblioteca() {
               <span className="truncate">
                 {b.word_count ? ` · ${nf.format(b.word_count)} palavras · ≈ ${fmtDuration((b.word_count / wpm) * 60)}` : ""}
                 {b.format === "fisico" ? ` · físico${b.total_pages ? ` · p. ${b.current_page ?? 0}/${b.total_pages}` : ""}` : ""}
-                {b.progress > 0 ? ` · ${Math.round(b.progress * 100)}%` : ""}
+                {progressoDoLivro(b) > 0 && b.status !== "lido" ? ` · ${Math.round(progressoDoLivro(b) * 100)}%` : ""}
               </span>
             </span>
           </span>
@@ -250,7 +250,7 @@ export default function Biblioteca() {
 
   const stats = (list: Book[]) => {
     const total = list.reduce((a, b) => a + (b.word_count ?? 0), 0);
-    const left = list.filter((b) => b.status !== "lido").reduce((a, b) => a + (b.word_count ?? 0) * (1 - b.progress), 0);
+    const left = list.filter((b) => b.status !== "lido").reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
     const done = list.filter((b) => b.status === "lido").length;
     return { total, left, done, waiting: list.filter((b) => b.status === "aguardando").length, n: list.length };
   };

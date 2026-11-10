@@ -11,7 +11,7 @@ import { WritingPanel } from "@/components/writing-panel";
 import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { DayStats, inicio12Meses, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
-import type { Book } from "@/lib/types";
+import { progressoDoLivro, type Book } from "@/lib/types";
 
 const WEEKS = 12;
 
@@ -94,7 +94,7 @@ export default function Dashboard() {
   const lastDone = books.filter((b) => b.finished_at).sort((a, b) => (b.finished_at! > a.finished_at! ? 1 : -1))[0];
   const remainingWords = books
     .filter((b) => b.status !== "lido")
-    .reduce((a, b) => a + (b.word_count ?? 0) * (1 - b.progress), 0);
+    .reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
 
   return (
     <Page title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
@@ -144,10 +144,10 @@ export default function Dashboard() {
                         <span className="font-medium">{b.title}</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
-                        <div className="h-full bg-chart rounded-full" style={{ width: `${Math.round(b.progress * 100)}%` }} />
+                        <div className="h-full bg-chart rounded-full" style={{ width: `${Math.round(progressoDoLivro(b) * 100)}%` }} />
                       </div>
                     </div>
-                    <span className="text-xs text-muted tabular-nums">{Math.round(b.progress * 100)}%</span>
+                    <span className="text-xs text-muted tabular-nums">{Math.round(progressoDoLivro(b) * 100)}%</span>
                   </Link>
                 </li>
               ))}

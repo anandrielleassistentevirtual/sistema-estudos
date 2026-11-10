@@ -82,3 +82,13 @@ export const STATUS_LABEL: Record<BookStatus, string> = {
   pausado: "Pausado",
   lido: "Lido",
 };
+
+/**
+ * Quanto do livro conta como lido nos indicadores. Livro "aguardando" conta 0 mesmo que tenha sido
+ * aberto para dar uma olhada (o leitor guarda a posição, mas isso não é leitura); "lido" conta inteiro.
+ */
+export function progressoDoLivro(b: Pick<Book, "status" | "progress">): number {
+  if (b.status === "lido") return 1;
+  if (b.status === "aguardando") return 0;
+  return Math.min(1, Math.max(0, b.progress || 0));
+}

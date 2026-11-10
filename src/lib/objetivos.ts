@@ -1,5 +1,5 @@
 /** Mapa da Ignorância: mesas de objetivos (grupos de livros com nome, numa ordem definida). */
-import type { Book } from "./types";
+import { progressoDoLivro, type Book } from "./types";
 
 export interface Objetivo {
   id: string;
@@ -109,7 +109,7 @@ export function progressoDaMesa(
     const feito = i.feito || b?.status === "lido";
     total += w;
     if (feito) { lidas += w; livrosLidos++; }
-    else if (b) lidas += w * Math.min(1, Math.max(0, b.progress || 0));
+    else if (b) lidas += w * progressoDoLivro(b); // "aguardando" conta 0, mesmo se foi aberto para olhar
   }
   return { total, lidas, faltam: total - lidas, pct: total ? lidas / total : 0, livrosLidos, livros: itens.length };
 }
