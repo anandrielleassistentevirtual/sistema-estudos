@@ -14,16 +14,19 @@ import { useTimerEstado } from "@/components/timer-context";
 import { supabase, fire } from "@/lib/supabase/client";
 import { fmtClock, fmtDuration, nf } from "@/lib/dates";
 import { countWords } from "@/lib/text";
-import { baixarAula, ppmMedio } from "@/lib/estudos";
+import { baixarAula, camposDaSituacao, ppmMedio } from "@/lib/estudos";
+import type { SituacaoAula } from "@/components/status-pill";
 import type { Note } from "@/lib/types";
 
-type AulaCompleta = Note & { anotacoes: string; palavras: number; progresso: number };
+type AulaCompleta = Note & { anotacoes: string; palavras: number; progresso: number; situacao: SituacaoAula };
 
 /** Uma aula aberta: o mesmo leitor dos livros, com as suas anotações ao lado. */
 export default function AulaAberta() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [aula, setAula] = useState<AulaCompleta | null>(null);
+  const aulaRef = useRef<AulaCompleta | null>(null);
+  aulaRef.current = aula;
   const [erro, setErro] = useState<string | null>(null);
   const [prefs, setPrefs] = useReaderPrefs();
   const tema = useEffectiveTheme(prefs.theme);
@@ -131,13 +134,13 @@ export default function AulaAberta() {
 
   useEffect(() => { if (!aviso) return; const h = setTimeout(() => setAviso(null), 2500); return () => clearTimeout(h); }, [aviso]);
 
+  const feita = aula?.situacao === "concluida";
   async function alternarConcluida() {
     if (!aula) return;
-    const completed_at = aula.completed_at ? null : new Date().toISOString();
-    const extra = completed_at ? { progresso: 1 } : {};
-    setAula({ ...aula, completed_at, ...extra });
-    await supabase().from("notes").update({ completed_at, ...extra }).eq("id", id);
-    if (completed_at) setAviso("Aula concluída. Muito bem!");
+    const campos = camposDaSituacao(feita ? "lendo" : "concluida", aula);
+    setAula({ ...aula, ...campos });
+    await supabase().from("notes").update(campos).eq("id", id);
+    if (!feita) setAviso("Aula concluída. Muito bem!");
   }
 
   /** Leva o trecho selecionado para as anotações, como citação. */
@@ -197,11 +200,11 @@ export default function AulaAberta() {
           </>
         )}
         {aula && (
-          <button onClick={alternarConcluida} title={aula.completed_at ? "Voltar para pendente" : "Marcar a aula como concluída"}
-            className={`btn text-xs py-1 ${aula.completed_at ? "" : progresso >= 0.97 ? "btn-primary" : ""}`}
-            style={aula.completed_at ? { color: "var(--good)", borderColor: "color-mix(in srgb, var(--good) 40%, transparent)" } : undefined}>
-            {aula.completed_at ? <CircleCheck size={14} /> : <Check size={14} />}
-            <span className="hidden sm:inline">{aula.completed_at ? "Concluída" : "Concluir aula"}</span>
+          <button onClick={alternarConcluida} title={feita ? "Voltar para “Lendo”" : "Marcar a aula como concluída"}
+            className={`btn text-xs py-1 ${feita ? "" : progresso >= 0.97 ? "btn-primary" : ""}`}
+            style={feita ? { color: "var(--good)", borderColor: "color-mix(in srgb, var(--good) 40%, transparent)" } : undefined}>
+            {feita ? <CircleCheck size={14} /> : <Check size={14} />}
+            <span className="hidden sm:inline">{feita ? "Concluída" : "Concluir aula"}</span>
           </button>
         )}
         {editar ? (
@@ -237,7 +240,14 @@ export default function AulaAberta() {
           ) : blob && aula ? (
             <TextReader ref={reader} data={blob} format="md" startAt={local || (aula.location && /^p:\d+$/.test(aula.location) ? aula.location : null)} prefs={view}
               annotations={[]} knownWords={null}
-              onTurn={(w, fwd) => tracker.current?.turn(w, fwd)}
+              onTurn={(w, fwd) => {
+                tracker.current?.turn(w, fwd);
+                // como nos livros: virou a página de uma aula pendente, ela passa a "Lendo"
+                if (fwd && aulaRef.current?.situacao === "pendente") {
+                  setAula((a) => (a ? { ...a, situacao: "lendo" } : a));
+                  fire(supabase().from("notes").update({ situacao: "lendo" }).eq("id", id));
+                }
+              }}
               onView={(w, last) => tracker.current?.see(w, last)}
               onToc={setToc}
               onLocation={(loc, p, l) => {

@@ -9,6 +9,7 @@ import { ACCEPT, addPhysicalBook, deleteBook, enqueue, saveBookFile, uploadBook 
 import { useTimerEstado } from "@/components/timer-context";
 import { Cover } from "@/components/cover";
 import { RowMenu } from "@/components/row-menu";
+import { StatusPill, type OpcaoStatus } from "@/components/status-pill";
 import { useRouter } from "next/navigation";
 import { coverUrls, epubCover, removeCover, setCover, setCoverFromLink } from "@/lib/covers";
 import { downloadBook } from "@/lib/books";
@@ -221,7 +222,7 @@ export default function Biblioteca() {
             <button className="p-0.5 text-faint hover:text-ink disabled:opacity-30" title="Descer na fila" disabled={queueNo.get(b.id) === queueNo.size} onClick={() => moveQueue(b, 1)}><ChevronDown size={15} /></button>
           </span>
         )}
-        <StatusPill value={b.status} onChange={(st) => update(b, { status: st })} />
+        <StatusPill label="Status do livro" value={b.status} options={OPCOES_LIVRO} onChange={(st) => update(b, { status: st })} />
         <RowMenu items={[
           b.format === "fisico"
             ? { label: "Ler (liga o timer)", icon: Timer, onClick: () => readPhysical(b) }
@@ -704,23 +705,9 @@ function FolderModal({ folders, edit, parentId, onClose, onSaved }: {
   );
 }
 
-/** Status como etiqueta colorida; clicando abre a lista de status (o menu nativo do aparelho). */
-const COR_STATUS: Record<BookStatus, string> = {
-  lendo: "var(--accent)",
-  aguardando: "var(--muted)",
-  pausado: "#c98a1a",
-  lido: "var(--good)",
-};
-function StatusPill({ value, onChange }: { value: BookStatus; onChange: (s: BookStatus) => void }) {
-  const cor = COR_STATUS[value];
-  return (
-    <span className="relative shrink-0">
-      <select aria-label="Status do livro" title="Mudar o status" value={value} onChange={(e) => onChange(e.target.value as BookStatus)}
-        className="appearance-none cursor-pointer rounded-full pl-5 pr-2.5 py-1 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-        style={{ color: cor, background: `color-mix(in srgb, ${cor} 14%, transparent)` }}>
-        {STATUS.map((st) => <option key={st} value={st}>{STATUS_LABEL[st]}</option>)}
-      </select>
-      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: cor }} />
-    </span>
-  );
-}
+const OPCOES_LIVRO: OpcaoStatus<BookStatus>[] = [
+  { value: "aguardando", label: STATUS_LABEL.aguardando, cor: "var(--muted)" },
+  { value: "lendo", label: STATUS_LABEL.lendo, cor: "var(--accent)" },
+  { value: "pausado", label: STATUS_LABEL.pausado, cor: "#c98a1a" },
+  { value: "lido", label: STATUS_LABEL.lido, cor: "var(--good)" },
+];

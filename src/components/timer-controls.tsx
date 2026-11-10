@@ -11,7 +11,7 @@ import { bookName } from "@/lib/folders";
 import { Combobox } from "./combobox";
 
 interface BookOpt { id: string; title: string; author: string | null; format: string; status: string; current_page: number | null; total_pages: number | null }
-interface NoteOpt { id: string; title: string; professor: string; course: string; completed_at: string | null; progresso?: number }
+interface NoteOpt { id: string; title: string; professor: string; course: string; situacao?: string; progresso?: number }
 
 /** Controles do timer (usados na tela Timer e no timer flutuante). */
 export function TimerControls({ compact = false }: { compact?: boolean }) {
@@ -35,9 +35,9 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
     const ordemLivro: Record<string, number> = { lendo: 0, aguardando: 1, pausado: 1, lido: 2 };
     void sb.from("books").select("id,title,author,format,status,current_page,total_pages").order("author").order("title")
       .then(({ data }) => setBooks(((data as BookOpt[]) ?? []).sort((a, b) => (ordemLivro[a.status] ?? 1) - (ordemLivro[b.status] ?? 1))));
-    void sb.from("notes").select("id,title,professor,course,completed_at,progresso").eq("kind", "estudo")
+    void sb.from("notes").select("id,title,professor,course,situacao,progresso").eq("kind", "estudo")
       .then(({ data }) => setNotes(((data as NoteOpt[]) ?? []).sort((a, b) =>
-        Number(!!a.completed_at) - Number(!!b.completed_at) ||
+        Number(a.situacao === "concluida") - Number(b.situacao === "concluida") ||
         a.course.localeCompare(b.course, "pt-BR") || a.title.localeCompare(b.title, "pt-BR", { numeric: true }))));
     void loadLanguages().then(setLangs);
   }, [t.lastSaved]);
@@ -139,7 +139,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
                 value: n.id,
                 label: n.title,
                 hint: [
-                  n.completed_at ? "✓ concluída" : (n.progresso ?? 0) > 0.01 ? `${Math.round((n.progresso ?? 0) * 100)}% lido` : null,
+                  n.situacao === "concluida" ? "✓ concluída" : n.situacao === "lendo" ? `lendo${(n.progresso ?? 0) > 0.01 ? ` · ${Math.round((n.progresso ?? 0) * 100)}%` : ""}` : null,
                   n.course, n.professor,
                 ].filter(Boolean).join(" · ") || undefined,
               }))}

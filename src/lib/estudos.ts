@@ -1,6 +1,7 @@
 "use client";
 import { supabase } from "./supabase/client";
 import type { Note } from "./types";
+import type { SituacaoAula } from "@/components/status-pill";
 
 /** Aula na lista (sem a transcrição, que é baixada só ao abrir a aula). */
 export type Aula = Pick<Note, "id" | "title" | "folder" | "professor" | "course" | "created_at" | "updated_at" | "location" | "completed_at"> & {
@@ -9,13 +10,21 @@ export type Aula = Pick<Note, "id" | "title" | "folder" | "professor" | "course"
   palavras: number;
   /** quanto já foi lido (0 a 1) */
   progresso: number;
+  situacao: SituacaoAula;
 };
 
-export const COLUNAS_AULA = "id,title,folder,professor,course,created_at,updated_at,location,completed_at,anotacoes,palavras,progresso";
+export const COLUNAS_AULA = "id,title,folder,professor,course,created_at,updated_at,location,completed_at,anotacoes,palavras,progresso,situacao";
 
 /** Palavras que faltam ler numa aula. */
-export const faltam = (a: Pick<Aula, "palavras" | "progresso" | "completed_at">) =>
-  a.completed_at ? 0 : Math.max(0, (a.palavras ?? 0) * (1 - (a.progresso ?? 0)));
+export const faltam = (a: Pick<Aula, "palavras" | "progresso" | "situacao">) =>
+  a.situacao === "concluida" ? 0 : Math.max(0, (a.palavras ?? 0) * (1 - (a.progresso ?? 0)));
+
+/** Campos que acompanham cada status (a data de conclusão e os 100%). */
+export function camposDaSituacao(s: SituacaoAula, antes: Pick<Aula, "completed_at">) {
+  return s === "concluida"
+    ? { situacao: s, completed_at: antes.completed_at ?? new Date().toISOString(), progresso: 1 }
+    : { situacao: s, completed_at: null };
+}
 
 const PPM_PADRAO = 220;
 

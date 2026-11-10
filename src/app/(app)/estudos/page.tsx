@@ -6,13 +6,14 @@ import {
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { RowMenu } from "@/components/row-menu";
+import { SITUACOES_AULA, StatusPill, type SituacaoAula } from "@/components/status-pill";
 import { supabase } from "@/lib/supabase/client";
 import {
-  baixarAula, baixarTodas, COLUNAS_AULA, faltam, importarAulas, lugarDoArquivo, nivelProvavel, numeroDaAula, porTitulo, ppmMedio, syncHeading, type Aula,
+  baixarAula, baixarTodas, camposDaSituacao, COLUNAS_AULA, faltam, importarAulas, lugarDoArquivo, nivelProvavel, numeroDaAula, porTitulo, ppmMedio, syncHeading, type Aula,
 } from "@/lib/estudos";
 import { fmtDuration, nf } from "@/lib/dates";
 
-type Filtro = "todas" | "pendentes" | "concluidas";
+type Filtro = "todas" | SituacaoAula;
 const SEM_CURSO = "Sem curso";
 
 export default function Estudos() {
@@ -66,7 +67,7 @@ export default function Estudos() {
       const c = a.course || SEM_CURSO;
       const x = m.get(c) ?? { total: 0, feitas: 0, modulos: new Map() };
       x.total++;
-      if (a.completed_at) x.feitas++;
+      if (a.situacao === "concluida") x.feitas++;
       if (a.folder) x.modulos.set(a.folder, (x.modulos.get(a.folder) ?? 0) + 1);
       m.set(c, x);
     }
@@ -82,8 +83,7 @@ export default function Estudos() {
         const [sc, sm] = sel.slice(2).split("|");
         if (c !== sc || a.folder !== sm) return false;
       }
-      if (filtro === "pendentes" && a.completed_at) return false;
-      if (filtro === "concluidas" && !a.completed_at) return false;
+      if (filtro !== "todas" && a.situacao !== filtro) return false;
       if (t && !a.title.toLowerCase().includes(t) && !(achados?.has(a.id))) return false;
       return true;
     });
@@ -99,11 +99,10 @@ export default function Estudos() {
     return [...g.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true }));
   }, [visiveis]);
 
-  async function alternarConcluida(a: Aula) {
-    const completed_at = a.completed_at ? null : new Date().toISOString();
-    const extra = completed_at ? { progresso: 1 } : {};
-    setAulas((all) => all?.map((x) => (x.id === a.id ? { ...x, completed_at, ...extra } : x)) ?? null);
-    await supabase().from("notes").update({ completed_at, ...extra }).eq("id", a.id);
+  async function mudarSituacao(a: Aula, situacao: SituacaoAula) {
+    const campos = camposDaSituacao(situacao, a);
+    setAulas((all) => all?.map((x) => (x.id === a.id ? { ...x, ...campos } : x)) ?? null);
+    await supabase().from("notes").update(campos).eq("id", a.id);
   }
 
   async function apagar(a: Aula) {
@@ -141,7 +140,7 @@ export default function Estudos() {
   }
 
   const total = aulas?.length ?? 0;
-  const feitas = aulas?.filter((a) => a.completed_at).length ?? 0;
+  const feitas = aulas?.filter((a) => a.situacao === "concluida").length ?? 0;
   const pelaFrente = (aulas ?? []).reduce((n, a) => n + faltam(a), 0);
   const alterna = (k: string) => setAbertos((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
@@ -204,7 +203,7 @@ export default function Estudos() {
               {q && <button onClick={() => setQ("")} className="text-faint hover:text-ink"><X size={14} /></button>}
             </label>
             <div className="inline-flex rounded-lg bg-surface-2 p-1 text-sm">
-              {([["todas", "Todas"], ["pendentes", "Pendentes"], ["concluidas", "Concluídas"]] as const).map(([k, l]) => (
+              {([["todas", "Todas"], ["pendente", "Pendentes"], ["lendo", "Lendo"], ["concluida", "Concluídas"]] as const).map(([k, l]) => (
                 <button key={k} onClick={() => setFiltro(k)} className={`px-3 py-1 rounded-md ${filtro === k ? "bg-seg shadow-sm" : "text-muted"}`}>{l}</button>
               ))}
             </div>
@@ -221,19 +220,19 @@ export default function Estudos() {
                 <div className="flex items-baseline justify-between mb-2 px-1">
                   <h2 className="text-sm text-muted truncate">{g}</h2>
                   <span className="text-xs text-faint tabular-nums">
-                    {lista.filter((a) => a.completed_at).length}/{lista.length}
-                    {lista.some((a) => !a.completed_at) && ` · ≈ ${tempo(lista.reduce((n, a) => n + faltam(a), 0))} pela frente`}
+                    {lista.filter((a) => a.situacao === "concluida").length}/{lista.length}
+                    {lista.some((a) => a.situacao !== "concluida") && ` · ≈ ${tempo(lista.reduce((n, a) => n + faltam(a), 0))} pela frente`}
                   </span>
                 </div>
                 <div className="card divide-y divide-line">
                   {lista.map((a) => {
                     const n = numeroDaAula(a.title);
-                    const comecada = !a.completed_at && (a.progresso ?? 0) > 0.01;
+                    const feita = a.situacao === "concluida";
                     return (
                       <div key={a.id} className="group flex items-center gap-2 pr-2 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
                         <button onClick={() => router.push(`/estudos/${a.id}`)} className="flex items-center gap-3 min-w-0 flex-1 p-3 text-left" title="Abrir a aula">
-                          <span className={`w-10 h-10 shrink-0 grid place-items-center rounded-lg text-[13px] font-medium tabular-nums ${a.completed_at ? "bg-good/15 text-good" : "bg-surface-2 text-ink/80"}`}>
-                            {a.completed_at ? <CircleCheck size={17} /> : n ?? <FileText size={16} className="text-icon" />}
+                          <span className={`w-10 h-10 shrink-0 grid place-items-center rounded-lg text-[13px] font-medium tabular-nums ${feita ? "bg-good/15 text-good" : "bg-surface-2 text-ink/80"}`}>
+                            {feita ? <CircleCheck size={17} /> : n ?? <FileText size={16} className="text-icon" />}
                           </span>
                           <span className="min-w-0">
                             <span className="block truncate font-medium">{a.title}</span>
@@ -241,7 +240,7 @@ export default function Estudos() {
                               {[
                                 a.professor || null,
                                 a.palavras ? `${nf.format(a.palavras)} palavras · ≈ ${tempo(a.palavras)}` : null,
-                                comecada ? `${Math.round((a.progresso ?? 0) * 100)}% lido · faltam ≈ ${tempo(faltam(a))}` : null,
+                                (a.progresso ?? 0) > 0 ? `${Math.round((a.progresso ?? 0) * 100)}%` : null,
                               ].filter(Boolean).join(" · ")}
                               {(a.anotacoes ?? "").trim() && (
                                 <span className="inline-flex items-center gap-1" title="Esta aula tem anotações suas">
@@ -251,20 +250,13 @@ export default function Estudos() {
                             </span>
                           </span>
                         </button>
-                        <button onClick={() => alternarConcluida(a)} title={a.completed_at ? "Voltar para pendente" : "Marcar como concluída"}
-                          className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium flex items-center gap-1.5"
-                          style={a.completed_at
-                            ? { color: "var(--good)", background: "color-mix(in srgb, var(--good) 14%, transparent)" }
-                            : { color: "var(--muted)", background: "color-mix(in srgb, var(--muted) 14%, transparent)" }}>
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: a.completed_at ? "var(--good)" : "var(--muted)" }} />
-                          {a.completed_at ? "Concluída" : "Pendente"}
-                        </button>
+                        <StatusPill label="Status da aula" value={a.situacao ?? "pendente"} options={SITUACOES_AULA} onChange={(v) => mudarSituacao(a, v)} />
                         <RowMenu items={[
                           { label: "Abrir a aula", icon: BookOpen, onClick: () => router.push(`/estudos/${a.id}`) },
                           { label: "Editar nome, curso e módulo", icon: Pencil, onClick: () => setEditando(a) },
                           { label: "Editar a transcrição", icon: FileText, onClick: () => router.push(`/estudos/${a.id}?editar=1`) },
                           { label: "Baixar a transcrição (.md)", icon: Download, onClick: () => void baixarAula(a) },
-                          { label: a.completed_at ? "Voltar para pendente" : "Marcar como concluída", icon: CircleCheck, onClick: () => alternarConcluida(a), separar: true },
+                          { label: feita ? "Voltar para pendente" : "Marcar como concluída", icon: CircleCheck, onClick: () => mudarSituacao(a, feita ? "pendente" : "concluida"), separar: true },
                           { label: "Apagar aula", icon: Trash2, danger: true, separar: true, onClick: () => apagar(a) },
                         ]} />
                       </div>
