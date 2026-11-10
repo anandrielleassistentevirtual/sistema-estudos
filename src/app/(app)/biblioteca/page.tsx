@@ -9,7 +9,8 @@ import { ACCEPT, addPhysicalBook, deleteBook, enqueue, saveBookFile, uploadBook 
 import { useTimerEstado } from "@/components/timer-context";
 import { Cover } from "@/components/cover";
 import { RowMenu } from "@/components/row-menu";
-import { StatusPill, type OpcaoStatus } from "@/components/status-pill";
+import { BibliotecaTabs } from "@/components/biblioteca-tabs";
+import { OPCOES_LIVRO, StatusPill } from "@/components/status-pill";
 import { useRouter } from "next/navigation";
 import { coverUrls, epubCover, removeCover, setCover, setCoverFromLink } from "@/lib/covers";
 import { downloadBook } from "@/lib/books";
@@ -299,6 +300,7 @@ export default function Biblioteca() {
   return (
     <Page
       wide
+      tabs={<BibliotecaTabs />}
       title="Mapa da Ignorância"
       subtitle={`${all.waiting} livros aguardando · ≈ ${fmtDuration((all.left / wpm) * 60)} de leitura pela frente a ${wpm} ppm`}
       actions={
@@ -705,9 +707,3 @@ function FolderModal({ folders, edit, parentId, onClose, onSaved }: {
   );
 }
 
-const OPCOES_LIVRO: OpcaoStatus<BookStatus>[] = [
-  { value: "aguardando", label: STATUS_LABEL.aguardando, cor: "var(--muted)" },
-  { value: "lendo", label: STATUS_LABEL.lendo, cor: "var(--accent)" },
-  { value: "pausado", label: STATUS_LABEL.pausado, cor: "#c98a1a" },
-  { value: "lido", label: STATUS_LABEL.lido, cor: "var(--good)" },
-];

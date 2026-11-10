@@ -1,4 +1,5 @@
 "use client";
+import { STATUS_LABEL, type BookStatus } from "@/lib/types";
 
 export interface OpcaoStatus<T extends string> { value: T; label: string; cor: string }
 
@@ -25,4 +26,12 @@ export const SITUACOES_AULA: OpcaoStatus<SituacaoAula>[] = [
   { value: "pendente", label: "Pendente", cor: "var(--muted)" },
   { value: "lendo", label: "Lendo", cor: "var(--accent)" },
   { value: "concluida", label: "Concluída", cor: "var(--good)" },
+];
+
+/** Status dos livros (biblioteca e mesas). */
+export const OPCOES_LIVRO: OpcaoStatus<BookStatus>[] = [
+  { value: "aguardando", label: STATUS_LABEL.aguardando, cor: "var(--muted)" },
+  { value: "lendo", label: STATUS_LABEL.lendo, cor: "var(--accent)" },
+  { value: "pausado", label: STATUS_LABEL.pausado, cor: "#c98a1a" },
+  { value: "lido", label: STATUS_LABEL.lido, cor: "var(--good)" },
 ];

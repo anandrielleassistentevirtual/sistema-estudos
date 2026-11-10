@@ -8,6 +8,7 @@ const TABELAS = [
   "languages", "anki_daily",
   "lectio_dias", "lectio_registros",
   "escrita_projetos", "escrita_docs", "escrita_sessoes", "escrita_referencias",
+  "objetivos", "objetivo_itens",
 ] as const;
 
 type Linha = Record<string, unknown>;
