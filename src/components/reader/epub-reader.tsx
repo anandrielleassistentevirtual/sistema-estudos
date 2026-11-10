@@ -143,6 +143,17 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
         "text-align": `${p.justify ? "justify" : "left"} !important`,
         hyphens: "auto",
       },
+      // ilustrações: cabem inteiras na página, centralizadas, sem cortar nem esticar
+      "img, svg, image, video": {
+        "max-width": "100% !important",
+        "max-height": "92vh !important",
+        height: "auto !important",
+        "object-fit": "contain",
+        "break-inside": "avoid",
+      },
+      img: { display: "block", margin: "1em auto !important" },
+      "figure, .figure": { margin: "1.2em auto !important", "text-align": "center !important", "break-inside": "avoid" },
+      "figcaption, .caption": { "font-size": "0.85em !important", opacity: "0.75", "text-align": "center !important", "text-indent": "0 !important" },
     });
   }
   useEffect(applyPrefs, [props.prefs]);
