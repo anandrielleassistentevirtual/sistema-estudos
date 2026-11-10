@@ -1,16 +1,17 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Atom, BookMarked, Inbox, NotebookText } from "lucide-react";
+import { Atom, BookMarked, GraduationCap, Inbox, NotebookText } from "lucide-react";
 
 const TABS = [
   { href: "/notas", label: "Inbox", icon: Inbox },
   { href: "/notas/literarias", label: "Literárias", icon: BookMarked },
   { href: "/notas/atomicas", label: "Atômicas", icon: Atom },
+  { href: "/notas/aulas", label: "Aulas", icon: GraduationCap },
   { href: "/notas/diario", label: "Diário", icon: NotebookText },
 ];
 
-/** Abas das Notas: Inbox (kanban) · Literárias (por livro) · Atômicas · Diário (orações da Lectio). */
+/** Abas das Notas: Inbox (kanban) · Literárias (por livro) · Atômicas · Aulas (anotações dos Estudos) · Diário (Lectio). */
 export function NotasTabs({ className = "mb-6 -mt-2" }: { className?: string }) {
   const path = usePathname();
   return (

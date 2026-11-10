@@ -62,8 +62,9 @@ export default function AulaAberta() {
     });
     try {
       const p = new URLSearchParams(window.location.search);
-      if (p.get("editar")) { setEditar(true); window.history.replaceState(null, "", window.location.pathname); }
-      setNotas(localStorage.getItem("estudos-anotacoes") === "1" && window.innerWidth >= 1024);
+      if (p.get("editar")) setEditar(true);
+      setNotas(!!p.get("anotacoes") || (localStorage.getItem("estudos-anotacoes") === "1" && window.innerWidth >= 1024));
+      if (p.toString()) window.history.replaceState(null, "", window.location.pathname);
     } catch {}
     const tr = new ReadingTracker(null, () => timerOn.current, id);
     tr.onChange = () => setSessao({ ...tr.session });
@@ -99,7 +100,9 @@ export default function AulaAberta() {
     pend.current = {};
     if (!Object.keys(p).length) return;
     setSalvo("salvando");
-    await supabase().from("notes").update(p).eq("id", id);
+    // anotações guardam também quando foram mexidas (para a aba Notas → Aulas)
+    const dados = "anotacoes" in p ? { ...p, anotacoes_em: new Date().toISOString() } : p;
+    await supabase().from("notes").update(dados).eq("id", id);
     setSalvo(Object.keys(pend.current).length ? "pendente" : "salvo");
   }, [id]);
   const patch = (p: Partial<AulaCompleta>) => {
