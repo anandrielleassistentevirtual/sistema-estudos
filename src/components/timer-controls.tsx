@@ -135,7 +135,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
               onChange={(id) => {
                 const n = notes.find((x) => x.id === id);
                 t.set({ noteId: n?.id ?? "", noteTitle: n?.title ?? "" });
-                if (n) goFocus(`/estudos?id=${n.id}`);
+                if (n) goFocus(`/estudos/${n.id}`);
               }}
             />
             {notes.length === 0 && <span className="text-xs text-muted">Suas transcrições aparecem aqui (menu Estudos).</span>}

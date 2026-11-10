@@ -15,7 +15,7 @@ export function FloatingTimer() {
   useEffect(() => setOpen(false), [path]);
 
   const onTimerPage = path === "/timer";
-  const reader = path.startsWith("/ler/");
+  const reader = path.startsWith("/ler/") || /^\/estudos\/[^/]+/.test(path);
   // a sala de escrita tem o próprio cronômetro e não deve ter nada piscando na tela
   const salaEscrita = /^\/escrita\/[^/]+/.test(path);
   const active = t.running || t.seconds > 0;

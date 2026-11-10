@@ -78,7 +78,7 @@ export function Sidebar() {
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const showTimer = timer.running || timer.seconds > 0;
   // leitor e sala de escrita ocupam a tela toda e têm o próprio cabeçalho
-  const telaCheia = /^\/(ler|escrita)\/[^/]+/.test(path);
+  const telaCheia = /^\/(ler|escrita|estudos)\/[^/]+/.test(path);
 
   const nav = (
     <nav className="flex flex-col h-full p-3 gap-0.5">

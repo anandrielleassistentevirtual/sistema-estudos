@@ -54,6 +54,7 @@ export async function baixarCopia(progresso: (msg: string) => void): Promise<{ a
     if (n.kind === "estudo") {
       const pasta = [n.course, ...String(n.folder ?? "").split(" › ")].filter(Boolean).map((x) => seguro(String(x))).join("/");
       zip.file(`legivel/estudos/${pasta ? pasta + "/" : ""}${titulo}.md`, String(n.content ?? ""));
+      if (String(n.anotacoes ?? "").trim()) zip.file(`legivel/estudos/${pasta ? pasta + "/" : ""}${titulo} (anotações).md`, String(n.anotacoes));
     } else if (n.kind === "literaria") {
       const l = livros.get(n.book_id as string);
       const livro = l ? seguro(`${l.author ? `${l.author} - ` : ""}${l.title}`) : "sem livro";
