@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDays, dayKey, fmtDuration, weekStart } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 
 type Period = "semana" | "30d" | "ano";
 const PERIODS: { id: Period; label: string }[] = [
@@ -25,14 +26,14 @@ export function TimeBreakdown() {
     const from = dayKey(new Date(new Date().getFullYear(), 0, 1) < addDays(new Date(), -31) ? new Date(new Date().getFullYear(), 0, 1) : addDays(new Date(), -31));
     const sb = supabase();
     void Promise.all([
-      sb.from("study_sessions").select("day,seconds,category,language,note_id,label").gte("day", from).limit(50000),
-      sb.from("reading_sessions").select("day,seconds,during_timer,note_id").gte("day", from).limit(50000),
-      sb.from("notes").select("id,course").eq("kind", "estudo"),
+      todas<Sess>((de, ate) => sb.from("study_sessions").select("day,seconds,category,language,note_id,label").gte("day", from).order("id").range(de, ate)),
+      todas<Read>((de, ate) => sb.from("reading_sessions").select("day,seconds,during_timer,note_id").gte("day", from).order("id").range(de, ate)),
+      todas<{ id: string; course: string }>((de, ate) => sb.from("notes").select("id,course").eq("kind", "estudo").order("id").range(de, ate)),
     ]).then(([s, r, n]) => {
-      setSessions((s.data as Sess[]) ?? []);
-      setReading((r.data as Read[]) ?? []);
-      setCourseOf(new Map(((n.data as { id: string; course: string }[]) ?? []).map((x) => [x.id, x.course])));
-    });
+      setSessions(s);
+      setReading(r);
+      setCourseOf(new Map(n.map((x) => [x.id, x.course])));
+    }).catch(() => {});
   }, []);
 
   const rows = useMemo(() => {

@@ -5,8 +5,9 @@ import { Empty, Page } from "@/components/page";
 import { IdiomasTabs } from "@/components/idiomas-tabs";
 import { BarChart } from "@/components/bar-chart";
 import { Language, loadLanguages, ONDE, SUGESTOES } from "@/lib/languages";
-import { addDays, dayKey, fmtDuration, nf, parseDay, weekStart } from "@/lib/dates";
+import { addDays, dayKey, fmtDuration, parseDay, weekStart } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 
 interface Sess { day: string; seconds: number; language: string | null; label: string }
 
@@ -21,10 +22,10 @@ export default function Idiomas() {
   const load = useCallback(async () => {
     const sb = supabase();
     const [st, lg] = await Promise.all([
-      sb.from("study_sessions").select("day,seconds,language,label").eq("category", "Idiomas").limit(50000),
+      todas<Sess>((de, ate) => sb.from("study_sessions").select("day,seconds,language,label").eq("category", "Idiomas").order("id").range(de, ate)),
       loadLanguages(),
     ]);
-    setSessions((st.data as Sess[]) ?? []);
+    setSessions(st);
     setLangs(lg);
     setLang((cur) => cur ?? lg[0]?.name ?? null);
   }, []);

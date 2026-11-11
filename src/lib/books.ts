@@ -95,6 +95,21 @@ export async function downloadBook(book: Book): Promise<Blob> {
   return data;
 }
 
+/**
+ * Apaga do aparelho as cópias de livros que não existem mais (livros apagados ou versões antigas de um arquivo):
+ * o espaço do celular/computador não fica ocupado por livros que ninguém vai abrir.
+ */
+export async function limparCacheDeLivros(caminhosAtuais: (string | null)[]) {
+  try {
+    if (!("caches" in globalThis)) return;
+    const cache = await caches.open("livros-v1");
+    const validas = new Set(caminhosAtuais.filter(Boolean).map((p) => `/__livros/${encodeURIComponent(p as string)}`));
+    for (const req of await cache.keys()) {
+      if (!validas.has(new URL(req.url).pathname)) await cache.delete(req);
+    }
+  } catch {}
+}
+
 /** Baixa o arquivo original do livro para o computador ("Autor - Título.epub"). */
 export async function saveBookFile(book: Book) {
   const blob = await downloadBook(book);

@@ -7,6 +7,7 @@ import {
   PanelRightClose, PanelRightOpen, Plus, Printer, Table2, BarChart3, PenLine, Trash2, ArrowUp, ArrowDown, Upload, Pencil, Settings2, X, CornerUpLeft, BookOpenText, Library, Search, Quote,
 } from "lucide-react";
 import { supabase, fire } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 import { dayKey, fmtClock, fmtDuration, nf, addDays, parseDay } from "@/lib/dates";
 import {
   compilarMarkdown, contarPalavras, paragrafosHtml, corStatus, ESCALETA, escaletaDeLinhas, lerXlsx, manuscrito, semComentarios, STATUS, estrutura, abnt, ordenarReferencias, sobrenome,
@@ -899,11 +900,11 @@ function Consulta({ refs, onInserir }: { refs: Referencia[]; onInserir: (txt: st
     (async () => {
       const sb = supabase();
       const [n, b] = await Promise.all([
-        sb.from("notes").select("id,kind,title,quote,content,book_id").in("kind", ["literaria", "atomica"]).order("updated_at", { ascending: false }).limit(1000),
-        sb.from("books").select("id,title,author"),
+        todas<NotaConsulta>((de, ate) => sb.from("notes").select("id,kind,title,quote,content,book_id").in("kind", ["literaria", "atomica"]).order("updated_at", { ascending: false }).order("id").range(de, ate)),
+        todas<LivroLite>((de, ate) => sb.from("books").select("id,title,author").order("id").range(de, ate)),
       ]);
-      setNotas((n.data as NotaConsulta[]) ?? []);
-      setLivros(new Map(((b.data as LivroLite[]) ?? []).map((x) => [x.id, x])));
+      setNotas(n);
+      setLivros(new Map(b.map((x) => [x.id, x])));
     })();
   }, []);
   const termos = dobrar(q).split(/\s+/).filter(Boolean);
@@ -988,7 +989,7 @@ function Referencias({ projetoId, refs, setRefs }: { projetoId: string; refs: Re
   const [livros, setLivros] = useState<LivroLite[]>([]);
   const [aberto, setAberto] = useState(false);
   useEffect(() => {
-    void supabase().from("books").select("id,title,author").order("author").then(({ data }) => setLivros((data as LivroLite[]) ?? []));
+    void todas<LivroLite>((de, ate) => supabase().from("books").select("id,title,author").order("author").order("id").range(de, ate)).then(setLivros).catch(() => {});
   }, []);
   const set = (x: Partial<typeof form>) => setForm((f) => ({ ...f, ...x }));
 

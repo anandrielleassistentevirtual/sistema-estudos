@@ -6,6 +6,7 @@ import { Empty, Page } from "@/components/page";
 import { BibliotecaTabs } from "@/components/biblioteca-tabs";
 import { RowMenu } from "@/components/row-menu";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 import { fmtDuration } from "@/lib/dates";
 import { acharLivro, lerLista, palavrasCurto, pctTexto, progressoDaMesa, type ItemObjetivo, type Objetivo } from "@/lib/objetivos";
 import type { Book } from "@/lib/types";
@@ -24,12 +25,12 @@ export default function Mesas() {
     const [m, i, b, r] = await Promise.all([
       sb.from("objetivos").select("*").order("posicao"),
       sb.from("objetivo_itens").select("objetivo_id,feito,book_id"),
-      sb.from("books").select("id,title,author,status,word_count,progress"),
+      todas<LivroLite>((de, ate) => sb.from("books").select("id,title,author,status,word_count,progress").order("id").range(de, ate)),
       sb.from("reading_sessions").select("seconds,words").order("started_at", { ascending: false }).limit(200),
     ]);
     setMesas((m.data as Objetivo[]) ?? []);
     setItens((i.data as typeof itens) ?? []);
-    setLivros((b.data as LivroLite[]) ?? []);
+    setLivros(b);
     const secs = ((r.data as { seconds: number }[]) ?? []).reduce((a, x) => a + x.seconds, 0);
     const pal = ((r.data as { words: number }[]) ?? []).reduce((a, x) => a + x.words, 0);
     if (secs > 300) setPpm(Math.round(pal / (secs / 60)));

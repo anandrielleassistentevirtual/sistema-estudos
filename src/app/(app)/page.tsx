@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen } from "lucide-react";
 import { Page, Stat } from "@/components/page";
 import { CalendarPanel } from "@/components/calendar-panel";
 import { ConfissaoAviso } from "@/components/confissao-aviso";
@@ -12,6 +11,7 @@ import { WritingPanel } from "@/components/writing-panel";
 import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { DayStats, inicio12Meses, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 import { progressoDoLivro, type Book } from "@/lib/types";
 
 const WEEKS = 12;
@@ -20,7 +20,6 @@ export default function Dashboard() {
   const [daily, setDaily] = useState<Map<string, DayStats>>(new Map());
   const [books, setBooks] = useState<Book[]>([]);
   const [covers, setCovers] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
   const [nome, setNome] = useState("");
   useEffect(() => {
     void supabase().auth.getUser().then(({ data }) => {
@@ -32,9 +31,10 @@ export default function Dashboard() {
   // ppm separado: leituras (livros) e estudos (aulas), últimos 30 dias; o principal é a média dos dois
   const [ppm, setPpm] = useState<{ leitura: number; estudos: number }>({ leitura: 0, estudos: 0 });
   useEffect(() => {
-    void supabase().from("reading_sessions").select("seconds,words,book_id,note_id").gte("day", dayKey(addDays(new Date(), -29))).limit(20000)
-      .then(({ data }) => {
-        const xs = (data as { seconds: number; words: number; book_id: string | null; note_id: string | null }[]) ?? [];
+    const desde = dayKey(addDays(new Date(), -29));
+    void todas<{ seconds: number; words: number; book_id: string | null; note_id: string | null }>((de, ate) =>
+      supabase().from("reading_sessions").select("seconds,words,book_id,note_id").gte("day", desde).order("id").range(de, ate))
+      .then((xs) => {
         const calc = (l: typeof xs) => {
           const secs = l.reduce((a, x) => a + x.seconds, 0);
           return secs > 120 ? Math.round(l.reduce((a, x) => a + x.words, 0) / (secs / 60)) : 0;
@@ -46,12 +46,11 @@ export default function Dashboard() {
   useEffect(() => {
     Promise.all([
       loadDaily(inicio12Meses()),
-      supabase().from("books").select("*").order("created_at", { ascending: false }),
+      todas<Book>((de, ate) => supabase().from("books").select("*").order("created_at", { ascending: false }).order("id").range(de, ate)),
     ]).then(([d, b]) => {
       setDaily(d);
-      setBooks((b.data as Book[]) ?? []);
-      void coverUrls((b.data as Book[]) ?? []).then(setCovers);
-      setLoading(false);
+      setBooks(b);
+      void coverUrls(b).then(setCovers);
     });
   }, []);
 

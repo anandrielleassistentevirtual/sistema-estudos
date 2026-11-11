@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { ChevronDown, ChevronRight, Download, Eye, FileText, Folder, FolderUp, Link as LinkIcon, Pencil, Plus, Search, Trash2, Upload, X, ZoomIn, ZoomOut, PanelLeftClose, PanelLeftOpen, CircleCheck, Circle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 import { countWords, slug, wikilinks } from "@/lib/text";
 import { nf } from "@/lib/dates";
 import type { Note } from "@/lib/types";
@@ -102,9 +103,9 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
   }
 
   const load = useCallback(async () => {
-    const { data } = await supabase().from("notes").select(lazy ? COLUNAS_LISTA : "*").eq("kind", kind).order("title");
+    const data = await todas<Note>((de, ate) => supabase().from("notes").select(lazy ? COLUNAS_LISTA : "*").eq("kind", kind).order("title").order("id").range(de, ate));
     if (lazy) setCarregados(new Set());
-    const list = ((data as unknown as Note[]) ?? []).map((n) => (lazy ? { ...n, content: "" } : n)).sort((a, b) =>
+    const list = data.map((n) => (lazy ? { ...n, content: "" } : n)).sort((a, b) =>
       isAtomic ? (b.zid ?? "").localeCompare(a.zid ?? "") : a.title.localeCompare(b.title, "pt-BR", { numeric: true }));
     setNotes(list);
     const want = new URLSearchParams(window.location.search).get("id");
@@ -328,8 +329,8 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     const zip = new JSZip();
     let textos = new Map(notes.map((n) => [n.id, n.content]));
     if (lazy) {
-      const { data } = await supabase().from("notes").select("id,content").eq("kind", kind);
-      textos = new Map(((data as { id: string; content: string }[]) ?? []).map((x) => [x.id, x.content]));
+      const data = await todas<{ id: string; content: string }>((de, ate) => supabase().from("notes").select("id,content").eq("kind", kind).order("id").range(de, ate), 200);
+      textos = new Map(data.map((x) => [x.id, x.content]));
     }
     for (const n of notes) {
       const dir = isStudy ? [n.course, ...n.folder.split(" › ")].filter(Boolean).map(safe).join("/") : isAtomic ? "" : n.folder.split("/").filter(Boolean).map(safe).join("/");

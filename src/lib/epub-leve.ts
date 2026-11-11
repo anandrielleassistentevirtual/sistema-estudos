@@ -16,6 +16,9 @@ export const COMPRIMIR_ACIMA = 8 * 1024 * 1024;
 
 const LADO_MAX = 1600;
 const LADO_MIN = 720; // abaixo disso as pranchas perdem demais; melhor avisar
+/** Tamanho confortável para o armazenamento: tenta chegar nele sem baixar as imagens de 1000 px. */
+export const ALVO_CONFORTAVEL = 25 * 1024 * 1024;
+const LADO_CONFORTAVEL = 1000;
 const IMAGEM = /\.(jpe?g|png|webp|gif|bmp)$/i;
 const FONTE = /\.(otf|ttf|woff2?|eot)$/i;
 const TEXTO = /\.(x?html?|opf|ncx|css|xml|svg)$/i;
@@ -63,7 +66,8 @@ export async function aliviarEpub(file: File, avisar: (msg: string) => void = ()
       const bmp = await createImageBitmap(blob).catch(() => null);
       if (!bmp) { bytesImagens += blob.size; continue; } // formato que o navegador não abre: fica como está
       const escala = Math.min(1, lado / Math.max(bmp.width, bmp.height));
-      if (escala === 1 && blob.size < 120_000) { bmp.close(); bytesImagens += blob.size; continue; }
+      // imagem pequena que já está em WebP fica como está; JPEG/PNG pequenos ainda ganham com a conversão
+      if (escala === 1 && blob.size < 120_000 && (!webp || /\.webp$/i.test(img.name))) { bmp.close(); bytesImagens += blob.size; continue; }
       const w = Math.max(1, Math.round(bmp.width * escala));
       const h = Math.max(1, Math.round(bmp.height * escala));
       canvas.width = w;
@@ -113,17 +117,24 @@ export async function aliviarEpub(file: File, avisar: (msg: string) => void = ()
     return { blob, bytesImagens, bytesOutros: Math.max(0, blob.size - bytesImagens) };
   }
 
-  // 1ª passada com a qualidade ideal; se não couber, calcula a resolução que cabe (o peso cai ~ com a área)
+  // 1ª passada com a qualidade ideal. Depois, calcula a resolução que cabe (o peso cai ~ com a área):
+  //  - acima do limite de envio: o que for preciso para caber (até 720 px);
+  //  - acima do tamanho confortável: deixa mais leve para poupar espaço, sem baixar de 1000 px.
   let lado = LADO_MAX, q = 0.8, semFontes = false;
   let r = await passada(lado, q, semFontes, "");
-  for (let tentativa = 1; r.blob.size > LIMITE_ENVIO && tentativa <= 3; tentativa++) {
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    const acimaDoLimite = r.blob.size > LIMITE_ENVIO;
+    if (!acimaDoLimite && r.blob.size <= ALVO_CONFORTAVEL) break;
+    const piso = acimaDoLimite ? LADO_MIN : LADO_CONFORTAVEL;
+    const alvo = (acimaDoLimite ? LIMITE_ENVIO : ALVO_CONFORTAVEL) * 0.93 - r.bytesOutros;
+    if (alvo <= 0 || lado <= piso) break;
     semFontes = true;
-    const alvo = LIMITE_ENVIO * 0.93 - r.bytesOutros;
-    if (alvo <= 0 || lado <= LADO_MIN) break;
     const fator = Math.sqrt(alvo / Math.max(1, r.bytesImagens));
-    lado = Math.max(LADO_MIN, Math.min(lado * 0.92, Math.floor(lado * fator)));
+    lado = Math.max(piso, Math.min(lado * 0.92, Math.floor(lado * fator)));
     q = Math.max(0.62, q - 0.04);
-    avisar(`Ficou com ${mb(r.blob.size)}; ajustando para caber (imagens até ${lado} px)…`);
+    avisar(acimaDoLimite
+      ? `Ficou com ${mb(r.blob.size)}; ajustando para caber (imagens até ${lado} px)…`
+      : `Ficou com ${mb(r.blob.size)}; deixando mais leve para poupar espaço (imagens até ${lado} px)…`);
     r = await passada(lado, q, semFontes, ` (ajuste ${tentativa})`);
   }
 

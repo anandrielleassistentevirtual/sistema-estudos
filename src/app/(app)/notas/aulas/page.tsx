@@ -6,6 +6,7 @@ import { BookOpen, Download, Search, X } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { NotasTabs } from "@/components/notas-tabs";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 import { porTitulo } from "@/lib/estudos";
 
 const Markdown = dynamic(() => import("@/components/markdown"), { ssr: false, loading: () => <p className="text-sm text-faint">…</p> });
@@ -28,9 +29,9 @@ export default function AnotacoesDasAulas() {
 
   useEffect(() => {
     try { const v = localStorage.getItem("notas-aulas-vista"); if (v === "recentes" || v === "curso") setVista(v); } catch {}
-    void supabase().from("notes").select("id,title,course,folder,professor,anotacoes,anotacoes_em,situacao")
-      .eq("kind", "estudo").neq("anotacoes", "")
-      .then(({ data }) => setItens(((data as Anotacao[]) ?? []).filter((x) => (x.anotacoes ?? "").trim())));
+    void todas<Anotacao>((de, ate) => supabase().from("notes").select("id,title,course,folder,professor,anotacoes,anotacoes_em,situacao")
+      .eq("kind", "estudo").neq("anotacoes", "").order("id").range(de, ate))
+      .then((data) => setItens(data.filter((x) => (x.anotacoes ?? "").trim()))).catch(() => setItens([]));
   }, []);
   useEffect(() => { try { localStorage.setItem("notas-aulas-vista", vista); } catch {} }, [vista]);
 

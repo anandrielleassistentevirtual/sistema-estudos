@@ -6,6 +6,7 @@ import { Empty, Page } from "@/components/page";
 import { NotasTabs } from "@/components/notas-tabs";
 import { LiteraryModal, type BookLite } from "@/components/literary-modal";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 import { bookName, cddCompare, folderLabel } from "@/lib/folders";
 import { locationLabel, setStatus } from "@/lib/zettel";
 import type { Folder as F, Note } from "@/lib/types";
@@ -37,14 +38,14 @@ export default function Literarias() {
     const sb = supabase();
     const [f, b, n, a] = await Promise.all([
       sb.from("folders").select("*"),
-      sb.from("books").select("id,title,author,format,folder_id").order("author").order("title"),
-      sb.from("notes").select("*").eq("kind", "literaria"),
-      sb.from("notes").select("id,title,source_id,zid").eq("kind", "atomica").not("source_id", "is", null),
+      todas<BookLite>((de, ate) => sb.from("books").select("id,title,author,format,folder_id").order("author").order("title").order("id").range(de, ate)),
+      todas<Note>((de, ate) => sb.from("notes").select("*").eq("kind", "literaria").order("id").range(de, ate)),
+      todas<(typeof atomics)[number]>((de, ate) => sb.from("notes").select("id,title,source_id,zid").eq("kind", "atomica").not("source_id", "is", null).order("id").range(de, ate)),
     ]);
     setFolders(((f.data as F[]) ?? []).sort(cddCompare));
-    setBooks((b.data as BookLite[]) ?? []);
-    setNotes((n.data as Note[]) ?? []);
-    setAtomics((a.data as typeof atomics) ?? []);
+    setBooks(b);
+    setNotes(n);
+    setAtomics(a);
   }, []);
   useEffect(() => {
     void load();

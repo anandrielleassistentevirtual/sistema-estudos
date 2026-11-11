@@ -1,5 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
+import { todas } from "./supabase/todas";
 import type { Note } from "./types";
 import type { SituacaoAula } from "@/components/status-pill";
 
@@ -181,8 +182,9 @@ export async function baixarAula(a: Pick<Aula, "id" | "title" | "course" | "prof
 export async function baixarTodas(aulas: Aula[]) {
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
-  const { data } = await supabase().from("notes").select("id,content").eq("kind", "estudo");
-  const textos = new Map(((data as { id: string; content: string }[]) ?? []).map((x) => [x.id, x.content]));
+  // as transcrições são grandes: de 100 em 100
+  const data = await todas<{ id: string; content: string }>((de, ate) => supabase().from("notes").select("id,content").eq("kind", "estudo").order("id").range(de, ate), 100);
+  const textos = new Map(data.map((x) => [x.id, x.content]));
   for (const a of aulas) {
     const dir = [...a.course.split(" › "), ...a.folder.split(" › ")].filter(Boolean).map(seguro).join("/");
     const front = `---\nprofessor: ${a.professor}\ncurso: ${a.course}\n---\n\n`;

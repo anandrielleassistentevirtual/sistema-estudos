@@ -30,28 +30,18 @@ export function loadDaily(from: string): Promise<Map<string, DayStats>> {
 }
 
 async function carregar(from: string): Promise<Map<string, DayStats>> {
-  const sb = supabase();
-  const [study, reading, anki, escrita] = await Promise.all([
-    sb.from("study_sessions").select("day,seconds").gte("day", from).limit(20000),
-    sb.from("reading_sessions").select("day,seconds,words,during_timer").gte("day", from).limit(20000),
-    sb.from("anki_daily").select("day,reviews").gte("day", from),
-    sb.from("escrita_sessoes").select("dia,palavras").gte("dia", from).limit(20000),
-  ]);
+  // o banco já devolve os totais somados por dia (uma linha por dia: não esbarra no limite de 1000 linhas)
+  const { data, error } = await supabase().rpc("estatisticas_por_dia", { desde: from });
+  if (error) throw new Error(error.message);
   const map = new Map<string, DayStats>();
-  const get = (d: string) => {
-    let v = map.get(d);
-    if (!v) map.set(d, (v = emptyDay()));
-    return v;
-  };
-  for (const r of study.data ?? []) get(r.day).study += r.seconds;
-  for (const r of reading.data ?? []) {
-    const v = get(r.day);
-    if (!r.during_timer) v.reading += r.seconds;
-    v.readingAll += r.seconds;
-    v.words += r.words;
+  type Linha = { dia: string; estudo: number; leitura: number; leitura_total: number; palavras: number; anki: number; escritas: number };
+  for (const r of (data as Linha[] | null) ?? []) {
+    map.set(r.dia, {
+      ...emptyDay(),
+      study: Number(r.estudo), reading: Number(r.leitura), readingAll: Number(r.leitura_total),
+      words: Number(r.palavras), anki: Number(r.anki), written: Number(r.escritas),
+    });
   }
-  for (const r of anki.data ?? []) get(r.day).anki += r.reviews;
-  for (const r of (escrita.data as { dia: string; palavras: number }[]) ?? []) get(r.dia).written += Math.max(0, r.palavras);
   return map;
 }
 

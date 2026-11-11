@@ -5,7 +5,7 @@ import {
   ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronUp, Download, ChevronRight, Folder, FolderOpen, FolderPlus, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
-import { ACCEPT, addPhysicalBook, deleteBook, enqueue, saveBookFile, uploadBook } from "@/lib/books";
+import { ACCEPT, addPhysicalBook, deleteBook, enqueue, limparCacheDeLivros, saveBookFile, uploadBook } from "@/lib/books";
 import { useTimerEstado } from "@/components/timer-context";
 import { Cover } from "@/components/cover";
 import { RowMenu } from "@/components/row-menu";
@@ -18,6 +18,7 @@ import { cddCompare, flatTree, folderLabel, shelfOrder } from "@/lib/folders";
 import { FolderSelect } from "@/components/folder-select";
 import { fmtDuration, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 import { Book, BookStatus, Folder as F, STATUS_LABEL, progressoDoLivro } from "@/lib/types";
 
 type Sel = "todos" | "sem-pasta" | string;
@@ -43,7 +44,7 @@ export default function Biblioteca() {
   const [editing, setEditing] = useState<Book | null>(null);
   const [folderModal, setFolderModal] = useState<null | { edit?: F; parentId: string | null }>(null);
   const [toast, setToast] = useState<string | null>(null);
-  useEffect(() => { if (toast) { const x = setTimeout(() => setToast(null), 3000); return () => clearTimeout(x); } }, [toast]);
+  useEffect(() => { if (toast) { const x = setTimeout(() => setToast(null), toast.length > 60 ? 6000 : 3000); return () => clearTimeout(x); } }, [toast]);
 
   function readPhysical(b: Book) {
     timer.set({ category: "Leitura", bookId: b.id, bookTitle: b.title, bookPhysical: true });
@@ -55,12 +56,13 @@ export default function Biblioteca() {
     const sb = supabase();
     const [f, b, r] = await Promise.all([
       sb.from("folders").select("*").order("position").order("name"),
-      sb.from("books").select("*").order("title"),
+      todas<Book>((de, ate) => sb.from("books").select("*").order("title").order("id").range(de, ate)),
       sb.from("reading_sessions").select("seconds,words").order("started_at", { ascending: false }).limit(200),
     ]);
     setFolders((f.data as F[]) ?? []);
-    setBooks((b.data as Book[]) ?? []);
-    void coverUrls((b.data as Book[]) ?? []).then(setCovers);
+    setBooks(b);
+    void coverUrls(b).then(setCovers);
+    void limparCacheDeLivros(b.map((x) => x.file_path));
     const secs = (r.data ?? []).reduce((a, x) => a + x.seconds, 0);
     const words = (r.data ?? []).reduce((a, x) => a + x.words, 0);
     if (secs > 300) setWpm(Math.round(words / (secs / 60)));
@@ -128,7 +130,11 @@ export default function Biblioteca() {
     setError(null);
     for (const f of Array.from(files)) {
       setUploading(`Enviando ${f.name}…`);
-      try { await uploadBook(f, currentFolderId, (msg) => setUploading(`${f.name}: ${msg}`)); } catch (e) { setError((e as Error).message); }
+      try {
+        const novo = await uploadBook(f, currentFolderId, (msg) => setUploading(`${f.name}: ${msg}`));
+        // sem pasta escolhida, o livro vai para "Sem pasta" (e não aparece dentro das pastas CDD): avisa
+        if (!currentFolderId) setToast(`“${novo.title}” entrou em “Sem pasta”. Use ••• → Editar para escolher a pasta.`);
+      } catch (e) { setError((e as Error).message); }
     }
     setUploading(null);
     void load();

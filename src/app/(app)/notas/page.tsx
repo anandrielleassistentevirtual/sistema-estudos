@@ -6,8 +6,8 @@ import { LiteraryModal } from "@/components/literary-modal";
 import { Page } from "@/components/page";
 import { NotasTabs } from "@/components/notas-tabs";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 import { COLUNAS, locationLabel, setStatus } from "@/lib/zettel";
-import { bookName } from "@/lib/folders";
 import type { Note, NoteStatus } from "@/lib/types";
 
 import type { BookLite } from "@/components/literary-modal";
@@ -24,13 +24,13 @@ export default function Inbox() {
     const sb = supabase();
     const week = new Date(Date.now() - 7 * 864e5).toISOString();
     const [n, b] = await Promise.all([
-      sb.from("notes").select("*").eq("kind", "literaria")
+      todas<Note>((de, ate) => sb.from("notes").select("*").eq("kind", "literaria")
         .or(`status.in.(a_tratar,em_tratamento),and(status.eq.concluida,concluded_at.gte.${week})`)
-        .order("created_at", { ascending: true }),
-      sb.from("books").select("id,title,author,format,folder_id").order("author").order("title"),
+        .order("created_at", { ascending: true }).order("id").range(de, ate)),
+      todas<BookLite>((de, ate) => sb.from("books").select("id,title,author,format,folder_id").order("author").order("title").order("id").range(de, ate)),
     ]);
-    setNotes((n.data as Note[]) ?? []);
-    setBooks((b.data as BookLite[]) ?? []);
+    setNotes(n);
+    setBooks(b);
   }, []);
   useEffect(() => { void load(); }, [load]);
 

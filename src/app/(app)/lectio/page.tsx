@@ -23,7 +23,6 @@ const ETAPAS = [
   { id: "oracao", nome: "Oração", pergunta: "O que eu digo a Deus?", guia: "Responda a Deus com as suas palavras: louvor, pedido, perdão, gratidão." },
   { id: "contemplacao", nome: "Contemplação", pergunta: "Repousar em Deus", guia: "Silêncio. Permaneça na presença de Deus, repetindo no coração a palavra, sem pressa." },
 ] as const;
-type Etapa = (typeof ETAPAS)[number]["id"];
 
 /** Cada etapa da Lectio dura 5 minutos. */
 const minutos = 5;

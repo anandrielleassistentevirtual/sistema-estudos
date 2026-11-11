@@ -8,6 +8,7 @@ import { BibliotecaTabs } from "@/components/biblioteca-tabs";
 import { RowMenu } from "@/components/row-menu";
 import { OPCOES_LIVRO, StatusPill } from "@/components/status-pill";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 import { fmtDuration } from "@/lib/dates";
 import { palavrasCurto, pctTexto, progressoDaMesa, type ItemObjetivo, type Objetivo } from "@/lib/objetivos";
 import type { Book, BookStatus } from "@/lib/types";
@@ -33,7 +34,7 @@ export default function Mesa() {
     const [m, i, b, r, f] = await Promise.all([
       sb.from("objetivos").select("*").eq("id", id).maybeSingle(),
       sb.from("objetivo_itens").select("*").eq("objetivo_id", id).order("posicao"),
-      sb.from("books").select("id,title,author,status,word_count,progress,format,folder_id"),
+      todas<LivroLite>((de, ate) => sb.from("books").select("id,title,author,status,word_count,progress,format,folder_id").order("id").range(de, ate)),
       sb.from("reading_sessions").select("seconds,words").order("started_at", { ascending: false }).limit(200),
       sb.from("folders").select("id,code"),
     ]);
@@ -41,7 +42,7 @@ export default function Mesa() {
     setMesa(m.data as Objetivo);
     const lista = (i.data as ItemObjetivo[]) ?? [];
     setItens(lista);
-    setLivros((b.data as LivroLite[]) ?? []);
+    setLivros(b);
     setCdd(new Map(((f.data as { id: string; code: string | null }[]) ?? []).filter((x) => x.code).map((x) => [x.id, x.code as string])));
     setSecaoNova((s) => s || lista[lista.length - 1]?.secao || "");
     const rs = (r.data as { seconds: number; words: number }[]) ?? [];

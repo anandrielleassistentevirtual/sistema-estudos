@@ -6,6 +6,7 @@ import { BookHeart, BookOpen, Feather, Pause, Play, RotateCcw, Square } from "lu
 import { CATEGORIAS, useTimer } from "./timer-context";
 import { fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 import { Language, loadLanguages } from "@/lib/languages";
 import { bookName } from "@/lib/folders";
 import { Combobox } from "./combobox";
@@ -33,12 +34,12 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
     const sb = supabase();
     // o que já foi concluído continua na lista, mas vai para o fim
     const ordemLivro: Record<string, number> = { lendo: 0, aguardando: 1, pausado: 1, lido: 2 };
-    void sb.from("books").select("id,title,author,format,status,current_page,total_pages").order("author").order("title")
-      .then(({ data }) => setBooks(((data as BookOpt[]) ?? []).sort((a, b) => (ordemLivro[a.status] ?? 1) - (ordemLivro[b.status] ?? 1))));
-    void sb.from("notes").select("id,title,professor,course,situacao,progresso").eq("kind", "estudo")
-      .then(({ data }) => setNotes(((data as NoteOpt[]) ?? []).sort((a, b) =>
+    void todas<BookOpt>((de, ate) => sb.from("books").select("id,title,author,format,status,current_page,total_pages").order("author").order("title").order("id").range(de, ate))
+      .then((data) => setBooks(data.sort((a, b) => (ordemLivro[a.status] ?? 1) - (ordemLivro[b.status] ?? 1)))).catch(() => {});
+    void todas<NoteOpt>((de, ate) => sb.from("notes").select("id,title,professor,course,situacao,progresso").eq("kind", "estudo").order("id").range(de, ate))
+      .then((data) => setNotes(data.sort((a, b) =>
         Number(a.situacao === "concluida") - Number(b.situacao === "concluida") ||
-        a.course.localeCompare(b.course, "pt-BR") || a.title.localeCompare(b.title, "pt-BR", { numeric: true }))));
+        a.course.localeCompare(b.course, "pt-BR") || a.title.localeCompare(b.title, "pt-BR", { numeric: true })))).catch(() => {});
     void loadLanguages().then(setLangs);
   }, [t.lastSaved]);
 

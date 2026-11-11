@@ -9,6 +9,7 @@ import { Empty, Page } from "@/components/page";
 import { RowMenu } from "@/components/row-menu";
 import { SITUACOES_AULA, StatusPill, type SituacaoAula } from "@/components/status-pill";
 import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
 import {
   arvoreDePastas, baixarAula, baixarTodas, caminhoDaPasta, camposDaSituacao, COLUNAS_AULA, faltam, importarAulas, nivelProvavel, numeroDaAula,
   pastasDoArquivo, porTitulo, ppmMedio, subarvore, syncHeading, type Aula, type PastaEstudo,
@@ -42,10 +43,10 @@ export default function Estudos() {
   async function load() {
     const sb = supabase();
     const [a, p] = await Promise.all([
-      sb.from("notes").select(COLUNAS_AULA).eq("kind", "estudo"),
+      todas<Aula>((de, ate) => sb.from("notes").select(COLUNAS_AULA).eq("kind", "estudo").order("id").range(de, ate)),
       sb.from("estudo_pastas").select("id,parent_id,nome,posicao"),
     ]);
-    setAulas(((a.data as unknown as Aula[]) ?? []).sort(porTitulo));
+    setAulas(a.sort(porTitulo));
     const ps = (p.data as PastaEstudo[]) ?? [];
     setPastas(ps);
     // na primeira vez, as pastas do primeiro nível aparecem abertas
