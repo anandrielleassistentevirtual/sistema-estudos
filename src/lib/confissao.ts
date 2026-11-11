@@ -1,4 +1,5 @@
 import { supabase } from "./supabase/client";
+import { apagarCopiaLocal } from "./exame";
 
 /** Data (aaaa-mm-dd) da última confissão registrada, ou null. */
 export async function ultimaConfissao(): Promise<string | null> {
@@ -18,12 +19,18 @@ export async function haExamePendente(): Promise<boolean> {
  */
 export async function registrarConfissao(feitaEm: string) {
   const sb = supabase();
-  const [a, b] = await Promise.all([
-    sb.from("confissoes").insert({ feita_em: feitaEm }),
-    sb.from("exame_cofre").update({ conteudo: null, atualizado_em: new Date().toISOString() }).not("user_id", "is", null),
-  ]);
+  // primeiro a data; só depois de registrada, os pecados são apagados (se algo falhar, nada some sem registro)
+  const a = await sb.from("confissoes").insert({ feita_em: feitaEm });
   if (a.error) throw new Error(a.error.message);
+  const b = await sb.from("exame_cofre").update({ conteudo: null, atualizado_em: new Date().toISOString() }).not("user_id", "is", null);
   if (b.error) throw new Error(b.error.message);
+  apagarCopiaLocal(); // a cópia de segurança deste aparelho também some
+}
+
+/** Quando foi registrada a confissão mais recente (data e hora do registro), para não ressuscitar pecados já confessados. */
+export async function registroDaUltimaConfissao(): Promise<string | null> {
+  const { data } = await supabase().from("confissoes").select("created_at").order("created_at", { ascending: false }).limit(1);
+  return (data as { created_at: string }[] | null)?.[0]?.created_at ?? null;
 }
 
 /** Corrige a data da última confissão (quando foi registrada errada), sem mexer no exame. */

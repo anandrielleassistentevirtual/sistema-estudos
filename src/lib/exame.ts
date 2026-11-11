@@ -171,8 +171,14 @@ export const quantidadeValida = (q: string | undefined) => !!q && QUANTIDADES.in
 export interface ExameDados {
   marcas: Record<string, { qtd: string; nota?: string }>; // nota: a circunstância (ex.: "sozinho")
   outros: { id: string; mand: string; texto: string; qtd: string }[];
+  /** mandamentos que você já terminou de examinar (só para acompanhar o caminho; opcional nos exames antigos) */
+  revisados?: string[];
+  /** penitência dada na última confissão, até ser cumprida (passo 5: Satisfação) */
+  penitencia?: { texto: string; desde: string } | null;
 }
-export const exameVazio = (): ExameDados => ({ marcas: {}, outros: [] });
+export const exameVazio = (): ExameDados => ({ marcas: {}, outros: [], revisados: [], penitencia: null });
+/** Um exame salvo por uma versão anterior abre igual: os campos novos ganham o valor vazio. */
+export const completarExame = (d: Partial<ExameDados>): ExameDados => ({ ...exameVazio(), ...d, revisados: d.revisados ?? [], penitencia: d.penitencia ?? null });
 /** Pecados marcados ainda sem quantidade (ids dos itens e dos "outros"). */
 export function semQuantidade(d: ExameDados): string[] {
   return [
@@ -180,7 +186,43 @@ export function semQuantidade(d: ExameDados): string[] {
     ...d.outros.filter((o) => o.texto.trim() && !quantidadeValida(o.qtd)).map((o) => o.id),
   ];
 }
-export const exameTemAlgo = (d: ExameDados) => Object.keys(d.marcas).length > 0 || d.outros.some((o) => o.texto.trim());
+export const exameTemAlgo = (d: ExameDados) =>
+  Object.keys(d.marcas).length > 0 || d.outros.some((o) => o.texto.trim()) || (d.revisados?.length ?? 0) > 0 || !!d.penitencia;
+
+/**
+ * Junta duas versões do mesmo exame (ex.: iPhone e computador abertos ao mesmo tempo). Nada se perde:
+ * uma marcação feita em qualquer um dos dois fica; quando os dois mexeram no mesmo pecado, vale a versão `local`.
+ */
+export function juntarExames(servidor: ExameDados, local: ExameDados): ExameDados {
+  const outros = new Map(servidor.outros.map((o) => [o.id, o]));
+  for (const o of local.outros) outros.set(o.id, o);
+  return {
+    marcas: { ...servidor.marcas, ...local.marcas },
+    outros: [...outros.values()],
+    revisados: [...new Set([...(servidor.revisados ?? []), ...(local.revisados ?? [])])],
+    penitencia: local.penitencia ?? servidor.penitencia ?? null,
+  };
+}
+
+/** Os dois exames têm o mesmo conteúdo? (a ordem das chaves não importa) */
+export function mesmoExame(a: ExameDados, b: ExameDados) {
+  const norm = (d: ExameDados) => JSON.stringify({
+    m: Object.keys(d.marcas).sort().map((k) => [k, d.marcas[k].qtd, d.marcas[k].nota ?? ""]),
+    o: [...d.outros].sort((x, y) => x.id.localeCompare(y.id)), r: [...(d.revisados ?? [])].sort(), p: d.penitencia ?? null,
+  });
+  return norm(a) === norm(b);
+}
+
+// ---------- cópia de segurança no aparelho (cifrada) ----------
+// Cada mudança é guardada cifrada também neste aparelho até o banco confirmar que recebeu. Se a internet
+// cair ou o app for fechado no meio, nada se perde: ao abrir o exame de novo, a cópia é recuperada.
+const CHAVE_LOCAL = "exame-pendente-v1";
+export interface CopiaLocal { cifra: string | null; base: string | null; em: string }
+export function lerCopiaLocal(): CopiaLocal | null {
+  try { const s = localStorage.getItem(CHAVE_LOCAL); return s ? (JSON.parse(s) as CopiaLocal) : null; } catch { return null; }
+}
+export function guardarCopiaLocal(c: CopiaLocal) { try { localStorage.setItem(CHAVE_LOCAL, JSON.stringify(c)); } catch {} }
+export function apagarCopiaLocal() { try { localStorage.removeItem(CHAVE_LOCAL); } catch {} }
 
 /** Lista para o sacerdote, na ordem dos mandamentos. */
 export function listaParaConfissao(d: ExameDados) {
@@ -211,6 +253,10 @@ export const ANTES_DO_EXAME = {
     ["Satisfação", "rezar ou cumprir alguma penitência que o padre mandar."],
   ] as [string, string][],
 };
+
+/** Fórmulas costumeiras no confessionário (antes e depois de dizer os pecados). */
+export const FORMULA_INICIO = "Padre, abençoai-me, porque pequei.";
+export const FORMULA_FIM = "Destes e de todos os pecados da minha vida passada, peço perdão a Deus.";
 
 export const ATO_DE_CONTRICAO =
   "Meu Pai e meu Deus, reconheço com muita dor que pequei! Eu vos ofendi, ó meu Redentor, e mereci os vossos castigos. Por Maria, minha e vossa Mãe, declaro que não quero pecar mais. Por Ela, eu Vos peço perdão.";

@@ -10,16 +10,21 @@ export function ConfissaoAviso() {
   const [ultima, setUltima] = useState<string | null | undefined>(undefined);
   const [marcando, setMarcando] = useState(false);
   const [d, setD] = useState(hojeIso());
+  const [emAndamento, setEmAndamento] = useState(false);
 
-  useEffect(() => { void ultimaConfissao().then(setUltima); }, []);
+  useEffect(() => {
+    void ultimaConfissao().then(setUltima);
+    void haExamePendente().then(setEmAndamento);
+  }, []);
   if (ultima === undefined) return null;
 
   async function salvar() {
     if (await haExamePendente()) {
-      if (!confirm("Há um exame de consciência em andamento. Registrar a confissão apaga para sempre os pecados marcados nele. Continuar?")) return;
+      if (!confirm("Há um exame de consciência guardado. Registrar a confissão apaga para sempre os pecados marcados nele. Continuar?")) return;
     }
     await registrarConfissao(d);
     setUltima(d);
+    setEmAndamento(false);
     setMarcando(false);
   }
 
@@ -39,6 +44,7 @@ export function ConfissaoAviso() {
               Última confissão em {dataBr(ultima)}, {tempoDesde(dias!)}{atrasada ? ` (mais de ${PRAZO_CONFISSAO} dias)` : ""}.
             </div>
           )}
+          {emAndamento && <div className="text-xs text-muted">Há um exame de consciência guardado (cifrado) esperando por você.</div>}
         </div>
       </div>
       {marcando || ultima === null ? (
@@ -49,7 +55,7 @@ export function ConfissaoAviso() {
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <Link href="/oracao/exame" className="btn btn-ghost text-sm">Exame de consciência</Link>
+          <Link href="/oracao/exame" className="btn btn-ghost text-sm">{emAndamento ? "Abrir o exame" : "Exame de consciência"}</Link>
           <button className="btn text-sm" onClick={() => { setD(hojeIso()); setMarcando(true); }}>Me confessei</button>
         </div>
       )}
