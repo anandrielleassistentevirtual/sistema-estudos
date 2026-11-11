@@ -278,7 +278,7 @@ export default function Estudos() {
       <input ref={arquivosRef} type="file" hidden multiple accept=".md,.markdown,.txt" onChange={(e) => escolher(e.target.files)} />
       {msg && <div className="mb-4 rounded-lg bg-surface-2 px-4 py-2 text-sm">{msg}</div>}
 
-      <div className="grid lg:grid-cols-[280px_1fr] gap-5 items-start">
+      <div className="grid lg:grid-cols-[320px_1fr] gap-5 items-start">
         {/* pastas: autor › curso › módulo… */}
         <aside className="card p-2 text-sm lg:sticky lg:top-4">
           <button onClick={() => setSel("todas")}
@@ -292,15 +292,16 @@ export default function Estudos() {
             const lista = irmaos(p.parent_id);
             const k = lista.findIndex((x) => x.id === p.id);
             return (
-              <div key={p.id} className={`group/p flex items-center rounded-lg ${sel === p.id ? "bg-sel" : "hover:bg-sel/60"}`} style={{ paddingLeft: nivel * 14 }}>
+              <div key={p.id} className={`group/p flex items-start rounded-lg ${sel === p.id ? "bg-sel" : "hover:bg-sel/60"}`} style={{ paddingLeft: nivel * 14 }}>
                 <button className="p-1.5 text-faint hover:text-ink disabled:opacity-0" disabled={!temFilhos} onClick={() => alterna(p.id)} aria-label={abertos.has(p.id) ? "Fechar" : "Abrir"}>
                   {abertos.has(p.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </button>
                 <button onClick={() => setSel(p.id)} title={c?.faltam ? `≈ ${tempo(c.faltam)} de leitura pela frente` : undefined}
-                  className={`flex-1 min-w-0 flex items-center gap-2 py-1.5 text-left ${sel === p.id ? "text-ink font-medium" : "text-ink/90"}`}>
-                  <FolderOpen size={14} className="text-icon shrink-0" />
-                  <span className="truncate flex-1">{p.nome}</span>
-                  {c && <span className="text-xs text-faint tabular-nums">{c.feitas}/{c.total}</span>}
+                  className={`flex-1 min-w-0 flex items-start gap-2 py-1.5 text-left ${sel === p.id ? "text-ink font-medium" : "text-ink/90"}`}>
+                  <FolderOpen size={14} className="text-icon shrink-0 mt-[3px]" />
+                  {/* nome inteiro: quebra em mais linhas em vez de cortar com "…" */}
+                  <span className="flex-1 min-w-0 break-words leading-snug" title={p.nome}>{p.nome}</span>
+                  {c && <span className="text-xs text-faint tabular-nums shrink-0 mt-[2px]">{c.feitas}/{c.total}</span>}
                 </button>
                 <span className="opacity-100 lg:opacity-0 lg:group-hover/p:opacity-100 focus-within:opacity-100 transition-opacity">
                   <RowMenu label={`Opções da pasta ${p.nome}`} items={[
