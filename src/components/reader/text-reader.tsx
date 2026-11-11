@@ -122,7 +122,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
   return (
     <div ref={box} className="w-full h-full overflow-y-auto" style={{ background: t.bg, color: t.fg }} onMouseUp={onMouseUp} onTouchEnd={onMouseUp}>
       <article
-        className="reading-page prose-notes mx-auto max-w-[68ch] px-6 py-10"
+        className="reading-page prose-notes mx-auto max-w-[68ch] px-6 pt-10 pb-28" /* espaço no fim: Anterior/Próxima ficam acima do Menu e do cronômetro */
         style={{
           fontSize: `${props.prefs.sizePt}pt`,
           lineHeight: props.prefs.lineHeight,

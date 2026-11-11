@@ -79,6 +79,8 @@ export function Sidebar() {
   const showTimer = timer.running || timer.seconds > 0;
   // leitor e sala de escrita ocupam a tela toda e têm o próprio cabeçalho
   const telaCheia = /^\/(ler|escrita|estudos)\/[^/]+/.test(path);
+  // nos leitores, o botão do menu sobe para cima da barra de progresso (como o cronômetro)
+  const leitor = /^\/(ler|estudos)\/[^/]+/.test(path);
 
   const nav = (
     <nav className="flex flex-col h-full p-3 gap-0.5">
@@ -145,7 +147,8 @@ export function Sidebar() {
       </header>}
       {!hidden && <aside className="hidden md:block fixed inset-y-0 left-0 w-60 border-r border-line bg-sidebar backdrop-blur-xl">{nav}</aside>}
       {hidden && (
-        <button className="hidden md:flex fixed left-3 bottom-4 z-30 items-center gap-1.5 rounded-full border border-line bg-surface/90 backdrop-blur px-3 py-2 text-xs text-muted hover:text-ink shadow-sm"
+        <button style={{ bottom: leitor ? "calc(48px + env(safe-area-inset-bottom))" : undefined }}
+          className="hidden md:flex fixed left-3 bottom-4 z-30 items-center gap-1.5 rounded-full border border-line bg-surface/90 backdrop-blur px-3 py-2 text-xs text-muted hover:text-ink shadow-sm"
           title="Mostrar o menu (Ctrl + \)" onClick={() => setHidden(false)}>
           <PanelLeftOpen size={15} /> Menu
         </button>
