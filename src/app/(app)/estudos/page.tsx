@@ -373,7 +373,7 @@ export default function Estudos() {
                               {[
                                 a.professor || null,
                                 a.palavras ? `${nf.format(a.palavras)} palavras · ≈ ${tempo(a.palavras)}` : null,
-                                (a.progresso ?? 0) > 0 ? `${Math.round((a.progresso ?? 0) * 100)}%` : null,
+                                a.situacao === "lendo" && (a.progresso ?? 0) > 0 ? `${Math.round((a.progresso ?? 0) * 100)}%` : null,
                               ].filter(Boolean).join(" · ")}
                               {(a.anotacoes ?? "").trim() && (
                                 <span className="inline-flex items-center gap-1" title="Esta aula tem anotações suas">

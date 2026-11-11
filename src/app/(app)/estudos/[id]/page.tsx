@@ -66,7 +66,8 @@ export default function AulaAberta() {
       setNotas(!!p.get("anotacoes") || (localStorage.getItem("estudos-anotacoes") === "1" && window.innerWidth >= 1024));
       if (p.toString()) window.history.replaceState(null, "", window.location.pathname);
     } catch {}
-    const tr = new ReadingTracker(null, () => timerOn.current, id);
+    // só conta nos indicadores quando a aula está como "Lendo" (folhear não conta)
+    const tr = new ReadingTracker(null, () => timerOn.current, id, () => aulaRef.current?.situacao === "lendo");
     tr.onChange = () => setSessao({ ...tr.session });
     tracker.current = tr;
     return () => { void tr.close(); };
@@ -146,6 +147,18 @@ export default function AulaAberta() {
     if (!feita) setAviso("Aula concluída. Muito bem!");
   }
 
+  /** Folheando → lendo: só a partir daqui o estudo conta (tempo, palavras, posição e porcentagem). */
+  async function comecarAEstudar() {
+    if (!aula) return;
+    const campos = camposDaSituacao("lendo", aula);
+    const nova = { ...aula, ...campos };
+    aulaRef.current = nova;
+    setAula(nova);
+    await supabase().from("notes").update(campos).eq("id", id);
+    if (local) { posPendente.current = { loc: local, p: progresso }; salvarPos(); }
+    setAviso("Estudo iniciado: a partir de agora conta nos indicadores.");
+  }
+
   /** Leva o trecho selecionado para as anotações, como citação. */
   function citar() {
     if (!sel || !aula) return;
@@ -191,10 +204,12 @@ export default function AulaAberta() {
               <span>{nf.format(sessao.words)} pal.</span>
               <span>{wpm ? `${wpm} ppm` : "— ppm"}</span>
             </div>
-            <span className="text-xs opacity-70 tabular-nums text-right whitespace-nowrap" title={`Progresso na aula · tempo que falta no seu ritmo médio (${ppmBase} ppm)`}>
-              {Math.round(progresso * 100)}%
-              {aula?.palavras ? <span className="hidden sm:inline"> · faltam ≈ {fmtDuration((aula.palavras * (1 - progresso)) / ppmBase * 60)}</span> : null}
-            </span>
+            {aula?.situacao === "lendo" && (
+              <span className="text-xs opacity-70 tabular-nums text-right whitespace-nowrap" title={`Progresso na aula · tempo que falta no seu ritmo médio (${ppmBase} ppm)`}>
+                {Math.round(progresso * 100)}%
+                {aula?.palavras ? <span className="hidden sm:inline"> · faltam ≈ {fmtDuration((aula.palavras * (1 - progresso)) / ppmBase * 60)}</span> : null}
+              </span>
+            )}
             <div className="hidden sm:flex items-center rounded-lg border mx-1" style={{ borderColor: linha }} title="Zoom (teclas + e −)">
               <button className="p-1.5 opacity-70 hover:opacity-100 disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, -1))} disabled={zoom <= ZOOM[0]} aria-label="Diminuir"><ZoomOut size={16} /></button>
               <button className="text-xs tabular-nums w-11 text-center opacity-80 hover:opacity-100" onClick={() => setPrefs((p) => ({ ...p, sizePt: 12 }))} title="Voltar a 100%">{zoom}%</button>
@@ -227,6 +242,14 @@ export default function AulaAberta() {
           {!!aula?.anotacoes?.trim() && !notas && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-current" />}
         </button>
       </header>
+      {aula && !editar && aula.situacao !== "lendo" && (
+        <div className="shrink-0 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-3 py-1.5 text-xs border-b" style={{ borderColor: linha }}>
+          <span className="opacity-70">
+            {aula.situacao === "concluida" ? "Aula concluída — folheando: não conta nos indicadores." : "Folheando: não conta nos indicadores nem muda a porcentagem."}
+          </span>
+          {aula.situacao === "pendente" && <button className="btn text-xs py-0.5" onClick={() => void comecarAEstudar()}>Começar a estudar</button>}
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 flex">
         <div className="relative flex-1 min-w-0">
@@ -243,14 +266,7 @@ export default function AulaAberta() {
           ) : blob && aula ? (
             <TextReader ref={reader} data={blob} format="md" startAt={local || (aula.location && /^p:\d+$/.test(aula.location) ? aula.location : null)} prefs={view}
               annotations={[]} knownWords={null}
-              onTurn={(w, fwd) => {
-                tracker.current?.turn(w, fwd);
-                // como nos livros: virou a página de uma aula pendente, ela passa a "Lendo"
-                if (fwd && aulaRef.current?.situacao === "pendente") {
-                  setAula((a) => (a ? { ...a, situacao: "lendo" } : a));
-                  fire(supabase().from("notes").update({ situacao: "lendo" }).eq("id", id));
-                }
-              }}
+              onTurn={(w, fwd) => tracker.current?.turn(w, fwd)}
               onView={(w, last) => tracker.current?.see(w, last)}
               onToc={setToc}
               onLocation={(loc, p, l) => {
@@ -258,6 +274,7 @@ export default function AulaAberta() {
                 setProgresso(p);
                 if (l) setRotulo(l);
                 if (!loc) return;
+                if (aulaRef.current?.situacao !== "lendo") return; // folheando: não grava posição nem porcentagem
                 posPendente.current = { loc, p };
                 if (tPos.current) clearTimeout(tPos.current);
                 tPos.current = setTimeout(salvarPos, 1200);

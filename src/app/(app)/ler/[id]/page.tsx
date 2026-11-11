@@ -88,7 +88,8 @@ export default function Ler() {
       setAnns((a.data as Annotation[]) ?? []);
       try { setBlob(await downloadBook(data as Book)); } catch (e) { setError((e as Error).message); }
     })();
-    const t = new ReadingTracker(id, () => timerOn.current);
+    // só conta nos indicadores quando o livro está como "Lendo" (folhear não conta)
+    const t = new ReadingTracker(id, () => timerOn.current, null, () => bookRef.current?.status === "lendo");
     t.onChange = () => setSession({ ...t.session });
     tracker.current = t;
     return () => { void t.close(); };
@@ -102,12 +103,19 @@ export default function Ler() {
 
   function onTurn(words: number, forward: boolean) {
     tracker.current?.turn(words, forward);
+  }
+
+  /** Folheando → lendo: só a partir daqui a leitura conta (tempo, palavras, posição e porcentagem). */
+  async function comecarALer() {
     const b = bookRef.current;
-    if (forward && b && (b.status === "aguardando" || b.status === "pausado")) {
-      const patch = { status: "lendo" as const, started_at: b.started_at ?? new Date().toISOString() };
-      setBook({ ...b, ...patch });
-      fire(supabase().from("books").update(patch).eq("id", b.id));
-    }
+    if (!b) return;
+    const patch = { status: "lendo" as const, started_at: b.started_at ?? new Date().toISOString() };
+    const novo = { ...b, ...patch };
+    bookRef.current = novo;
+    setBook(novo);
+    await supabase().from("books").update(patch).eq("id", b.id);
+    if (location) { pendingPos.current = { location, progress }; savePos(); }
+    setToast("Leitura iniciada: a partir de agora conta nos indicadores.");
   }
 
   function onLocation(location: string, p: number, l: string) {
@@ -115,6 +123,7 @@ export default function Ler() {
     if (p > 0) setProgress(p);
     if (l) setLabel(l);
     if (!location) return;
+    if (bookRef.current?.status !== "lendo") return; // folheando: não grava posição nem porcentagem
     pendingPos.current = { location, progress: p };
     if (posTimer.current) clearTimeout(posTimer.current);
     posTimer.current = setTimeout(savePos, 1200);
@@ -213,13 +222,13 @@ export default function Ler() {
           <span>{nf.format(session.words)} pal.</span>
           <span>{wpm ? `${wpm} ppm` : "— ppm"}</span>
         </div>
-        <span className="text-xs opacity-70 tabular-nums w-10 text-right" title="Progresso no livro">{Math.round(progress * 100)}%</span>
+        {book?.status === "lendo" && <span className="text-xs opacity-70 tabular-nums w-10 text-right" title="Progresso no livro">{Math.round(progress * 100)}%</span>}
         <div className="flex items-center rounded-lg border mx-1" style={{ borderColor: tema === "escuro" ? "#2f2f2c" : "#00000018" }} title="Zoom (teclas + e −)">
           <button className="p-1.5 opacity-70 hover:opacity-100 disabled:opacity-30" onClick={() => setZoom(-1)} disabled={zoom <= ZOOM[0]} aria-label="Diminuir"><ZoomOut size={16} /></button>
           <button className="text-xs tabular-nums w-11 text-center opacity-80 hover:opacity-100" onClick={() => setPrefs((p) => ({ ...p, sizePt: 12 }))} title="Voltar a 100%">{zoom}%</button>
           <button className="p-1.5 opacity-70 hover:opacity-100 disabled:opacity-30" onClick={() => setZoom(1)} disabled={zoom >= ZOOM[ZOOM.length - 1]} aria-label="Aumentar"><ZoomIn size={16} /></button>
         </div>
-        {progress > 0.97 && book?.status !== "lido" && (
+        {progress > 0.97 && book?.status === "lendo" && (
           <button className="btn text-xs py-1" onClick={markRead}><Check size={14} /> Concluir</button>
         )}
         {book && book.format !== "fisico" && (
@@ -234,6 +243,16 @@ export default function Ler() {
           {anns.length > 0 && <span className="absolute top-1 right-0.5 text-[9px] font-bold">{anns.length}</span>}
         </button>
       </header>
+      {book && book.status !== "lendo" && (
+        <div className="shrink-0 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-3 py-1.5 text-xs border-b" style={{ borderColor: tema === "escuro" ? "#2f2f2c" : "#00000014" }}>
+          <span className="opacity-70">
+            {book.status === "lido" ? "Livro já lido — folheando: não conta nos indicadores." : "Folheando: não conta nos indicadores nem muda a porcentagem."}
+          </span>
+          {book.status !== "lido" && (
+            <button className="btn text-xs py-0.5" onClick={() => void comecarALer()}>{book.status === "pausado" ? "Retomar a leitura" : "Começar a ler"}</button>
+          )}
+        </div>
+      )}
 
       <div className="relative flex-1 min-h-0">
         {blob && book && (

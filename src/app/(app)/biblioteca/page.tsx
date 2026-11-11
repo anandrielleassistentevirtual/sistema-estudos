@@ -218,7 +218,7 @@ export default function Biblioteca() {
               <span className="truncate">
                 {b.word_count ? ` · ${nf.format(b.word_count)} palavras · ≈ ${fmtDuration((b.word_count / wpm) * 60)}` : ""}
                 {b.format === "fisico" ? ` · físico${b.total_pages ? ` · p. ${b.current_page ?? 0}/${b.total_pages}` : ""}` : ""}
-                {progressoDoLivro(b) > 0 && b.status !== "lido" ? ` · ${Math.round(progressoDoLivro(b) * 100)}%` : ""}
+                {b.status === "lendo" && progressoDoLivro(b) > 0 ? ` · ${Math.round(progressoDoLivro(b) * 100)}%` : ""}
               </span>
             </span>
           </span>

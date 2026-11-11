@@ -53,7 +53,7 @@ export const COLUNAS_AULA = "id,title,folder,professor,course,created_at,updated
 
 /** Palavras que faltam ler numa aula. */
 export const faltam = (a: Pick<Aula, "palavras" | "progresso" | "situacao">) =>
-  a.situacao === "concluida" ? 0 : Math.max(0, (a.palavras ?? 0) * (1 - (a.progresso ?? 0)));
+  a.situacao === "concluida" ? 0 : Math.max(0, (a.palavras ?? 0) * (1 - (a.situacao === "lendo" ? a.progresso ?? 0 : 0)));
 
 /** Campos que acompanham cada status (a data de conclusão e os 100%). */
 export function camposDaSituacao(s: SituacaoAula, antes: Pick<Aula, "completed_at">) {

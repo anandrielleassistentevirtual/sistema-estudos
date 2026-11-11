@@ -7,6 +7,8 @@ import { dayKey } from "./dates";
  * que você passou nela. Não contam: tempo com a aba escondida, páginas folheadas
  * (mais rápido que 900 ppm) e o excesso acima de um teto por página (quando você
  * deixa o livro aberto e sai). A última página conta ao sair, se houve tempo de lê-la.
+ * Só conta quando o livro/aula está como "Lendo" (`ativo`): folhear um livro que você ainda não começou
+ * (ou já terminou) não entra nos indicadores.
  */
 const MAX_PPM = 900;
 export class ReadingTracker {
@@ -25,7 +27,12 @@ export class ReadingTracker {
   public onChange?: () => void;
 
   /** bookId para livros; para aulas (Estudos), bookId = null e noteId = id da aula. */
-  constructor(private bookId: string | null, private timerOn: () => boolean = () => false, private noteId: string | null = null) {
+  constructor(
+    private bookId: string | null,
+    private timerOn: () => boolean = () => false,
+    private noteId: string | null = null,
+    private ativo: () => boolean = () => true,
+  ) {
     this.timer = setInterval(() => void this.flush(), 20000);
     document.addEventListener("visibilitychange", this.onVis);
   }
@@ -45,6 +52,7 @@ export class ReadingTracker {
     const dwell = (now - this.pageStart - this.hiddenTotal) / 1000;
     this.pageStart = now;
     this.hiddenTotal = 0;
+    if (!this.ativo()) return; // folheando: não conta
     if (!forward || dwell < 2 || words <= 0) return;
     // folheada: rápido demais para ter sido lida
     if (dwell < (words / MAX_PPM) * 60) return;
