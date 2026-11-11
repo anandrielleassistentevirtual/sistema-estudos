@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronRight, CircleCheck, Download, FileText, FolderInput, FolderOpen, FolderPlus, FolderUp,
-  NotebookPen, Pencil, Plus, Search, Trash2, Upload, X,
+  ListOrdered, NotebookPen, Pencil, Plus, Search, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { RowMenu } from "@/components/row-menu";
@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import {
   arvoreDePastas, baixarAula, baixarTodas, caminhoDaPasta, camposDaSituacao, COLUNAS_AULA, faltam, importarAulas, nivelProvavel, numeroDaAula,
-  pastasDoArquivo, porTitulo, ppmMedio, subarvore, syncHeading, type Aula, type PastaEstudo,
+  pastasDoArquivo, porOrdem, porTitulo, ppmMedio, reordenarAulas, subarvore, syncHeading, type Aula, type PastaEstudo,
 } from "@/lib/estudos";
 import { fmtDuration, nf } from "@/lib/dates";
 
@@ -27,6 +27,7 @@ export default function Estudos() {
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
   const [movendo, setMovendo] = useState<{ pasta?: PastaEstudo; aula?: Aula } | null>(null);
   const [nomeando, setNomeando] = useState<{ pai: string | null; pasta?: PastaEstudo } | null>(null);
+  const [posicionando, setPosicionando] = useState<Aula | null>(null);
   const [q, setQ] = useState("");
   const [achados, setAchados] = useState<Set<string> | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("todas");
@@ -120,8 +121,41 @@ export default function Estudos() {
     }
     return [...g.entries()]
       .sort(([a], [b]) => (posNaArvore.get(a) ?? 1e9) - (posNaArvore.get(b) ?? 1e9))
-      .map(([k, l]) => [k === SEM_PASTA ? "Sem pasta" : caminhoDaPasta(k, porId), l] as [string, Aula[]]);
+      .map(([k, l]) => [k === SEM_PASTA ? "Sem pasta" : caminhoDaPasta(k, porId), [...l].sort(porOrdem)] as [string, Aula[]]);
   }, [visiveis, porId, posNaArvore]);
+
+  // ---- ordem das aulas dentro da pasta ----
+  const chaveDaPasta = (a: Aula) => (a.pasta_id && porId.has(a.pasta_id) ? a.pasta_id : SEM_PASTA);
+  /** Todas as aulas da mesma pasta (sem filtro nem busca), na ordem atual. */
+  const daMesmaPasta = (a: Aula) => (aulas ?? []).filter((x) => chaveDaPasta(x) === chaveDaPasta(a)).sort(porOrdem);
+  async function gravarOrdem(lista: Aula[]) {
+    const pos = new Map(lista.map((x, i) => [x.id, i]));
+    setAulas((all) => all?.map((x) => (pos.has(x.id) ? { ...x, ordem: pos.get(x.id)! } : x)) ?? null);
+    try { await reordenarAulas(lista.map((x) => x.id)); } catch (e) {
+      setMsg(`Não consegui salvar a nova ordem: ${(e as Error).message}`);
+      setTimeout(() => setMsg(null), 5000);
+      void load();
+    }
+  }
+  /** Sobe ou desce uma posição em relação às aulas que estão à vista (com filtro ou busca, pula as escondidas). */
+  function moverNaLista(a: Aula, dir: -1 | 1) {
+    const lista = daMesmaPasta(a);
+    const vis = new Set(visiveis.map((x) => x.id));
+    const i = lista.findIndex((x) => x.id === a.id);
+    let j = i + dir;
+    while (j >= 0 && j < lista.length && !vis.has(lista[j].id)) j += dir;
+    if (i < 0 || j < 0 || j >= lista.length) return;
+    const vizinho = lista[j].id;
+    const sem = lista.filter((x) => x.id !== a.id);
+    const alvo = sem.findIndex((x) => x.id === vizinho);
+    sem.splice(dir < 0 ? alvo : alvo + 1, 0, a);
+    void gravarOrdem(sem);
+  }
+  function moverParaPosicao(a: Aula, n: number) {
+    const lista = daMesmaPasta(a).filter((x) => x.id !== a.id);
+    lista.splice(Math.max(0, Math.min(lista.length, n - 1)), 0, a);
+    void gravarOrdem(lista);
+  }
 
   // ---- pastas: criar, renomear, ordenar, mover, apagar ----
   const irmaos = (pai: string | null) => filhos.get(pai) ?? [];
@@ -155,7 +189,8 @@ export default function Estudos() {
   }
   async function moverAula(a: Aula, para: string | null) {
     const sb = supabase();
-    await sb.from("notes").update(para ? { pasta_id: para } : { pasta_id: null, course: "", folder: "" }).eq("id", a.id);
+    // na pasta nova, a aula entra no fim (sem posição escolhida)
+    await sb.from("notes").update(para ? { pasta_id: para, ordem: null } : { pasta_id: null, course: "", folder: "", ordem: null }).eq("id", a.id);
     void load();
   }
   async function apagarPasta(p: PastaEstudo) {
@@ -323,7 +358,7 @@ export default function Estudos() {
                   </span>
                 </div>
                 <div className="card divide-y divide-line">
-                  {lista.map((a) => {
+                  {lista.map((a, k) => {
                     const n = numeroDaAula(a.title);
                     const feita = a.situacao === "concluida";
                     return (
@@ -353,6 +388,9 @@ export default function Estudos() {
                           { label: "Abrir a aula", icon: BookOpen, onClick: () => router.push(`/estudos/${a.id}`) },
                           { label: "Editar nome e professor", icon: Pencil, onClick: () => setEditando(a) },
                           { label: "Mover para outra pasta", icon: FolderInput, onClick: () => setMovendo({ aula: a }) },
+                          { label: "Subir", icon: ArrowUp, separar: true, disabled: k === 0, onClick: () => moverNaLista(a, -1) },
+                          { label: "Descer", icon: ArrowDown, disabled: k === lista.length - 1, onClick: () => moverNaLista(a, 1) },
+                          { label: "Mover para a posição…", icon: ListOrdered, disabled: lista.length < 2 && daMesmaPasta(a).length < 2, onClick: () => setPosicionando(a) },
                           { label: "Editar a transcrição", icon: FileText, onClick: () => router.push(`/estudos/${a.id}?editar=1`) },
                           { label: "Baixar a transcrição (.md)", icon: Download, onClick: () => void baixarAula(a) },
                           { label: feita ? "Voltar para pendente" : "Marcar como concluída", icon: CircleCheck, onClick: () => mudarSituacao(a, feita ? "pendente" : "concluida"), separar: true },
@@ -412,6 +450,12 @@ export default function Estudos() {
       {novaAberta && <NovaAula ordem={ordem} inicial={pastaSel} onClose={() => setNovaAberta(false)}
         onImportar={(destino) => { setNovaAberta(false); destinoDoImport.current = destino; arquivosRef.current?.click(); }}
         onEmBranco={(destino) => { setNovaAberta(false); void novaAula(destino); }} />}
+      {posicionando && (() => {
+        const lista = daMesmaPasta(posicionando);
+        return <PosicaoDaAula aula={posicionando} atual={lista.findIndex((x) => x.id === posicionando.id) + 1} total={lista.length}
+          pasta={chaveDaPasta(posicionando) === SEM_PASTA ? "Sem pasta" : caminhoDaPasta(chaveDaPasta(posicionando), porId)}
+          onClose={() => setPosicionando(null)} onMover={(n) => { moverParaPosicao(posicionando, n); setPosicionando(null); }} />;
+      })()}
       {nomeando && <NomeDaPasta inicial={nomeando.pasta?.nome ?? ""} titulo={nomeando.pasta ? "Renomear pasta" : nomeando.pai ? `Nova subpasta em “${porId.get(nomeando.pai)?.nome ?? ""}”` : "Nova pasta"}
         onClose={() => setNomeando(null)} onSalvar={salvarNome} />}
       {movendo && <MoverPara ordem={ordem} titulo={movendo.pasta ? `Mover a pasta “${movendo.pasta.nome}”` : `Mover a aula “${movendo.aula?.title}”`}
@@ -551,6 +595,36 @@ function NovaAula({ ordem, inicial, onClose, onImportar, onEmBranco }: {
           </span>
         </button>
       </div>
+    </div>
+  );
+}
+
+function PosicaoDaAula({ aula, atual, total, pasta, onClose, onMover }: {
+  aula: Aula; atual: number; total: number; pasta: string; onClose: () => void; onMover: (n: number) => void;
+}) {
+  const [n, setN] = useState(String(atual));
+  const num = Math.round(Number(n));
+  const ok = Number.isFinite(num) && num >= 1 && num <= total && num !== atual;
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+      <form onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); if (ok) onMover(num); }}
+        className="card w-full max-w-sm p-6 space-y-4 shadow-2xl">
+        <div>
+          <h2 className="text-lg">Mover para a posição</h2>
+          <p className="text-sm text-muted mt-1 truncate">{aula.title}</p>
+          <p className="text-xs text-faint truncate">{pasta} · hoje na posição {atual} de {total}</p>
+        </div>
+        <label className="block"><span className="label">Nova posição (1 a {total})</span>
+          <input autoFocus type="number" inputMode="numeric" min={1} max={total} className="input mt-1" value={n} onChange={(e) => setN(e.target.value)} /></label>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn text-sm" disabled={atual === 1} onClick={() => onMover(1)}>Primeira</button>
+          <button type="button" className="btn text-sm" disabled={atual === total} onClick={() => onMover(total)}>Última</button>
+        </div>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" disabled={!ok}>Mover</button>
+        </div>
+      </form>
     </div>
   );
 }

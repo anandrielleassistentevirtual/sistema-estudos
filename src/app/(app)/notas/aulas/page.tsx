@@ -7,13 +7,13 @@ import { Empty, Page } from "@/components/page";
 import { NotasTabs } from "@/components/notas-tabs";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
-import { porTitulo } from "@/lib/estudos";
+import { porOrdem } from "@/lib/estudos";
 
 const Markdown = dynamic(() => import("@/components/markdown"), { ssr: false, loading: () => <p className="text-sm text-faint">…</p> });
 
 interface Anotacao {
   id: string; title: string; course: string; folder: string; professor: string;
-  anotacoes: string; anotacoes_em: string | null; situacao?: string;
+  anotacoes: string; anotacoes_em: string | null; situacao?: string; ordem?: number | null;
 }
 type Vista = "curso" | "recentes";
 
@@ -29,7 +29,7 @@ export default function AnotacoesDasAulas() {
 
   useEffect(() => {
     try { const v = localStorage.getItem("notas-aulas-vista"); if (v === "recentes" || v === "curso") setVista(v); } catch {}
-    void todas<Anotacao>((de, ate) => supabase().from("notes").select("id,title,course,folder,professor,anotacoes,anotacoes_em,situacao")
+    void todas<Anotacao>((de, ate) => supabase().from("notes").select("id,title,course,folder,professor,anotacoes,anotacoes_em,situacao,ordem")
       .eq("kind", "estudo").neq("anotacoes", "").order("id").range(de, ate))
       .then((data) => setItens(data.filter((x) => (x.anotacoes ?? "").trim()))).catch(() => setItens([]));
   }, []);
@@ -52,7 +52,7 @@ export default function AnotacoesDasAulas() {
       const k = [a.course || "Sem curso", a.folder].filter(Boolean).join(" › ");
       g.set(k, [...(g.get(k) ?? []), a]);
     }
-    return [...g.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true })).map(([k, l]) => [k, l.sort(porTitulo)] as [string, Anotacao[]]);
+    return [...g.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true })).map(([k, l]) => [k, l.sort(porOrdem)] as [string, Anotacao[]]);
   }, [filtradas, vista]);
 
   function baixarTudo() {

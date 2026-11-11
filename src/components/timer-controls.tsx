@@ -9,10 +9,11 @@ import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import { Language, loadLanguages } from "@/lib/languages";
 import { bookName } from "@/lib/folders";
+import { porOrdem } from "@/lib/estudos";
 import { Combobox } from "./combobox";
 
 interface BookOpt { id: string; title: string; author: string | null; format: string; status: string; current_page: number | null; total_pages: number | null }
-interface NoteOpt { id: string; title: string; professor: string; course: string; situacao?: string; progresso?: number }
+interface NoteOpt { id: string; title: string; professor: string; course: string; situacao?: string; progresso?: number; ordem?: number | null }
 
 /** Controles do timer (usados na tela Timer e no timer flutuante). */
 export function TimerControls({ compact = false }: { compact?: boolean }) {
@@ -36,10 +37,10 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
     const ordemLivro: Record<string, number> = { lendo: 0, aguardando: 1, pausado: 1, lido: 2 };
     void todas<BookOpt>((de, ate) => sb.from("books").select("id,title,author,format,status,current_page,total_pages").order("author").order("title").order("id").range(de, ate))
       .then((data) => setBooks(data.sort((a, b) => (ordemLivro[a.status] ?? 1) - (ordemLivro[b.status] ?? 1)))).catch(() => {});
-    void todas<NoteOpt>((de, ate) => sb.from("notes").select("id,title,professor,course,situacao,progresso").eq("kind", "estudo").order("id").range(de, ate))
+    void todas<NoteOpt>((de, ate) => sb.from("notes").select("id,title,professor,course,situacao,progresso,ordem").eq("kind", "estudo").order("id").range(de, ate))
       .then((data) => setNotes(data.sort((a, b) =>
         Number(a.situacao === "concluida") - Number(b.situacao === "concluida") ||
-        a.course.localeCompare(b.course, "pt-BR") || a.title.localeCompare(b.title, "pt-BR", { numeric: true })))).catch(() => {});
+        a.course.localeCompare(b.course, "pt-BR") || porOrdem(a, b)))).catch(() => {});
     void loadLanguages().then(setLangs);
   }, [t.lastSaved]);
 

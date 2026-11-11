@@ -14,6 +14,8 @@ export type Aula = Pick<Note, "id" | "title" | "folder" | "professor" | "course"
   situacao: SituacaoAula;
   /** pasta da aula (autor › curso › módulo…); o caminho em texto fica em `course`, mantido pelo banco */
   pasta_id: string | null;
+  /** posição escolhida por você dentro da pasta (sem posição, vale a ordem do título) */
+  ordem: number | null;
 };
 
 /** Pasta dos Estudos: subpastas sem limite, na ordem escolhida. */
@@ -47,7 +49,7 @@ export function caminhoDaPasta(id: string | null, porId: Map<string, PastaEstudo
   return nomes.join(" › ");
 }
 
-export const COLUNAS_AULA = "id,title,folder,professor,course,created_at,updated_at,location,completed_at,anotacoes,palavras,progresso,situacao,pasta_id";
+export const COLUNAS_AULA = "id,title,folder,professor,course,created_at,updated_at,location,completed_at,anotacoes,palavras,progresso,situacao,pasta_id,ordem";
 
 /** Palavras que faltam ler numa aula. */
 export const faltam = (a: Pick<Aula, "palavras" | "progresso" | "situacao">) =>
@@ -82,6 +84,16 @@ export async function ppmMedio(): Promise<{ ppm: number; origem: "aulas" | "leit
 
 export const porTitulo = (a: { title: string }, b: { title: string }) =>
   a.title.localeCompare(b.title, "pt-BR", { numeric: true, sensitivity: "base" });
+
+/** Ordem das aulas numa pasta: a posição que você escolheu; sem posição (aulas novas), pela ordem do título, no fim. */
+export const porOrdem = (a: { title: string; ordem?: number | null }, b: { title: string; ordem?: number | null }) =>
+  (a.ordem ?? Number.MAX_SAFE_INTEGER) - (b.ordem ?? Number.MAX_SAFE_INTEGER) || porTitulo(a, b);
+
+/** Grava a ordem de uma pasta inteira de uma vez (a lista de ids, já na ordem nova). */
+export async function reordenarAulas(ids: string[]) {
+  const { error } = await supabase().rpc("reordenar_aulas", { ids });
+  if (error) throw new Error(error.message);
+}
 
 /** "07 - Ética" → "07"; "Aula 12: …" → "12". */
 export function numeroDaAula(titulo: string): string | null {
