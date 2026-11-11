@@ -6,7 +6,7 @@ import { OracaoTabs } from "@/components/oracao-tabs";
 import { supabase } from "@/lib/supabase/client";
 import {
   ANTES_DO_EXAME, ATO_DE_CONTRICAO, CONTRICAO_PERFEITA, ITERACOES, MANDAMENTOS, PRAZO_CONFISSAO, QUANTIDADES,
-  cifrar, decifrar, derivarChave, diasDesde, exameTemAlgo, exameVazio, listaParaConfissao, novoSal, senhaConfere,
+  cifrar, decifrar, derivarChave, diasDesde, exameTemAlgo, exameVazio, listaParaConfissao, novoSal, quantidadeValida, semQuantidade, senhaConfere,
   tempoDesde, verificadorNovo, type ExameDados,
 } from "@/lib/exame";
 import { corrigirUltimaConfissao, dataBr, hojeIso, registrarConfissao, ultimaConfissao } from "@/lib/confissao";
@@ -114,6 +114,16 @@ export default function ExameDeConsciencia() {
   }
 
   const total = Object.keys(dados.marcas).length + dados.outros.filter((o) => o.texto.trim()).length;
+  const faltam = semQuantidade(dados);
+  const [cobrar, setCobrar] = useState(false); // depois de tentar abrir a lista, destaca o que está sem quantidade
+  function paraOSacerdote() {
+    if (faltam.length) {
+      setCobrar(true);
+      document.getElementById(`p-${faltam[0]}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    setVendoLista(true);
+  }
 
   if (cofre === undefined) return <Page tabs={<OracaoTabs className="mb-6 -mt-2" />} title="Exame de consciência">{null}</Page>;
 
@@ -189,7 +199,7 @@ export default function ExameDeConsciencia() {
                 {m.itens.map((i) => {
                   const marca = dados.marcas[i.id];
                   return (
-                    <li key={i.id} className="px-5 py-3">
+                    <li key={i.id} id={`p-${i.id}`} className="px-5 py-3 scroll-mt-24">
                       <label className="flex items-start gap-3 cursor-pointer">
                         <input type="checkbox" className="sr-only" checked={!!marca}
                           onChange={(e) => mudar((d) => {
@@ -203,21 +213,22 @@ export default function ExameDeConsciencia() {
                         <span className="text-[15px] leading-snug">{i.q}</span>
                       </label>
                       {marca && (
-                        <Quantidade valor={marca.qtd} dica={i.obs}
-                          onMudar={(qtd) => mudar((d) => ({ ...d, marcas: { ...d.marcas, [i.id]: { qtd } } }))} />
+                        <Quantidade valor={marca.qtd} cobrar={cobrar} dica={i.obs} nota={marca.nota ?? ""}
+                          onMudar={(qtd) => mudar((d) => ({ ...d, marcas: { ...d.marcas, [i.id]: { ...d.marcas[i.id], qtd } } }))}
+                          onNota={(nota) => mudar((d) => ({ ...d, marcas: { ...d.marcas, [i.id]: { ...d.marcas[i.id], nota } } }))} />
                       )}
                     </li>
                   );
                 })}
                 {dados.outros.filter((o) => o.mand === m.id).map((o) => (
-                  <li key={o.id} className="px-5 py-3">
+                  <li key={o.id} id={`p-${o.id}`} className="px-5 py-3 scroll-mt-24">
                     <div className="flex items-start gap-3">
                       <span className="mt-0.5 w-5 h-5 rounded-md border bg-chart border-chart text-bg grid place-items-center shrink-0"><Check size={13} strokeWidth={3} /></span>
                       <input className="flex-1 bg-transparent outline-none text-[15px] border-b border-line focus:border-muted pb-0.5" value={o.texto} placeholder="Descreva o pecado"
                         onChange={(e) => mudar((d) => ({ ...d, outros: d.outros.map((x) => (x.id === o.id ? { ...x, texto: e.target.value } : x)) }))} />
                       <button className="text-faint hover:text-ink" title="Tirar" onClick={() => mudar((d) => ({ ...d, outros: d.outros.filter((x) => x.id !== o.id) }))}><Trash2 size={15} /></button>
                     </div>
-                    <Quantidade valor={o.qtd} onMudar={(qtd) => mudar((d) => ({ ...d, outros: d.outros.map((x) => (x.id === o.id ? { ...x, qtd } : x)) }))} />
+                    <Quantidade valor={o.qtd} cobrar={cobrar && !!o.texto.trim()} onMudar={(qtd) => mudar((d) => ({ ...d, outros: d.outros.map((x) => (x.id === o.id ? { ...x, qtd } : x)) }))} />
                   </li>
                 ))}
                 <li className="px-5 py-2.5">
@@ -236,9 +247,13 @@ export default function ExameDeConsciencia() {
         {/* barra de ações: acompanha a rolagem (no celular, fica acima do botão do Timer) */}
         <div className="sticky bottom-[76px] md:bottom-4 z-20">
           <div className="card shadow-xl px-4 py-3 flex items-center gap-2 flex-wrap justify-between">
-            <span className="text-sm text-muted tabular-nums">{total ? `${total} ${total === 1 ? "pecado marcado" : "pecados marcados"}` : "Nada marcado"}</span>
+            <span className="text-sm tabular-nums">
+              {cobrar && faltam.length
+                ? <span style={{ color: "var(--bad, #d33)" }}>Falta a quantidade em {faltam.length} {faltam.length === 1 ? "pecado" : "pecados"}</span>
+                : <span className="text-muted">{total ? `${total} ${total === 1 ? "pecado marcado" : "pecados marcados"}` : "Nada marcado"}</span>}
+            </span>
             <span className="flex gap-2">
-              <button className="btn" onClick={() => setVendoLista(true)}><ScrollText size={15} /> Para o sacerdote</button>
+              <button className="btn" onClick={paraOSacerdote}><ScrollText size={15} /> Para o sacerdote</button>
               <button className="btn btn-primary" onClick={() => setConfessando(true)}>Fiz a confissão</button>
             </span>
           </div>
@@ -262,18 +277,24 @@ export default function ExameDeConsciencia() {
   );
 }
 
-function Quantidade({ valor, dica, onMudar }: { valor: string; dica?: string; onMudar: (v: string) => void }) {
+function Quantidade({ valor, dica, nota, cobrar, onMudar, onNota }: {
+  valor: string; dica?: string; nota?: string; cobrar?: boolean; onMudar: (v: string) => void; onNota?: (v: string) => void;
+}) {
+  const falta = !quantidadeValida(valor);
   return (
     <div className="mt-2 ml-8 space-y-1.5">
-      <input className="input py-1.5 text-sm" value={valor} placeholder="Quantas vezes?"
-        onChange={(e) => onMudar(e.target.value)} />
-      <div className="flex flex-wrap gap-1.5">
+      <div className="text-xs text-muted">Quantas vezes?</div>
+      <div className={`flex flex-wrap gap-1.5 rounded-lg ${falta && cobrar ? "ring-2 ring-offset-2 ring-offset-surface p-0.5" : ""}`}
+        style={falta && cobrar ? { ["--tw-ring-color" as string]: "var(--bad, #d33)" } : undefined}>
         {QUANTIDADES.map((q) => (
           <button key={q} type="button" onClick={() => onMudar(q)}
-            className={`text-xs rounded-full px-2.5 py-1 border transition-colors ${valor === q ? "border-ink text-ink" : "border-line text-muted hover:text-ink"}`}>{q}</button>
+            className={`text-sm rounded-full px-3 py-1 border transition-colors ${valor === q ? "bg-chart border-chart text-bg font-medium" : "border-line text-muted hover:text-ink"}`}>{q}</button>
         ))}
       </div>
-      {dica && <p className="text-xs text-faint">{dica}</p>}
+      {falta && cobrar && <p className="text-xs" style={{ color: "var(--bad, #d33)" }}>Escolha quantas vezes.</p>}
+      {dica && onNota && (
+        <input className="input py-1.5 text-sm" value={nota ?? ""} placeholder={dica} onChange={(e) => onNota(e.target.value)} />
+      )}
     </div>
   );
 }
@@ -352,7 +373,7 @@ function ListaParaSacerdote({ dados, ultima, onClose, onConfessei }: { dados: Ex
                 {pecados.map((p, i) => (
                   <li key={i} className="text-[19px] leading-snug flex gap-3">
                     <span className="text-faint">•</span>
-                    <span>{p.texto.replace(/\.$/, "")}{p.qtd ? <span className="text-muted"> — {p.qtd}</span> : ""}.</span>
+                    <span>{p.texto.replace(/\.$/, "")}{p.nota ? ` (${p.nota})` : ""} <span className="text-muted">— {p.qtd}</span>.</span>
                   </li>
                 ))}
               </ul>

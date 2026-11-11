@@ -163,14 +163,23 @@ export const MANDAMENTOS: Mandamento[] = [
   },
 ];
 
-export const QUANTIDADES = ["1 vez", "2 vezes", "3 vezes", "algumas vezes", "várias vezes", "inúmeras vezes", "habitualmente"];
+/** Quantas vezes: de 1 a 5, ou inúmeras. Todo pecado marcado precisa de uma. */
+export const QUANTIDADES = ["1 vez", "2 vezes", "3 vezes", "4 vezes", "5 vezes", "inúmeras vezes"];
+export const quantidadeValida = (q: string | undefined) => !!q && QUANTIDADES.includes(q);
 
 /** O que fica cifrado: as marcações (id → quantidade/observação) e os pecados escritos à mão. */
 export interface ExameDados {
-  marcas: Record<string, { qtd: string }>;
+  marcas: Record<string, { qtd: string; nota?: string }>; // nota: a circunstância (ex.: "sozinho")
   outros: { id: string; mand: string; texto: string; qtd: string }[];
 }
 export const exameVazio = (): ExameDados => ({ marcas: {}, outros: [] });
+/** Pecados marcados ainda sem quantidade (ids dos itens e dos "outros"). */
+export function semQuantidade(d: ExameDados): string[] {
+  return [
+    ...MANDAMENTOS.flatMap((m) => m.itens).filter((i) => d.marcas[i.id] && !quantidadeValida(d.marcas[i.id].qtd)).map((i) => i.id),
+    ...d.outros.filter((o) => o.texto.trim() && !quantidadeValida(o.qtd)).map((o) => o.id),
+  ];
+}
 export const exameTemAlgo = (d: ExameDados) => Object.keys(d.marcas).length > 0 || d.outros.some((o) => o.texto.trim());
 
 /** Lista para o sacerdote, na ordem dos mandamentos. */
@@ -178,8 +187,8 @@ export function listaParaConfissao(d: ExameDados) {
   return MANDAMENTOS.map((m) => ({
     mandamento: m,
     pecados: [
-      ...m.itens.filter((i) => d.marcas[i.id]).map((i) => ({ texto: i.a, qtd: d.marcas[i.id].qtd.trim() })),
-      ...d.outros.filter((o) => o.mand === m.id && o.texto.trim()).map((o) => ({ texto: o.texto.trim(), qtd: o.qtd.trim() })),
+      ...m.itens.filter((i) => d.marcas[i.id]).map((i) => ({ texto: i.a, qtd: d.marcas[i.id].qtd.trim(), nota: (d.marcas[i.id].nota ?? "").trim() })),
+      ...d.outros.filter((o) => o.mand === m.id && o.texto.trim()).map((o) => ({ texto: o.texto.trim(), qtd: o.qtd.trim(), nota: "" })),
     ],
   })).filter((x) => x.pecados.length);
 }
