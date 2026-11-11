@@ -29,6 +29,20 @@ export default function Dashboard() {
     });
   }, []);
 
+  // ppm separado: leituras (livros) e estudos (aulas), últimos 30 dias; o principal é a média dos dois
+  const [ppm, setPpm] = useState<{ leitura: number; estudos: number }>({ leitura: 0, estudos: 0 });
+  useEffect(() => {
+    void supabase().from("reading_sessions").select("seconds,words,book_id,note_id").gte("day", dayKey(addDays(new Date(), -29))).limit(20000)
+      .then(({ data }) => {
+        const xs = (data as { seconds: number; words: number; book_id: string | null; note_id: string | null }[]) ?? [];
+        const calc = (l: typeof xs) => {
+          const secs = l.reduce((a, x) => a + x.seconds, 0);
+          return secs > 120 ? Math.round(l.reduce((a, x) => a + x.words, 0) / (secs / 60)) : 0;
+        };
+        setPpm({ leitura: calc(xs.filter((x) => x.book_id)), estudos: calc(xs.filter((x) => x.note_id)) });
+      });
+  }, []);
+
   useEffect(() => {
     Promise.all([
       loadDaily(inicio12Meses()),
@@ -97,6 +111,10 @@ export default function Dashboard() {
     .filter((b) => b.status !== "lido")
     .reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
 
+  // média simples entre os dois ritmos (a aula falada costuma render mais palavras por minuto que o livro)
+  const ppmMedia = ppm.leitura && ppm.estudos ? Math.round((ppm.leitura + ppm.estudos) / 2) : ppm.leitura || ppm.estudos || s.wpm;
+  const ppmLivros = ppm.leitura || ppmMedia;
+
   return (
     <Page title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
       actions={<button className="text-xs text-faint hover:text-ink" title="Como você quer ser chamado" onClick={async () => {
@@ -109,14 +127,15 @@ export default function Dashboard() {
         <Stat label="Hoje" value={fmtDuration(s.today)} hint="timer + leitura" />
         <Stat label="Esta semana" value={fmtDuration(s.week)} />
         <Stat label="Sequência" value={`${s.streak} ${s.streak === 1 ? "dia" : "dias"}`} />
-        <Stat label="Velocidade" value={s.wpm ? `${s.wpm} ppm` : "—"} hint="palavras/min, últimos 30 dias" />
+        <Stat label="Velocidade" value={ppmMedia ? `${ppmMedia} ppm` : "—"}
+          hint={ppm.leitura && ppm.estudos ? `leitura ${ppm.leitura} · estudos ${ppm.estudos} (média, 30 dias)` : ppm.leitura ? `leitura, últimos 30 dias` : ppm.estudos ? "estudos, últimos 30 dias" : "palavras/min, últimos 30 dias"} />
         <Stat label="Palavras na semana" value={nf.format(s.weekWords)} hint={`média semanal: ${nf.format(Math.round(s.avgWeek))}`} />
         <Stat label="Palavras escritas" value={nf.format(s.weekWritten)} hint="esta semana" />
         <Stat label="Revisões Anki" value={nf.format(s.weekAnki)} hint="esta semana (sincronizado)" />
         <Stat
           label="Mapa da Ignorância"
           value={`${count("aguardando")} livros`}
-          hint={s.wpm && remainingWords ? `≈ ${fmtDuration((remainingWords / s.wpm) * 60)} de leitura pela frente` : "aguardando leitura"}
+          hint={ppmLivros && remainingWords ? `≈ ${fmtDuration((remainingWords / ppmLivros) * 60)} de leitura pela frente` : "aguardando leitura"}
         />
       </div>
 
