@@ -9,6 +9,7 @@ const TABELAS = [
   "lectio_dias", "lectio_registros",
   "escrita_projetos", "escrita_docs", "escrita_sessoes", "escrita_referencias",
   "objetivos", "objetivo_itens",
+  "confissoes", // só as datas; o exame de consciência (exame_cofre) nunca entra na cópia
 ] as const;
 
 type Linha = Record<string, unknown>;

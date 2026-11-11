@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BookOpen } from "lucide-react";
 import { Page, Stat } from "@/components/page";
 import { CalendarPanel } from "@/components/calendar-panel";
+import { ConfissaoAviso } from "@/components/confissao-aviso";
 import { Cover } from "@/components/cover";
 import { coverUrls } from "@/lib/covers";
 import { TimeBreakdown } from "@/components/time-breakdown";
@@ -118,6 +119,8 @@ export default function Dashboard() {
           hint={s.wpm && remainingWords ? `≈ ${fmtDuration((remainingWords / s.wpm) * 60)} de leitura pela frente` : "aguardando leitura"}
         />
       </div>
+
+      <ConfissaoAviso />
 
       <CalendarPanel />
 

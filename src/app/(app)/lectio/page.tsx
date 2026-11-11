@@ -1,4 +1,5 @@
 "use client";
+import { OracaoTabs } from "@/components/oracao-tabs";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookHeart, ChevronLeft, ChevronRight, ExternalLink, Pause, Play, RotateCcw, SkipForward, ZoomIn, ZoomOut } from "lucide-react";
@@ -195,6 +196,7 @@ export default function Lectio() {
   return (
     <div className="min-h-screen">
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-8">
+        <OracaoTabs />
         {/* cabeçalho */}
         <div className="flex items-center justify-between gap-2 mb-1">
           <button className="btn btn-ghost px-2" onClick={() => setDia(dayKey(addDays(parseDay(dia), -1)))} disabled={rodando}><ChevronLeft size={16} /></button>

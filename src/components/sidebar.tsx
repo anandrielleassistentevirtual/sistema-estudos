@@ -14,7 +14,7 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/timer", label: "Timer", icon: Timer },
   { sep: true },
-  { href: "/lectio", label: "Lectio Divina", icon: BookHeart },
+  { href: "/lectio", label: "Oração", icon: BookHeart },
   { href: "/biblioteca", label: "Mapa da Ignorância", icon: Library },
   { href: "/estudos", label: "Estudos", icon: GraduationCap },
   { href: "/idiomas", label: "Idiomas", icon: Languages },
@@ -75,7 +75,7 @@ export function Sidebar() {
     return () => { document.removeEventListener("keydown", k); window.removeEventListener("modo-foco", f); };
   }, []);
 
-  const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+  const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href) || (href === "/lectio" && path.startsWith("/oracao")));
   const showTimer = timer.running || timer.seconds > 0;
   // leitor e sala de escrita ocupam a tela toda e têm o próprio cabeçalho
   const telaCheia = /^\/(ler|escrita|estudos)\/[^/]+/.test(path);
