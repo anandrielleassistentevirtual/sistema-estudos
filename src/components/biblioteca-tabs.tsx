@@ -4,11 +4,11 @@ import { usePathname } from "next/navigation";
 import { Library, Target } from "lucide-react";
 
 const TABS = [
-  { href: "/biblioteca", label: "Biblioteca", icon: Library },
+  { href: "/biblioteca", label: "Livros", icon: Library },
   { href: "/biblioteca/objetivos", label: "Mesas de objetivos", icon: Target },
 ];
 
-/** Abas do Mapa da Ignorância: a biblioteca (pastas CDD e fila) e as mesas de objetivos. */
+/** Abas da Biblioteca: os livros (pastas CDD e fila) e as mesas de objetivos. */
 export function BibliotecaTabs() {
   const path = usePathname();
   return (

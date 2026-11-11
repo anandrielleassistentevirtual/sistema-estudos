@@ -21,7 +21,7 @@ function locKey(n: Note): number {
 }
 
 /**
- * Notas literárias por livro. As pastas são as MESMAS do Mapa da Ignorância (mesma tabela),
+ * Notas literárias por livro. As pastas são as MESMAS da Biblioteca (mesma tabela),
  * então toda pasta criada lá aparece aqui. Cada livro reúne todas as suas anotações concluídas.
  */
 export default function Literarias() {
@@ -151,7 +151,7 @@ export default function Literarias() {
 
   return (
     <Page wide tabs={<NotasTabs />} title="Notas literárias"
-      subtitle="Organizadas nas mesmas pastas do Mapa da Ignorância. Cada livro reúne todas as suas anotações concluídas.">
+      subtitle="Organizadas nas mesmas pastas da Biblioteca. Cada livro reúne todas as suas anotações concluídas.">
       <div className="grid md:grid-cols-[300px_1fr] gap-4">
         <aside className="card p-2 h-fit md:sticky md:top-4">
           {(["todos", "sem-pasta"] as const).map((k) => (
@@ -163,7 +163,7 @@ export default function Literarias() {
           ))}
           <div className="border-t border-line my-2" />
           <Tree parent={null} depth={0} />
-          <p className="text-[11px] text-faint px-2 pt-2">Para criar pastas, use o Mapa da Ignorância — elas aparecem aqui automaticamente.</p>
+          <p className="text-[11px] text-faint px-2 pt-2">Para criar pastas, use a Biblioteca — elas aparecem aqui automaticamente.</p>
         </aside>
 
         <div className="min-w-0">

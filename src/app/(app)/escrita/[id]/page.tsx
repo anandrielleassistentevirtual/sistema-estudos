@@ -1033,7 +1033,7 @@ function Referencias({ projetoId, refs, setRefs }: { projetoId: string; refs: Re
         {aberto && (
           <div className="card p-5 space-y-3">
             {livros.length > 0 && !form.id && (
-              <label className="block"><span className="label">Do Mapa da Ignorância (opcional)</span>
+              <label className="block"><span className="label">Da Biblioteca (opcional)</span>
                 <select className="input mt-1" value={form.book_id ?? ""} onChange={(e) => {
                   const l = livros.find((x) => x.id === e.target.value);
                   set(l ? { book_id: l.id, titulo: l.title, autor: l.author ?? "" } : { book_id: null });

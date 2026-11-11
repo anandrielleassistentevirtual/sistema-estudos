@@ -126,7 +126,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
             {book && book.format === "fisico" && (
               <span className="text-xs text-muted">Livro físico{book.current_page ? ` · você parou na p. ${book.current_page}` : ""}{book.total_pages ? ` de ${book.total_pages}` : ""}. Ao encerrar, pergunto a página.</span>
             )}
-            {books.length === 0 && <span className="text-xs text-muted">Cadastre livros no Mapa da Ignorância (inclusive físicos).</span>}
+            {books.length === 0 && <span className="text-xs text-muted">Cadastre livros na Biblioteca (inclusive físicos).</span>}
           </label>
         )}
 

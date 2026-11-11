@@ -1,4 +1,4 @@
-/** Mapa da Ignorância: mesas de objetivos (grupos de livros com nome, numa ordem definida). */
+/** Biblioteca: mesas de objetivos (grupos de livros com nome, numa ordem definida). */
 import { progressoDoLivro, type Book } from "./types";
 
 export interface Objetivo {

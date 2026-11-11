@@ -15,7 +15,7 @@ const NAV = [
   { href: "/timer", label: "Timer", icon: Timer },
   { sep: true },
   { href: "/lectio", label: "Oração", icon: BookHeart },
-  { href: "/biblioteca", label: "Mapa da Ignorância", icon: Library },
+  { href: "/biblioteca", label: "Biblioteca", icon: Library },
   { href: "/estudos", label: "Estudos", icon: GraduationCap },
   { href: "/idiomas", label: "Idiomas", icon: Languages },
   { href: "/escrita", label: "Escrita", icon: Feather },

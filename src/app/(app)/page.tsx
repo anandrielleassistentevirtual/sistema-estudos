@@ -132,7 +132,7 @@ export default function Dashboard() {
         <Stat label="Palavras escritas" value={nf.format(s.weekWritten)} hint="esta semana" />
         <Stat label="Revisões Anki" value={nf.format(s.weekAnki)} hint="esta semana (sincronizado)" />
         <Stat
-          label="Mapa da Ignorância"
+          label="Biblioteca"
           value={`${count("aguardando")} livros`}
           hint={ppmLivros && remainingWords ? `≈ ${fmtDuration((remainingWords / ppmLivros) * 60)} de leitura pela frente` : "aguardando leitura"}
         />

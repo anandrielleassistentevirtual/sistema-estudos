@@ -307,7 +307,7 @@ export default function Biblioteca() {
     <Page
       wide
       tabs={<BibliotecaTabs />}
-      title="Mapa da Ignorância"
+      title="Biblioteca"
       subtitle={`${all.waiting} livros aguardando · ≈ ${fmtDuration((all.left / wpm) * 60)} de leitura pela frente a ${wpm} ppm`}
       actions={
         <>
