@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
-import { ATO_DE_CONTRICAO, FORMULA_FIM, FORMULA_INICIO, diasDesde, listaParaConfissao, tempoDesde, type ExameDados } from "@/lib/exame";
+import { ATO_DE_CONTRICAO, FORMULA_FIM, diasDesde, listaParaConfissao, tempoDesde, type ExameDados } from "@/lib/exame";
 
 const ZOOM_MIN = 0.8;
 const ZOOM_MAX = 1.6;
 
 /**
- * O que se leva ao confessionário: os pecados por mandamento, com a quantidade, entre as fórmulas costumeiras,
+ * O que se leva ao confessionário: os pecados por mandamento, com a quantidade, a fórmula costumeira do fim
  * e o Ato de Contrição. A tela não apaga enquanto está aberta; dá para aumentar a letra; e cada pecado,
  * depois de dito, pode ser riscado com um toque (só nesta tela, nada é gravado).
  */
@@ -67,9 +67,7 @@ export function ListaParaSacerdote({ dados, ultima, onClose, onConfessei }: {
           </span>
         </div>
 
-        <p className="text-[1.15em] mb-1">{FORMULA_INICIO}</p>
-        {ultima && <p className="text-[1.15em] mb-2">Minha última confissão foi {tempoDesde(diasDesde(ultima))}.</p>}
-        {total > 0 && <p className="text-[0.8em] text-faint mb-6">Toque em cada pecado depois de dizê-lo: ele fica riscado ({ditos.size} de {total}).</p>}
+        {ultima && <p className="text-[1.15em] mb-6">Minha última confissão foi {tempoDesde(diasDesde(ultima))}.</p>}
         {!total && <p className="text-muted mb-6">Nenhum pecado marcado no exame.</p>}
 
         <div className="space-y-7">

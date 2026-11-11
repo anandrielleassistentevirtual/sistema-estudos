@@ -254,8 +254,7 @@ export const ANTES_DO_EXAME = {
   ] as [string, string][],
 };
 
-/** Fórmulas costumeiras no confessionário (antes e depois de dizer os pecados). */
-export const FORMULA_INICIO = "Padre, abençoai-me, porque pequei.";
+/** Fórmula costumeira no confessionário, depois de dizer os pecados. */
 export const FORMULA_FIM = "Destes e de todos os pecados da minha vida passada, peço perdão a Deus.";
 
 export const ATO_DE_CONTRICAO =
