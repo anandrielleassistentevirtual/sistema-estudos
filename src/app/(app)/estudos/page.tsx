@@ -29,7 +29,9 @@ export default function Estudos() {
   const [q, setQ] = useState("");
   const [achados, setAchados] = useState<Set<string> | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("todas");
-  const [preview, setPreview] = useState<{ files: File[]; nivel: 0 | 1 } | null>(null);
+  const [preview, setPreview] = useState<{ files: File[]; nivel: 0 | 1; destino: string | null } | null>(null);
+  const [novaAberta, setNovaAberta] = useState(false);
+  const destinoDoImport = useRef<string | null>(null); // para onde vão os arquivos escolhidos
   const [msg, setMsg] = useState<string | null>(null);
   const [editando, setEditando] = useState<Aula | null>(null);
   const [ppm, setPpm] = useState<{ ppm: number; origem: string }>({ ppm: 220, origem: "padrão" });
@@ -185,9 +187,9 @@ export default function Estudos() {
   }
 
   const pastaSel = sel !== "todas" && sel !== SEM_PASTA && porId.has(sel) ? sel : null;
-  async function novaAula() {
+  async function novaAula(destino: string | null) {
     const { data } = await supabase().from("notes").insert({
-      kind: "estudo", title: "Nova aula", content: "# Nova aula\n\n", course: "", folder: "", pasta_id: pastaSel,
+      kind: "estudo", title: "Nova aula", content: "# Nova aula\n\n", course: "", folder: "", pasta_id: destino,
     }).select("id").single();
     if (data) router.push(`/estudos/${(data as { id: string }).id}?editar=1`);
   }
@@ -197,15 +199,15 @@ export default function Estudos() {
   function fecharPreview() { setPreview(null); limparCampos(); }
   function escolher(list: FileList | null) {
     const files = Array.from(list ?? []).filter((f) => /\.(md|markdown|txt)$/i.test(f.name));
-    if (files.length) setPreview({ files, nivel: nivelProvavel(files) });
+    if (files.length) setPreview({ files, nivel: nivelProvavel(files), destino: destinoDoImport.current });
   }
 
   async function importar() {
     if (!preview || !aulas) return;
-    const { files, nivel } = preview;
+    const { files, nivel, destino } = preview;
     setPreview(null);
     try {
-      const r = await importarAulas(files, nivel, aulas, pastaSel, pastas, setMsg);
+      const r = await importarAulas(files, nivel, aulas, destino, pastas, setMsg);
       limparCampos();
       setMsg(`${r.novas} ${r.novas === 1 ? "aula importada" : "aulas importadas"}${r.atualizadas ? `, ${r.atualizadas} atualizadas` : ""}.`);
     } catch (e) {
@@ -228,10 +230,10 @@ export default function Estudos() {
         : "Cursos e transcrições de aulas."}
       actions={
         <>
-          <button className="btn" onClick={() => pastaRef.current?.click()}><FolderUp size={15} /> Importar curso</button>
-          <button className="btn btn-primary" onClick={novaAula}><Plus size={15} /> Nova aula</button>
+          <button className="btn" onClick={() => { destinoDoImport.current = pastaSel; pastaRef.current?.click(); }}><FolderUp size={15} /> Importar curso</button>
+          <button className="btn btn-primary" onClick={() => setNovaAberta(true)}><Plus size={15} /> Nova aula</button>
           <RowMenu label="Mais opções" items={[
-            { label: "Importar arquivos .md soltos", icon: Upload, onClick: () => arquivosRef.current?.click() },
+            { label: "Importar arquivos .md", icon: Upload, onClick: () => { destinoDoImport.current = pastaSel; arquivosRef.current?.click(); } },
             { label: "Baixar todas as aulas (.zip)", icon: Download, disabled: !total, onClick: () => aulas && void baixarTodas(aulas) },
           ]} />
         </>
@@ -372,13 +374,14 @@ export default function Estudos() {
               <h2 className="text-lg">Importar {preview.files.length} {preview.files.length === 1 ? "aula" : "aulas"}</h2>
               <button onClick={fecharPreview} className="text-muted hover:text-ink"><X size={18} /></button>
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
+            {preview.files.some((f) => pastasDoArquivo(f, 0).length > 0) && <div className="grid grid-cols-2 gap-1.5">
               <button className={`btn justify-center text-xs ${preview.nivel === 1 ? "border-muted bg-sel" : ""}`} onClick={() => setPreview({ ...preview, nivel: 1 })}>Escolhi a pasta com vários cursos</button>
               <button className={`btn justify-center text-xs ${preview.nivel === 0 ? "border-muted bg-sel" : ""}`} onClick={() => setPreview({ ...preview, nivel: 0 })}>Escolhi a pasta de um curso</button>
-            </div>
+            </div>}
             <div className="rounded-lg bg-surface-2 p-3 text-sm space-y-1">
-              <div className="text-xs text-muted mb-1">Vai para: <b className="text-ink font-medium">{pastaSel ? caminhoDaPasta(pastaSel, porId) : "o primeiro nível"}</b>
-                {!pastaSel && <span> (para colocar dentro de uma pasta, selecione-a antes de importar)</span>}</div>
+              <label className="flex items-center gap-2 text-xs text-muted mb-1">Vai para:
+                <SeletorDePasta ordem={ordem} valor={preview.destino} vazio="Primeiro nível (sem pasta)" onMudar={(destino) => setPreview({ ...preview, destino })} />
+              </label>
               {(() => {
                 const m = new Map<string, number>();
                 for (const f of preview.files) {
@@ -405,6 +408,9 @@ export default function Estudos() {
         </div>
       )}
 
+      {novaAberta && <NovaAula ordem={ordem} inicial={pastaSel} onClose={() => setNovaAberta(false)}
+        onImportar={(destino) => { setNovaAberta(false); destinoDoImport.current = destino; arquivosRef.current?.click(); }}
+        onEmBranco={(destino) => { setNovaAberta(false); void novaAula(destino); }} />}
       {nomeando && <NomeDaPasta inicial={nomeando.pasta?.nome ?? ""} titulo={nomeando.pasta ? "Renomear pasta" : nomeando.pai ? `Nova subpasta em “${porId.get(nomeando.pai)?.nome ?? ""}”` : "Nova pasta"}
         onClose={() => setNomeando(null)} onSalvar={salvarNome} />}
       {movendo && <MoverPara ordem={ordem} titulo={movendo.pasta ? `Mover a pasta “${movendo.pasta.nome}”` : `Mover a aula “${movendo.aula?.title}”`}
@@ -496,6 +502,53 @@ function MoverPara({ titulo, ordem, proibidas, atual, raiz, onClose, onEscolher 
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SeletorDePasta({ ordem, valor, vazio, onMudar }: {
+  ordem: { pasta: PastaEstudo; nivel: number }[]; valor: string | null; vazio: string; onMudar: (id: string | null) => void;
+}) {
+  const porId = new Map(ordem.map((o) => [o.pasta.id, o.pasta]));
+  return (
+    <select className="input py-1.5 text-sm text-ink flex-1 min-w-0" value={valor ?? ""} onChange={(e) => onMudar(e.target.value || null)}>
+      <option value="">{vazio}</option>
+      {ordem.map(({ pasta }) => (
+        <option key={pasta.id} value={pasta.id}>{caminhoDaPasta(pasta.id, porId)}</option>
+      ))}
+    </select>
+  );
+}
+
+function NovaAula({ ordem, inicial, onClose, onImportar, onEmBranco }: {
+  ordem: { pasta: PastaEstudo; nivel: number }[]; inicial: string | null; onClose: () => void;
+  onImportar: (destino: string | null) => void; onEmBranco: (destino: string | null) => void;
+}) {
+  const [destino, setDestino] = useState<string | null>(inicial);
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-6 space-y-4 shadow-2xl">
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg">Nova aula</h2>
+          <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
+        </div>
+        <label className="block"><span className="label">Em qual pasta?</span>
+          <div className="mt-1 flex"><SeletorDePasta ordem={ordem} valor={destino} vazio="Primeiro nível (sem pasta)" onMudar={setDestino} /></div></label>
+        <button className="w-full card p-4 text-left hover:border-faint transition-colors flex gap-3 items-start" onClick={() => onImportar(destino)}>
+          <Upload size={18} className="text-icon mt-0.5 shrink-0" />
+          <span>
+            <span className="block font-medium">Importar arquivos .md</span>
+            <span className="block text-sm text-muted">Escolha uma ou várias transcrições de uma vez. O título vem do “# título” de cada arquivo.</span>
+          </span>
+        </button>
+        <button className="w-full card p-4 text-left hover:border-faint transition-colors flex gap-3 items-start" onClick={() => onEmBranco(destino)}>
+          <FileText size={18} className="text-icon mt-0.5 shrink-0" />
+          <span>
+            <span className="block font-medium">Escrever ou colar o texto</span>
+            <span className="block text-sm text-muted">Cria a aula em branco e abre o editor.</span>
+          </span>
+        </button>
       </div>
     </div>
   );
