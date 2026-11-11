@@ -8,7 +8,7 @@ const TABELAS = [
   "languages", "anki_daily",
   "lectio_dias", "lectio_registros",
   "escrita_projetos", "escrita_docs", "escrita_sessoes", "escrita_referencias",
-  "objetivos", "objetivo_itens",
+  "objetivos", "objetivo_itens", "estudo_pastas",
   "confissoes", // só as datas; o exame de consciência (exame_cofre) nunca entra na cópia
 ] as const;
 
@@ -54,7 +54,7 @@ export async function baixarCopia(progresso: (msg: string) => void): Promise<{ a
   for (const n of dados.notes as Linha[]) {
     const titulo = seguro(n.title as string);
     if (n.kind === "estudo") {
-      const pasta = [n.course, ...String(n.folder ?? "").split(" › ")].filter(Boolean).map((x) => seguro(String(x))).join("/");
+      const pasta = [...String(n.course ?? "").split(" › "), ...String(n.folder ?? "").split(" › ")].filter(Boolean).map((x) => seguro(String(x))).join("/");
       zip.file(`legivel/estudos/${pasta ? pasta + "/" : ""}${titulo}.md`, String(n.content ?? ""));
       if (String(n.anotacoes ?? "").trim()) zip.file(`legivel/estudos/${pasta ? pasta + "/" : ""}${titulo} (anotações).md`, String(n.anotacoes));
     } else if (n.kind === "literaria") {

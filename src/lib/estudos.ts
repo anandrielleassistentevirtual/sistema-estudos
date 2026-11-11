@@ -11,9 +11,42 @@ export type Aula = Pick<Note, "id" | "title" | "folder" | "professor" | "course"
   /** quanto já foi lido (0 a 1) */
   progresso: number;
   situacao: SituacaoAula;
+  /** pasta da aula (autor › curso › módulo…); o caminho em texto fica em `course`, mantido pelo banco */
+  pasta_id: string | null;
 };
 
-export const COLUNAS_AULA = "id,title,folder,professor,course,created_at,updated_at,location,completed_at,anotacoes,palavras,progresso,situacao";
+/** Pasta dos Estudos: subpastas sem limite, na ordem escolhida. */
+export interface PastaEstudo { id: string; parent_id: string | null; nome: string; posicao: number }
+
+/** Árvore na ordem de exibição (pai antes dos filhos, irmãos pela posição). */
+export function arvoreDePastas(pastas: PastaEstudo[]) {
+  const filhos = new Map<string | null, PastaEstudo[]>();
+  for (const p of pastas) filhos.set(p.parent_id, [...(filhos.get(p.parent_id) ?? []), p]);
+  for (const l of filhos.values()) l.sort((a, b) => a.posicao - b.posicao || a.nome.localeCompare(b.nome, "pt-BR", { numeric: true }));
+  const ordem: { pasta: PastaEstudo; nivel: number }[] = [];
+  const visitar = (pai: string | null, nivel: number) => {
+    for (const p of filhos.get(pai) ?? []) { ordem.push({ pasta: p, nivel }); visitar(p.id, nivel + 1); }
+  };
+  visitar(null, 0);
+  return { ordem, filhos };
+}
+
+/** A pasta e todas as que estão dentro dela. */
+export function subarvore(id: string, filhos: Map<string | null, PastaEstudo[]>) {
+  const s = new Set<string>([id]);
+  const pilha = [id];
+  while (pilha.length) for (const f of filhos.get(pilha.pop()!) ?? []) { s.add(f.id); pilha.push(f.id); }
+  return s;
+}
+
+/** "Paulo Cantarelli › EFESC" */
+export function caminhoDaPasta(id: string | null, porId: Map<string, PastaEstudo>) {
+  const nomes: string[] = [];
+  for (let p = id ? porId.get(id) : undefined, n = 0; p && n < 50; p = p.parent_id ? porId.get(p.parent_id) : undefined, n++) nomes.unshift(p.nome);
+  return nomes.join(" › ");
+}
+
+export const COLUNAS_AULA = "id,title,folder,professor,course,created_at,updated_at,location,completed_at,anotacoes,palavras,progresso,situacao,pasta_id";
 
 /** Palavras que faltam ler numa aula. */
 export const faltam = (a: Pick<Aula, "palavras" | "progresso" | "situacao">) =>
@@ -64,11 +97,9 @@ export function syncHeading(content: string, oldTitle: string, newTitle: string)
 
 export const caminhoRelativo = (f: File) => (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
 
-/** Onde cada arquivo vai parar: curso e módulo (a partir das pastas). */
-export function lugarDoArquivo(f: File, nivel: 0 | 1) {
-  const partes = caminhoRelativo(f).split("/");
-  const pastas = partes.slice(0, -1);
-  return { course: pastas[nivel] ?? pastas[0] ?? "", module: pastas.slice(nivel + 1).join(" › ") };
+/** As pastas do computador onde o arquivo estava (a partir do nível escolhido): viram subpastas. */
+export function pastasDoArquivo(f: File, nivel: 0 | 1) {
+  return caminhoRelativo(f).split("/").slice(0, -1).slice(nivel).filter(Boolean);
 }
 
 /** Pasta com vários cursos ("1. Estudos/EFESC/…") ou a pasta de um curso só ("EFESC/…")? */
@@ -79,37 +110,54 @@ export function nivelProvavel(files: File[]): 0 | 1 {
 }
 
 /**
- * Importa transcrições (.md/.txt). Curso = pasta, módulo = subpastas.
- * Importar de novo atualiza as aulas que já existem (mesmo curso, módulo e título), sem duplicar.
+ * Importa transcrições (.md/.txt) para dentro da pasta `destino` (ou da raiz). As pastas do computador viram
+ * subpastas (criadas se ainda não existirem). Importar de novo atualiza as aulas que já existem
+ * (mesma pasta e título), sem duplicar.
  */
-export async function importarAulas(files: File[], nivel: 0 | 1, existentes: Aula[], progresso: (msg: string) => void) {
+export async function importarAulas(
+  files: File[], nivel: 0 | 1, existentes: Aula[], destino: string | null, pastas: PastaEstudo[], progresso: (msg: string) => void,
+) {
   const sb = supabase();
-  const chave = (c: string, f: string, t: string) => `${c}|${f}|${t}`.toLowerCase();
-  const ja = new Map(existentes.map((n) => [chave(n.course, n.folder, n.title), n.id]));
+  const todas = [...pastas];
+  const doMesmoNome = (pai: string | null, nome: string) =>
+    todas.find((p) => p.parent_id === pai && p.nome.trim().toLowerCase() === nome.trim().toLowerCase());
+  async function garantir(pai: string | null, nome: string) {
+    const ja = doMesmoNome(pai, nome);
+    if (ja) return ja.id;
+    const posicao = todas.filter((p) => p.parent_id === pai).length;
+    const { data, error } = await sb.from("estudo_pastas").insert({ parent_id: pai, nome: nome.trim(), posicao }).select("id,parent_id,nome,posicao").single();
+    if (error) throw new Error(error.message);
+    todas.push(data as PastaEstudo);
+    return (data as PastaEstudo).id;
+  }
+  const chave = (p: string | null, t: string) => `${p ?? ""}|${t}`.toLowerCase();
+  const ja = new Map(existentes.map((n) => [chave(n.pasta_id, n.title), n.id]));
   const novas: Record<string, unknown>[] = [];
   let atualizadas = 0;
+  // na ordem natural dos caminhos (Módulo 1, Módulo 2, … Módulo 10): as pastas novas nascem nessa ordem
+  files = [...files].sort((a, b) => caminhoRelativo(a).localeCompare(caminhoRelativo(b), "pt-BR", { numeric: true }));
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
     progresso(`Lendo ${i + 1} de ${files.length}…`);
     let content = await f.text();
-    let { course, module: folder } = lugarDoArquivo(f, nivel);
+    let pasta = destino;
+    for (const nome of pastasDoArquivo(f, nivel)) pasta = await garantir(pasta, nome);
     let professor = "";
     const fm = content.match(/^---\n([\s\S]*?)\n---\n?/);
     if (fm) {
       for (const l of fm[1].split("\n")) {
         const [k, ...v] = l.split(":");
         if (k.trim() === "professor") professor = v.join(":").trim();
-        if (k.trim() === "curso" && v.join(":").trim()) course = v.join(":").trim();
       }
       content = content.slice(fm[0].length);
     }
     const title = content.match(/^#\s+(.+)$/m)?.[1]?.trim() || f.name.replace(/\.(md|markdown|txt)$/i, "");
-    const id = ja.get(chave(course, folder, title));
+    const id = ja.get(chave(pasta, title));
     if (id) {
       await sb.from("notes").update({ content, ...(professor ? { professor } : {}) }).eq("id", id);
       atualizadas++;
     } else {
-      novas.push({ kind: "estudo", title, content, folder, course, professor });
+      novas.push({ kind: "estudo", title, content, folder: "", course: "", professor, pasta_id: pasta });
     }
   }
   for (let i = 0; i < novas.length; i += 100) {
@@ -136,7 +184,7 @@ export async function baixarTodas(aulas: Aula[]) {
   const { data } = await supabase().from("notes").select("id,content").eq("kind", "estudo");
   const textos = new Map(((data as { id: string; content: string }[]) ?? []).map((x) => [x.id, x.content]));
   for (const a of aulas) {
-    const dir = [a.course, ...a.folder.split(" › ")].filter(Boolean).map(seguro).join("/");
+    const dir = [...a.course.split(" › "), ...a.folder.split(" › ")].filter(Boolean).map(seguro).join("/");
     const front = `---\nprofessor: ${a.professor}\ncurso: ${a.course}\n---\n\n`;
     zip.file(`${dir ? dir + "/" : ""}${seguro(a.title)}.md`, front + (textos.get(a.id) ?? ""));
     if ((a.anotacoes ?? "").trim()) zip.file(`${dir ? dir + "/" : ""}${seguro(a.title)} (anotações).md`, a.anotacoes);

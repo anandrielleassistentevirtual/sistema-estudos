@@ -2,25 +2,30 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  BookOpen, ChevronDown, ChevronRight, CircleCheck, Download, FileText, FolderOpen, FolderUp, NotebookPen, Pencil, Plus, Search, Trash2, Upload, X,
+  ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronRight, CircleCheck, Download, FileText, FolderInput, FolderOpen, FolderPlus, FolderUp,
+  NotebookPen, Pencil, Plus, Search, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { RowMenu } from "@/components/row-menu";
 import { SITUACOES_AULA, StatusPill, type SituacaoAula } from "@/components/status-pill";
 import { supabase } from "@/lib/supabase/client";
 import {
-  baixarAula, baixarTodas, camposDaSituacao, COLUNAS_AULA, faltam, importarAulas, lugarDoArquivo, nivelProvavel, numeroDaAula, porTitulo, ppmMedio, syncHeading, type Aula,
+  arvoreDePastas, baixarAula, baixarTodas, caminhoDaPasta, camposDaSituacao, COLUNAS_AULA, faltam, importarAulas, nivelProvavel, numeroDaAula,
+  pastasDoArquivo, porTitulo, ppmMedio, subarvore, syncHeading, type Aula, type PastaEstudo,
 } from "@/lib/estudos";
 import { fmtDuration, nf } from "@/lib/dates";
 
 type Filtro = "todas" | SituacaoAula;
-const SEM_CURSO = "Sem curso";
+const SEM_PASTA = "sem";
 
 export default function Estudos() {
   const router = useRouter();
   const [aulas, setAulas] = useState<Aula[] | null>(null);
-  const [sel, setSel] = useState<string>("todas"); // "todas" | "c:<curso>" | "m:<curso>|<módulo>"
+  const [pastas, setPastas] = useState<PastaEstudo[]>([]);
+  const [sel, setSel] = useState<string>("todas"); // "todas" | "sem" (aulas sem pasta) | id da pasta
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const [movendo, setMovendo] = useState<{ pasta?: PastaEstudo; aula?: Aula } | null>(null);
+  const [nomeando, setNomeando] = useState<{ pai: string | null; pasta?: PastaEstudo } | null>(null);
   const [q, setQ] = useState("");
   const [achados, setAchados] = useState<Set<string> | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("todas");
@@ -33,8 +38,16 @@ export default function Estudos() {
   const arquivosRef = useRef<HTMLInputElement>(null);
 
   async function load() {
-    const { data } = await supabase().from("notes").select(COLUNAS_AULA).eq("kind", "estudo");
-    setAulas(((data as unknown as Aula[]) ?? []).sort(porTitulo));
+    const sb = supabase();
+    const [a, p] = await Promise.all([
+      sb.from("notes").select(COLUNAS_AULA).eq("kind", "estudo"),
+      sb.from("estudo_pastas").select("id,parent_id,nome,posicao"),
+    ]);
+    setAulas(((a.data as unknown as Aula[]) ?? []).sort(porTitulo));
+    const ps = (p.data as PastaEstudo[]) ?? [];
+    setPastas(ps);
+    // na primeira vez, as pastas do primeiro nível aparecem abertas
+    setAbertos((s) => (s.size ? s : new Set(ps.filter((x) => !x.parent_id).map((x) => x.id))));
   }
   useEffect(() => {
     // links antigos (/estudos?id=…) abrem direto a aula
@@ -60,44 +73,104 @@ export default function Estudos() {
     return () => clearTimeout(h);
   }, [q]);
 
-  // cursos → módulos
-  const cursos = useMemo(() => {
-    const m = new Map<string, { total: number; feitas: number; modulos: Map<string, number> }>();
+  // árvore de pastas, contagens (somando as subpastas) e a ordem dos grupos
+  const { ordem, filhos } = useMemo(() => arvoreDePastas(pastas), [pastas]);
+  const porId = useMemo(() => new Map(pastas.map((p) => [p.id, p])), [pastas]);
+  const posNaArvore = useMemo(() => new Map(ordem.map((o, i) => [o.pasta.id, i])), [ordem]);
+  const contagem = useMemo(() => {
+    const m = new Map<string, { total: number; feitas: number; faltam: number }>();
     for (const a of aulas ?? []) {
-      const c = a.course || SEM_CURSO;
-      const x = m.get(c) ?? { total: 0, feitas: 0, modulos: new Map() };
-      x.total++;
-      if (a.situacao === "concluida") x.feitas++;
-      if (a.folder) x.modulos.set(a.folder, (x.modulos.get(a.folder) ?? 0) + 1);
-      m.set(c, x);
+      for (let p = a.pasta_id ? porId.get(a.pasta_id) : undefined, n = 0; p && n < 50; p = p.parent_id ? porId.get(p.parent_id) : undefined, n++) {
+        const x = m.get(p.id) ?? { total: 0, feitas: 0, faltam: 0 };
+        x.total++;
+        if (a.situacao === "concluida") x.feitas++;
+        x.faltam += faltam(a);
+        m.set(p.id, x);
+      }
     }
-    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true }));
-  }, [aulas]);
+    return m;
+  }, [aulas, porId]);
+  const semPasta = (aulas ?? []).filter((a) => !a.pasta_id || !porId.has(a.pasta_id));
+  const visivel = (id: string) => {
+    for (let p = porId.get(id)?.parent_id; p; p = porId.get(p)?.parent_id) if (!abertos.has(p)) return false;
+    return true;
+  };
 
+  const dentroDaSel = useMemo(() => (sel !== "todas" && sel !== SEM_PASTA ? subarvore(sel, filhos) : null), [sel, filhos]);
   const visiveis = useMemo(() => {
     const t = q.trim().toLowerCase();
     return (aulas ?? []).filter((a) => {
-      const c = a.course || SEM_CURSO;
-      if (sel.startsWith("c:") && c !== sel.slice(2)) return false;
-      if (sel.startsWith("m:")) {
-        const [sc, sm] = sel.slice(2).split("|");
-        if (c !== sc || a.folder !== sm) return false;
-      }
+      if (sel === SEM_PASTA && a.pasta_id && porId.has(a.pasta_id)) return false;
+      if (dentroDaSel && !(a.pasta_id && dentroDaSel.has(a.pasta_id))) return false;
       if (filtro !== "todas" && a.situacao !== filtro) return false;
       if (t && !a.title.toLowerCase().includes(t) && !(achados?.has(a.id))) return false;
       return true;
     });
-  }, [aulas, sel, filtro, q, achados]);
+  }, [aulas, sel, dentroDaSel, porId, filtro, q, achados]);
 
-  // agrupado por curso › módulo
+  // agrupado por pasta, na ordem da árvore
   const grupos = useMemo(() => {
     const g = new Map<string, Aula[]>();
     for (const a of visiveis) {
-      const k = [a.course || SEM_CURSO, a.folder].filter(Boolean).join(" › ");
+      const k = a.pasta_id && porId.has(a.pasta_id) ? a.pasta_id : SEM_PASTA;
       g.set(k, [...(g.get(k) ?? []), a]);
     }
-    return [...g.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true }));
-  }, [visiveis]);
+    return [...g.entries()]
+      .sort(([a], [b]) => (posNaArvore.get(a) ?? 1e9) - (posNaArvore.get(b) ?? 1e9))
+      .map(([k, l]) => [k === SEM_PASTA ? "Sem pasta" : caminhoDaPasta(k, porId), l] as [string, Aula[]]);
+  }, [visiveis, porId, posNaArvore]);
+
+  // ---- pastas: criar, renomear, ordenar, mover, apagar ----
+  const irmaos = (pai: string | null) => filhos.get(pai) ?? [];
+  async function salvarNome(nome: string) {
+    if (!nomeando) return;
+    const sb = supabase();
+    if (nomeando.pasta) await sb.from("estudo_pastas").update({ nome }).eq("id", nomeando.pasta.id);
+    else {
+      await sb.from("estudo_pastas").insert({ parent_id: nomeando.pai, nome, posicao: irmaos(nomeando.pai).length });
+      if (nomeando.pai) setAbertos((s) => new Set(s).add(nomeando.pai!));
+    }
+    setNomeando(null);
+    void load();
+  }
+  async function moverNaOrdem(p: PastaEstudo, dir: -1 | 1) {
+    const lista = [...irmaos(p.parent_id)];
+    const i = lista.findIndex((x) => x.id === p.id);
+    const j = i + dir;
+    if (j < 0 || j >= lista.length) return;
+    [lista[i], lista[j]] = [lista[j], lista[i]];
+    setPastas((all) => all.map((x) => { const k = lista.findIndex((y) => y.id === x.id); return k >= 0 ? { ...x, posicao: k } : x; }));
+    const sb = supabase();
+    await Promise.all(lista.map((x, k) => (x.posicao === k ? null : sb.from("estudo_pastas").update({ posicao: k }).eq("id", x.id))));
+  }
+  async function moverPasta(p: PastaEstudo, para: string | null) {
+    if (para === p.parent_id) return;
+    const { error } = await supabase().from("estudo_pastas").update({ parent_id: para, posicao: irmaos(para).length }).eq("id", p.id);
+    if (error) { alert(error.message); return; }
+    if (para) setAbertos((s) => new Set(s).add(para));
+    void load();
+  }
+  async function moverAula(a: Aula, para: string | null) {
+    const sb = supabase();
+    await sb.from("notes").update(para ? { pasta_id: para } : { pasta_id: null, course: "", folder: "" }).eq("id", a.id);
+    void load();
+  }
+  async function apagarPasta(p: PastaEstudo) {
+    const c = contagem.get(p.id)?.total ?? 0;
+    const sub = irmaos(p.id).length;
+    const pai = p.parent_id ? porId.get(p.parent_id)?.nome : null;
+    const destino = pai ? `“${pai}”` : "o primeiro nível";
+    if (!confirm(c || sub
+      ? `Apagar a pasta “${p.nome}”? Nada se perde: ${[c ? `${c} ${c === 1 ? "aula" : "aulas"}` : "", sub ? `${sub} ${sub === 1 ? "subpasta" : "subpastas"}` : ""].filter(Boolean).join(" e ")} ${c + sub === 1 ? "vai" : "vão"} para ${destino}.`
+      : `Apagar a pasta “${p.nome}”?`)) return;
+    const sb = supabase();
+    const base = irmaos(p.parent_id).length;
+    await Promise.all(irmaos(p.id).map((f, k) => sb.from("estudo_pastas").update({ parent_id: p.parent_id, posicao: base + k }).eq("id", f.id)));
+    await sb.from("notes").update(p.parent_id ? { pasta_id: p.parent_id } : { pasta_id: null, course: "", folder: "" }).eq("pasta_id", p.id);
+    await sb.from("estudo_pastas").delete().eq("id", p.id);
+    if (sel === p.id) setSel(p.parent_id ?? "todas");
+    void load();
+  }
 
   async function mudarSituacao(a: Aula, situacao: SituacaoAula) {
     const campos = camposDaSituacao(situacao, a);
@@ -111,15 +184,17 @@ export default function Estudos() {
     setAulas((all) => all?.filter((x) => x.id !== a.id) ?? null);
   }
 
+  const pastaSel = sel !== "todas" && sel !== SEM_PASTA && porId.has(sel) ? sel : null;
   async function novaAula() {
-    const course = sel.startsWith("c:") ? sel.slice(2) : sel.startsWith("m:") ? sel.slice(2).split("|")[0] : "";
-    const folder = sel.startsWith("m:") ? sel.slice(2).split("|")[1] : "";
     const { data } = await supabase().from("notes").insert({
-      kind: "estudo", title: "Nova aula", content: "# Nova aula\n\n", course: course === SEM_CURSO ? "" : course, folder,
+      kind: "estudo", title: "Nova aula", content: "# Nova aula\n\n", course: "", folder: "", pasta_id: pastaSel,
     }).select("id").single();
     if (data) router.push(`/estudos/${(data as { id: string }).id}?editar=1`);
   }
 
+  // o campo só é esvaziado depois de importar (ou desistir): antes disso os arquivos ainda vão ser lidos
+  const limparCampos = () => { if (pastaRef.current) pastaRef.current.value = ""; if (arquivosRef.current) arquivosRef.current.value = ""; };
+  function fecharPreview() { setPreview(null); limparCampos(); }
   function escolher(list: FileList | null) {
     const files = Array.from(list ?? []).filter((f) => /\.(md|markdown|txt)$/i.test(f.name));
     if (files.length) setPreview({ files, nivel: nivelProvavel(files) });
@@ -130,9 +205,11 @@ export default function Estudos() {
     const { files, nivel } = preview;
     setPreview(null);
     try {
-      const r = await importarAulas(files, nivel, aulas, setMsg);
+      const r = await importarAulas(files, nivel, aulas, pastaSel, pastas, setMsg);
+      limparCampos();
       setMsg(`${r.novas} ${r.novas === 1 ? "aula importada" : "aulas importadas"}${r.atualizadas ? `, ${r.atualizadas} atualizadas` : ""}.`);
     } catch (e) {
+      limparCampos();
       setMsg(`Não consegui importar: ${(e as Error).message}`);
     }
     setTimeout(() => setMsg(null), 5000);
@@ -159,39 +236,57 @@ export default function Estudos() {
           ]} />
         </>
       }>
-      <input ref={pastaRef} type="file" hidden multiple {...({ webkitdirectory: "" } as Record<string, string>)} onChange={(e) => { escolher(e.target.files); e.target.value = ""; }} />
-      <input ref={arquivosRef} type="file" hidden multiple accept=".md,.markdown,.txt" onChange={(e) => { escolher(e.target.files); e.target.value = ""; }} />
+      <input ref={pastaRef} type="file" hidden multiple {...({ webkitdirectory: "" } as Record<string, string>)} onChange={(e) => escolher(e.target.files)} />
+      <input ref={arquivosRef} type="file" hidden multiple accept=".md,.markdown,.txt" onChange={(e) => escolher(e.target.files)} />
       {msg && <div className="mb-4 rounded-lg bg-surface-2 px-4 py-2 text-sm">{msg}</div>}
 
       <div className="grid lg:grid-cols-[280px_1fr] gap-5 items-start">
-        {/* cursos e módulos */}
+        {/* pastas: autor › curso › módulo… */}
         <aside className="card p-2 text-sm lg:sticky lg:top-4">
           <button onClick={() => setSel("todas")}
             className={`w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 ${sel === "todas" ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel/60 hover:text-ink"}`}>
             <span>Todas as aulas</span><span className="text-xs text-faint tabular-nums">{total}</span>
           </button>
           <div className="my-1.5 border-t border-line" />
-          {cursos.map(([c, x]) => (
-            <div key={c}>
-              <div className={`flex items-center rounded-lg ${sel === `c:${c}` ? "bg-sel" : "hover:bg-sel/60"}`}>
-                <button className="p-1.5 text-faint hover:text-ink disabled:opacity-0" disabled={!x.modulos.size} onClick={() => alterna(c)}>
-                  {abertos.has(c) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          {ordem.filter(({ pasta }) => visivel(pasta.id)).map(({ pasta: p, nivel }) => {
+            const temFilhos = irmaos(p.id).length > 0;
+            const c = contagem.get(p.id);
+            const lista = irmaos(p.parent_id);
+            const k = lista.findIndex((x) => x.id === p.id);
+            return (
+              <div key={p.id} className={`group/p flex items-center rounded-lg ${sel === p.id ? "bg-sel" : "hover:bg-sel/60"}`} style={{ paddingLeft: nivel * 14 }}>
+                <button className="p-1.5 text-faint hover:text-ink disabled:opacity-0" disabled={!temFilhos} onClick={() => alterna(p.id)} aria-label={abertos.has(p.id) ? "Fechar" : "Abrir"}>
+                  {abertos.has(p.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </button>
-                <button onClick={() => setSel(`c:${c}`)} title={`≈ ${tempo((aulas ?? []).filter((a) => (a.course || SEM_CURSO) === c).reduce((n, a) => n + faltam(a), 0))} de leitura pela frente`} className={`flex-1 min-w-0 flex items-center gap-2 py-1.5 pr-2.5 text-left ${sel === `c:${c}` ? "text-ink font-medium" : "text-ink/90"}`}>
+                <button onClick={() => setSel(p.id)} title={c?.faltam ? `≈ ${tempo(c.faltam)} de leitura pela frente` : undefined}
+                  className={`flex-1 min-w-0 flex items-center gap-2 py-1.5 text-left ${sel === p.id ? "text-ink font-medium" : "text-ink/90"}`}>
                   <FolderOpen size={14} className="text-icon shrink-0" />
-                  <span className="truncate flex-1">{c}</span>
-                  <span className="text-xs text-faint tabular-nums">{x.feitas}/{x.total}</span>
+                  <span className="truncate flex-1">{p.nome}</span>
+                  {c && <span className="text-xs text-faint tabular-nums">{c.feitas}/{c.total}</span>}
                 </button>
+                <span className="opacity-100 lg:opacity-0 lg:group-hover/p:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <RowMenu label={`Opções da pasta ${p.nome}`} items={[
+                    { label: "Nova subpasta", icon: FolderPlus, onClick: () => setNomeando({ pai: p.id }) },
+                    { label: "Renomear", icon: Pencil, onClick: () => setNomeando({ pai: p.parent_id, pasta: p }) },
+                    { label: "Subir", icon: ArrowUp, separar: true, disabled: k <= 0, onClick: () => void moverNaOrdem(p, -1) },
+                    { label: "Descer", icon: ArrowDown, disabled: k >= lista.length - 1, onClick: () => void moverNaOrdem(p, 1) },
+                    { label: "Mover para outra pasta", icon: FolderInput, onClick: () => setMovendo({ pasta: p }) },
+                    { label: "Apagar pasta", icon: Trash2, danger: true, separar: true, onClick: () => void apagarPasta(p) },
+                  ]} />
+                </span>
               </div>
-              {abertos.has(c) && [...x.modulos.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true })).map(([m, n]) => (
-                <button key={m} onClick={() => setSel(`m:${c}|${m}`)}
-                  className={`w-full flex items-center justify-between rounded-lg pl-9 pr-2.5 py-1 text-[13px] ${sel === `m:${c}|${m}` ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel/60 hover:text-ink"}`}>
-                  <span className="truncate">{m}</span><span className="text-xs text-faint tabular-nums">{n}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-          {aulas && !cursos.length && <p className="px-2.5 py-2 text-xs text-muted">Importe a pasta de um curso para começar.</p>}
+            );
+          })}
+          {semPasta.length > 0 && (
+            <button onClick={() => setSel(SEM_PASTA)}
+              className={`w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 ${sel === SEM_PASTA ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel/60 hover:text-ink"}`}>
+              <span>Sem pasta</span><span className="text-xs text-faint tabular-nums">{semPasta.length}</span>
+            </button>
+          )}
+          <button onClick={() => setNomeando({ pai: null })} className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 mt-1 text-muted hover:bg-sel/60 hover:text-ink">
+            <FolderPlus size={14} /> Nova pasta
+          </button>
+          {aulas && !pastas.length && !total && <p className="px-2.5 py-2 text-xs text-muted">Crie uma pasta (ex.: o nome do professor) ou importe a pasta de um curso.</p>}
         </aside>
 
         {/* aulas */}
@@ -253,7 +348,8 @@ export default function Estudos() {
                         <StatusPill label="Status da aula" value={a.situacao ?? "pendente"} options={SITUACOES_AULA} onChange={(v) => mudarSituacao(a, v)} />
                         <RowMenu items={[
                           { label: "Abrir a aula", icon: BookOpen, onClick: () => router.push(`/estudos/${a.id}`) },
-                          { label: "Editar nome, curso e módulo", icon: Pencil, onClick: () => setEditando(a) },
+                          { label: "Editar nome e professor", icon: Pencil, onClick: () => setEditando(a) },
+                          { label: "Mover para outra pasta", icon: FolderInput, onClick: () => setMovendo({ aula: a }) },
                           { label: "Editar a transcrição", icon: FileText, onClick: () => router.push(`/estudos/${a.id}?editar=1`) },
                           { label: "Baixar a transcrição (.md)", icon: Download, onClick: () => void baixarAula(a) },
                           { label: feita ? "Voltar para pendente" : "Marcar como concluída", icon: CircleCheck, onClick: () => mudarSituacao(a, feita ? "pendente" : "concluida"), separar: true },
@@ -270,47 +366,52 @@ export default function Estudos() {
       </div>
 
       {preview && (
-        <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={() => setPreview(null)}>
+        <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={fecharPreview}>
           <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-center">
               <h2 className="text-lg">Importar {preview.files.length} {preview.files.length === 1 ? "aula" : "aulas"}</h2>
-              <button onClick={() => setPreview(null)} className="text-muted hover:text-ink"><X size={18} /></button>
+              <button onClick={fecharPreview} className="text-muted hover:text-ink"><X size={18} /></button>
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <button className={`btn justify-center text-xs ${preview.nivel === 1 ? "border-muted bg-sel" : ""}`} onClick={() => setPreview({ ...preview, nivel: 1 })}>Escolhi a pasta com vários cursos</button>
               <button className={`btn justify-center text-xs ${preview.nivel === 0 ? "border-muted bg-sel" : ""}`} onClick={() => setPreview({ ...preview, nivel: 0 })}>Escolhi a pasta de um curso</button>
             </div>
             <div className="rounded-lg bg-surface-2 p-3 text-sm space-y-1">
+              <div className="text-xs text-muted mb-1">Vai para: <b className="text-ink font-medium">{pastaSel ? caminhoDaPasta(pastaSel, porId) : "o primeiro nível"}</b>
+                {!pastaSel && <span> (para colocar dentro de uma pasta, selecione-a antes de importar)</span>}</div>
               {(() => {
-                const m = new Map<string, Map<string, number>>();
+                const m = new Map<string, number>();
                 for (const f of preview.files) {
-                  const { course, module } = lugarDoArquivo(f, preview.nivel);
-                  const mm = m.get(course) ?? new Map<string, number>();
-                  mm.set(module, (mm.get(module) ?? 0) + 1);
-                  m.set(course, mm);
+                  const k = pastasDoArquivo(f, preview.nivel).join(" › ");
+                  m.set(k, (m.get(k) ?? 0) + 1);
                 }
-                return [...m.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true })).map(([c, mods]) => {
-                  const t = [...mods.values()].reduce((x, y) => x + y, 0);
-                  const nomes = [...mods.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
-                  return (
-                    <div key={c}>
-                      <div className="font-medium">{c || SEM_CURSO} <span className="text-muted font-normal">· {t} {t === 1 ? "aula" : "aulas"}</span></div>
-                      {nomes.slice(0, 8).map((mod) => <div key={mod} className="text-xs text-muted pl-3">{mod} · {mods.get(mod)}</div>)}
-                      {nomes.length > 8 && <div className="text-xs text-faint pl-3">… e mais {nomes.length - 8} módulos</div>}
-                    </div>
-                  );
-                });
+                const lista = [...m.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR", { numeric: true }));
+                return (
+                  <>
+                    {lista.slice(0, 12).map(([k, n]) => (
+                      <div key={k} className="flex justify-between gap-3"><span className="truncate">{k || "(direto na pasta)"}</span><span className="text-muted tabular-nums shrink-0">{n} {n === 1 ? "aula" : "aulas"}</span></div>
+                    ))}
+                    {lista.length > 12 && <div className="text-xs text-faint">… e mais {lista.length - 12} pastas</div>}
+                  </>
+                );
               })()}
             </div>
             <p className="text-xs text-muted">O nome de cada aula vem do primeiro “# título” do arquivo (ou do nome do arquivo). Importar de novo atualiza as aulas que já existem, sem duplicar.</p>
             <div className="flex justify-end gap-2">
-              <button className="btn btn-ghost" onClick={() => setPreview(null)}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={fecharPreview}>Cancelar</button>
               <button className="btn btn-primary" onClick={importar}>Importar</button>
             </div>
           </div>
         </div>
       )}
 
+      {nomeando && <NomeDaPasta inicial={nomeando.pasta?.nome ?? ""} titulo={nomeando.pasta ? "Renomear pasta" : nomeando.pai ? `Nova subpasta em “${porId.get(nomeando.pai)?.nome ?? ""}”` : "Nova pasta"}
+        onClose={() => setNomeando(null)} onSalvar={salvarNome} />}
+      {movendo && <MoverPara ordem={ordem} titulo={movendo.pasta ? `Mover a pasta “${movendo.pasta.nome}”` : `Mover a aula “${movendo.aula?.title}”`}
+        proibidas={movendo.pasta ? subarvore(movendo.pasta.id, filhos) : new Set()} atual={movendo.pasta ? movendo.pasta.parent_id : movendo.aula?.pasta_id ?? null}
+        raiz={movendo.pasta ? "Primeiro nível" : "Sem pasta"}
+        onClose={() => setMovendo(null)}
+        onEscolher={(para) => { const m = movendo; setMovendo(null); if (m.pasta) void moverPasta(m.pasta, para); else if (m.aula) void moverAula(m.aula, para); }} />}
       {editando && <EditarAula aula={editando} onClose={() => setEditando(null)}
         onSalvo={(a) => { setEditando(null); setAulas((all) => all?.map((x) => (x.id === a.id ? a : x)).sort(porTitulo) ?? null); }} />}
     </Page>
@@ -318,14 +419,14 @@ export default function Estudos() {
 }
 
 function EditarAula({ aula, onClose, onSalvo }: { aula: Aula; onClose: () => void; onSalvo: (a: Aula) => void }) {
-  const [f, setF] = useState({ title: aula.title, course: aula.course, folder: aula.folder, professor: aula.professor });
+  const [f, setF] = useState({ title: aula.title, professor: aula.professor });
   const [salvando, setSalvando] = useState(false);
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
     setSalvando(true);
     const sb = supabase();
     const title = f.title.trim() || aula.title;
-    const patch: Record<string, string> = { title, course: f.course.trim(), folder: f.folder.trim(), professor: f.professor.trim() };
+    const patch: Record<string, string> = { title, professor: f.professor.trim() };
     if (title !== aula.title) {
       // o "# título" do começo da transcrição acompanha o nome novo
       const { data } = await sb.from("notes").select("content").eq("id", aula.id).single();
@@ -333,7 +434,7 @@ function EditarAula({ aula, onClose, onSalvo }: { aula: Aula; onClose: () => voi
       if (c !== undefined) patch.content = syncHeading(c, aula.title, title);
     }
     await sb.from("notes").update(patch).eq("id", aula.id);
-    onSalvo({ ...aula, title, course: patch.course, folder: patch.folder, professor: patch.professor });
+    onSalvo({ ...aula, title, professor: patch.professor });
   }
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
@@ -344,10 +445,6 @@ function EditarAula({ aula, onClose, onSalvo }: { aula: Aula; onClose: () => voi
         </div>
         <label className="block"><span className="label">Nome da aula</span>
           <input autoFocus className="input mt-1" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></label>
-        <label className="block"><span className="label">Curso</span>
-          <input className="input mt-1" value={f.course} placeholder="ex.: EFESC" onChange={(e) => setF({ ...f, course: e.target.value })} /></label>
-        <label className="block"><span className="label">Módulo</span>
-          <input className="input mt-1" value={f.folder} placeholder="ex.: Módulo 1" onChange={(e) => setF({ ...f, folder: e.target.value })} /></label>
         <label className="block"><span className="label">Professor</span>
           <input className="input mt-1" value={f.professor} onChange={(e) => setF({ ...f, professor: e.target.value })} /></label>
         <div className="flex justify-end gap-2 pt-1">
@@ -355,6 +452,51 @@ function EditarAula({ aula, onClose, onSalvo }: { aula: Aula; onClose: () => voi
           <button className="btn btn-primary" disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function NomeDaPasta({ titulo, inicial, onClose, onSalvar }: { titulo: string; inicial: string; onClose: () => void; onSalvar: (nome: string) => void }) {
+  const [nome, setNome] = useState(inicial);
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+      <form onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); if (nome.trim()) onSalvar(nome.trim()); }}
+        className="card w-full max-w-sm p-6 space-y-3 shadow-2xl">
+        <h2 className="text-lg">{titulo}</h2>
+        <input autoFocus className="input" value={nome} placeholder="ex.: Olavo de Carvalho, COF, Módulo 1" onChange={(e) => setNome(e.target.value)} />
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" disabled={!nome.trim()}>Salvar</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function MoverPara({ titulo, ordem, proibidas, atual, raiz, onClose, onEscolher }: {
+  titulo: string; ordem: { pasta: PastaEstudo; nivel: number }[]; proibidas: Set<string>; atual: string | null; raiz: string;
+  onClose: () => void; onEscolher: (para: string | null) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-sm p-5 space-y-3 shadow-2xl max-h-[85vh] flex flex-col">
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg truncate">{titulo}</h2>
+          <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
+        </div>
+        <div className="overflow-y-auto -mx-2 text-sm">
+          <button disabled={atual === null} onClick={() => onEscolher(null)}
+            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-sel disabled:opacity-40 disabled:hover:bg-transparent">{raiz}</button>
+          {ordem.map(({ pasta, nivel }) => (
+            <button key={pasta.id} disabled={proibidas.has(pasta.id) || pasta.id === atual} onClick={() => onEscolher(pasta.id)}
+              className="w-full text-left py-1.5 pr-2.5 rounded-lg hover:bg-sel disabled:opacity-40 disabled:hover:bg-transparent flex items-center gap-2"
+              style={{ paddingLeft: 10 + nivel * 16 }}>
+              <FolderOpen size={14} className="text-icon shrink-0" /> <span className="truncate">{pasta.nome}</span>
+              {pasta.id === atual && <span className="text-xs text-faint ml-auto">atual</span>}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
