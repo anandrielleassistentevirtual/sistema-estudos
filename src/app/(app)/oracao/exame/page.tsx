@@ -238,7 +238,7 @@ export default function ExameDeConsciencia() {
           <div className="card shadow-xl px-4 py-3 flex items-center gap-2 flex-wrap justify-between">
             <span className="text-sm text-muted tabular-nums">{total ? `${total} ${total === 1 ? "pecado marcado" : "pecados marcados"}` : "Nada marcado"}</span>
             <span className="flex gap-2">
-              <button className="btn" disabled={!total} onClick={() => setVendoLista(true)}><ScrollText size={15} /> Para o sacerdote</button>
+              <button className="btn" onClick={() => setVendoLista(true)}><ScrollText size={15} /> Para o sacerdote</button>
               <button className="btn btn-primary" onClick={() => setConfessando(true)}>Fiz a confissão</button>
             </span>
           </div>
@@ -333,11 +333,17 @@ function ListaParaSacerdote({ dados, ultima, onClose, onConfessei }: { dados: Ex
   return (
     <div className="fixed inset-0 z-50 bg-bg overflow-y-auto pt-safe pb-safe">
       <div className="max-w-2xl mx-auto px-5 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <span className="label">Para apresentar ao sacerdote</span>
-          <button className="btn btn-ghost px-2" onClick={onClose} title="Fechar"><X size={18} /></button>
+        <div className="sticky top-0 -mx-5 px-5 py-3 mb-4 bg-bg/95 backdrop-blur flex items-center justify-between gap-2 z-10">
+          <span className="label min-w-0">Para o sacerdote</span>
+          <span className="flex items-center gap-1 shrink-0">
+            <button className="btn text-sm whitespace-nowrap" onClick={() => document.getElementById("ato-de-contricao")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+              Ato de Contrição
+            </button>
+            <button className="btn btn-ghost px-2" onClick={onClose} title="Fechar"><X size={18} /></button>
+          </span>
         </div>
         {ultima && <p className="text-lg mb-6">Minha última confissão foi {tempoDesde(diasDesde(ultima))}.</p>}
+        {!lista.length && <p className="text-muted mb-6">Nenhum pecado marcado no exame.</p>}
         <div className="space-y-7">
           {lista.map(({ mandamento: m, pecados }) => (
             <section key={m.id}>
@@ -353,11 +359,11 @@ function ListaParaSacerdote({ dados, ultima, onClose, onConfessei }: { dados: Ex
             </section>
           ))}
         </div>
-        <div className="mt-10 rounded-xl bg-surface-2 p-5">
+        <div id="ato-de-contricao" className="mt-10 rounded-xl bg-surface-2 p-5 scroll-mt-20">
           <div className="label mb-2">Ato de Contrição</div>
-          <p className="font-serif text-[18px] leading-relaxed">{ATO_DE_CONTRICAO}</p>
+          <p className="font-serif text-[20px] leading-relaxed">{ATO_DE_CONTRICAO}</p>
         </div>
-        <div className="mt-8 flex justify-end">
+        <div className="mt-8 mb-20 flex justify-start">
           <button className="btn btn-primary" onClick={onConfessei}>Fiz a confissão</button>
         </div>
       </div>
