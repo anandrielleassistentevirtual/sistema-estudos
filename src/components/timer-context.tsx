@@ -33,6 +33,9 @@ interface TimerState {
   bookPhysical: boolean;
   noteId: string; // Estudos (transcrição de aula)
   noteTitle: string;
+  /** tarefa dos Estudos em andamento (o tempo do foco fica somado nela) */
+  tarefaId: string;
+  tarefaTexto: string;
   cycles: number;
 }
 
@@ -87,6 +90,8 @@ const initial: TimerState = {
   bookPhysical: false,
   noteId: "",
   noteTitle: "",
+  tarefaId: "",
+  tarefaTexto: "",
   cycles: 0,
 };
 
@@ -161,6 +166,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       language: st.category === "Idiomas" && st.language ? st.language : null,
       book_id: st.category === "Leitura" && st.bookId ? st.bookId : null,
       note_id: st.category === "Estudos" && st.noteId ? st.noteId : null,
+      ...(st.tarefaId ? { tarefa_id: st.tarefaId } : {}),
     });
     setLastSaved(Date.now());
   }, []);

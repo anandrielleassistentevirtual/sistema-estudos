@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookHeart, BookOpen, Feather, Pause, Play, RotateCcw, Square } from "lucide-react";
+import { BookHeart, BookOpen, Feather, ListChecks, Pause, Play, RotateCcw, Square, X } from "lucide-react";
 import { CATEGORIAS, useTimer } from "./timer-context";
 import { dayKey, fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
@@ -112,10 +112,19 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         </div>
       )}
 
+      {t.tarefaId && (
+        // o foco está ligado a uma tarefa dos Estudos: o tempo fica somado nela
+        <div className={`flex items-center gap-2 rounded-full bg-surface-2 pl-3 pr-1.5 py-1 text-xs max-w-full ${compact ? "mt-3" : "mt-5"}`}>
+          <ListChecks size={13} className="text-icon shrink-0" />
+          <span className="truncate">Tarefa: {t.tarefaTexto}</span>
+          <button className="text-faint hover:text-ink shrink-0" title="Desligar da tarefa" onClick={() => t.set({ tarefaId: "", tarefaTexto: "" })}><X size={13} /></button>
+        </div>
+      )}
+
       <div className={`grid gap-3 w-full ${compact ? "mt-4" : "sm:grid-cols-2 max-w-md mt-8"}`}>
         <label className="space-y-1">
           <span className="label">Categoria</span>
-          <select className="input" value={t.category} onChange={(e) => t.set({ category: e.target.value })}>
+          <select className="input" value={t.category} onChange={(e) => t.set({ category: e.target.value, tarefaId: "", tarefaTexto: "" })}>
             {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}
           </select>
         </label>

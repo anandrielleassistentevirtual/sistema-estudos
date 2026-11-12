@@ -6,6 +6,7 @@ import {
   ListOrdered, NotebookPen, Pencil, Plus, Search, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
+import { EstudosTabs } from "@/components/estudos-tabs";
 import { RowMenu } from "@/components/row-menu";
 import { SITUACOES_AULA, StatusPill, type SituacaoAula } from "@/components/status-pill";
 import { supabase } from "@/lib/supabase/client";
@@ -263,7 +264,7 @@ export default function Estudos() {
   const alterna = (k: string) => setAbertos((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   return (
-    <Page wide title="Estudos"
+    <Page wide tabs={<EstudosTabs />} title="Estudos"
       subtitle={total
         ? `${total - feitas} ${total - feitas === 1 ? "aula pendente" : "aulas pendentes"} · ≈ ${tempo(pelaFrente)} de leitura pela frente a ${ppm.ppm} ppm`
         : "Cursos e transcrições de aulas."}

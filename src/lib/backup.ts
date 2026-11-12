@@ -8,7 +8,7 @@ const TABELAS = [
   "languages", "anki_daily",
   "lectio_dias", "lectio_registros",
   "escrita_projetos", "escrita_docs", "escrita_sessoes", "escrita_referencias",
-  "objetivos", "objetivo_itens", "estudo_pastas",
+  "objetivos", "objetivo_itens", "estudo_pastas", "estudo_tarefas",
   "confissoes", // só as datas; o exame de consciência (exame_cofre) nunca entra na cópia
 ] as const;
 

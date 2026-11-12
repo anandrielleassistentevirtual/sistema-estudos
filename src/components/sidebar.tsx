@@ -78,9 +78,10 @@ export function Sidebar() {
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href) || (href === "/lectio" && path.startsWith("/oracao")));
   const showTimer = timer.running || timer.seconds > 0;
   // leitor e sala de escrita ocupam a tela toda e têm o próprio cabeçalho
-  const telaCheia = /^\/(ler|escrita|estudos)\/[^/]+/.test(path);
+  // leitores e sala de escrita em tela cheia (a página de Tarefas dos Estudos não é um leitor)
+  const telaCheia = /^\/(ler|escrita)\/[^/]+/.test(path) || /^\/estudos\/(?!tarefas(\/|$))[^/]+/.test(path);
   // nos leitores, o botão do menu sobe para cima da barra de progresso (como o cronômetro)
-  const leitor = /^\/(ler|estudos)\/[^/]+/.test(path);
+  const leitor = /^\/ler\/[^/]+/.test(path) || /^\/estudos\/(?!tarefas(\/|$))[^/]+/.test(path);
 
   const nav = (
     <nav className="flex flex-col h-full p-3 gap-0.5">

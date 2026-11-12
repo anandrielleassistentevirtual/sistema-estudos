@@ -1,0 +1,413 @@
+"use client";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import {
+  BookOpen, Check, ChevronDown, ExternalLink, Eye, Feather, Highlighter, ListChecks, Pencil, Play, Plus, RefreshCw, Repeat, Search, Trash2, X,
+} from "lucide-react";
+import { Page } from "@/components/page";
+import { EstudosTabs } from "@/components/estudos-tabs";
+import { RowMenu } from "@/components/row-menu";
+import { useTimerEstado } from "@/components/timer-context";
+import { supabase } from "@/lib/supabase/client";
+import { todas } from "@/lib/supabase/todas";
+import { arvoreDePastas, caminhoDaPasta, type PastaEstudo } from "@/lib/estudos";
+import { ppmDosLivros } from "@/lib/books";
+import { fmtDuration, nf } from "@/lib/dates";
+import { progressoDoLivro, type Book } from "@/lib/types";
+import {
+  POR_PAGINA, TIPOS, carregarTarefas, concluirTarefa, criarTarefa, mudarTarefa, proximaPosicao, tempoPorTarefa, textoDoPrazo,
+  type Tarefa, type TipoTarefa,
+} from "@/lib/tarefas";
+
+type Livro = Pick<Book, "id" | "title" | "author" | "status" | "progress" | "word_count" | "format">;
+const ICONE: Record<TipoTarefa, typeof BookOpen> = { ler: BookOpen, assistir: Eye, escrever: Feather, revisar: RefreshCw, praticar: Repeat, outro: ListChecks };
+const TODOS = "todos";
+
+export default function Tarefas() {
+  const router = useRouter();
+  const timer = useTimerEstado();
+  const [tarefas, setTarefas] = useState<Tarefa[] | null>(null);
+  const [pastas, setPastas] = useState<PastaEstudo[]>([]);
+  const [livros, setLivros] = useState<Livro[]>([]);
+  const [tempo, setTempo] = useState<Map<string, number>>(new Map());
+  const [ppm, setPpm] = useState(220);
+  const [curso, setCurso] = useState<string>(TODOS);
+  const [vista, setVista] = useState<"lista" | "prazo">("lista");
+  const [pagina, setPagina] = useState(0);
+  const [concluindo, setConcluindo] = useState<Tarefa | null>(null);
+  const [editando, setEditando] = useState<Tarefa | null>(null);
+  const [guiaAberto, setGuiaAberto] = useState(true);
+
+  async function load() {
+    const sb = supabase();
+    const [t, p, b, tm, r] = await Promise.all([
+      carregarTarefas(),
+      sb.from("estudo_pastas").select("id,parent_id,nome,posicao"),
+      todas<Livro>((de, ate) => sb.from("books").select("id,title,author,status,progress,word_count,format").order("title").order("id").range(de, ate)),
+      tempoPorTarefa(),
+      ppmDosLivros(),
+    ]);
+    setTarefas(t);
+    setPastas((p.data as PastaEstudo[]) ?? []);
+    setLivros(b);
+    setTempo(tm);
+    if (r) setPpm(r);
+  }
+  useEffect(() => {
+    void load();
+    try {
+      setPagina(Number(localStorage.getItem("tarefas-pagina")) || 0);
+      setGuiaAberto(localStorage.getItem("tarefas-guia") !== "fechado");
+      const v = localStorage.getItem("tarefas-vista"); if (v === "lista" || v === "prazo") setVista(v);
+    } catch {}
+  }, []);
+  useEffect(() => { try { localStorage.setItem("tarefas-pagina", String(pagina)); localStorage.setItem("tarefas-vista", vista); } catch {} }, [pagina, vista]);
+
+  const porId = useMemo(() => new Map(pastas.map((p) => [p.id, p])), [pastas]);
+  const { ordem } = useMemo(() => arvoreDePastas(pastas), [pastas]);
+  const livroDe = useMemo(() => new Map(livros.map((b) => [b.id, b])), [livros]);
+  const nomeCurto = (id: string | null) => (id ? porId.get(id)?.nome ?? "" : "");
+
+  // a lista na ordem de entrada (o que foi "reescrito" está no fim)
+  const ativas = (tarefas ?? []).filter((t) => !t.feita_em && !t.aparece_em).sort((a, b) => a.posicao - b.posicao);
+  const cursosComTarefa = [...new Set(ativas.map((t) => t.pasta_id).filter(Boolean) as string[])];
+  const visiveis = ativas.filter((t) => curso === TODOS || t.pasta_id === curso);
+  const paginas = Math.max(1, Math.ceil(visiveis.length / POR_PAGINA));
+  const pag = Math.min(pagina, paginas - 1);
+  const daPagina = visiveis.slice(pag * POR_PAGINA, (pag + 1) * POR_PAGINA);
+  const comPrazo = [...visiveis].filter((t) => t.prazo).sort((a, b) => (a.prazo ?? "").localeCompare(b.prazo ?? ""));
+  const voltamDepois = (tarefas ?? []).filter((t) => !t.feita_em && t.aparece_em).sort((a, b) => (a.aparece_em ?? "").localeCompare(b.aparece_em ?? ""));
+  const feitas = (tarefas ?? []).filter((t) => t.feita_em).sort((a, b) => (b.feita_em ?? "").localeCompare(a.feita_em ?? ""));
+  const urgentes = ativas.filter((t) => textoDoPrazo(t.prazo)?.urgente).length;
+
+  const trocar = (t: Tarefa, campos: Partial<Tarefa>) => {
+    setTarefas((l) => l?.map((x) => (x.id === t.id ? { ...x, ...campos } : x)) ?? null);
+    void mudarTarefa(t.id, campos);
+  };
+  /** Não terminou: reescreve no fim da lista (como no caderno). */
+  const fizUmaParte = (t: Tarefa) => trocar(t, { posicao: proximaPosicao(tarefas ?? []), destacada: false });
+
+  function fazerAgora(t: Tarefa) {
+    const b = t.book_id ? livroDe.get(t.book_id) : undefined;
+    timer.set({
+      category: b ? "Leitura" : "Estudos", label: t.texto, tarefaId: t.id, tarefaTexto: t.texto,
+      ...(b ? { bookId: b.id, bookTitle: b.title, bookPhysical: b.format === "fisico" } : { noteId: "", noteTitle: "" }),
+    });
+    timer.start();
+    if (b && b.format !== "fisico") router.push(`/ler/${b.id}`);
+    else if (t.link) window.open(t.link, "_blank", "noopener");
+  }
+
+  function linha(t: Tarefa) {
+    const Icone = ICONE[t.tipo] ?? ListChecks;
+    const b = t.book_id ? livroDe.get(t.book_id) : undefined;
+    const prazo = textoDoPrazo(t.prazo);
+    const secs = tempo.get(t.id) ?? 0;
+    const faltam = b?.word_count && b.status === "lendo" ? b.word_count * (1 - progressoDoLivro(b)) : 0;
+    return (
+      <li key={t.id} className="flex items-start gap-3 px-4 py-3">
+        <Icone size={16} className="text-icon mt-1 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="leading-snug">
+            <span className={t.destacada ? "rounded px-1 -mx-1" : ""} style={t.destacada ? { background: "color-mix(in srgb, #e9c46a 35%, transparent)" } : undefined}>{t.texto}</span>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+            {t.pasta_id && <span className="rounded-md bg-surface-2 px-1.5 py-0.5">{nomeCurto(t.pasta_id)}</span>}
+            {b && (
+              <span>
+                {b.title}
+                {b.status === "lendo" ? ` · ${Math.round(progressoDoLivro(b) * 100)}%${faltam ? ` · faltam ≈ ${fmtDuration((faltam / ppm) * 60)}` : ""}`
+                  : b.status === "lido" ? " · ✓ lido" : b.word_count ? ` · ${nf.format(b.word_count)} palavras · ≈ ${fmtDuration((b.word_count / ppm) * 60)}` : ""}
+              </span>
+            )}
+            {t.link && <a href={t.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-ink underline-offset-2 hover:underline"><ExternalLink size={11} /> link</a>}
+            {prazo && (
+              <span className="rounded-md px-1.5 py-0.5 font-medium"
+                style={{ color: prazo.atrasada ? "var(--bad, #d33)" : prazo.urgente ? "#c98a1a" : undefined, background: prazo.urgente ? "color-mix(in srgb, currentColor 12%, transparent)" : "var(--surface-2)" }}>
+                {prazo.texto}
+              </span>
+            )}
+            {secs >= 60 && <span title="Tempo de foco dedicado no Timer">⏱ {fmtDuration(secs)}</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button className="btn btn-ghost px-2 py-1" title="Fazer agora: liga o Timer nesta tarefa" onClick={() => fazerAgora(t)}><Play size={15} /></button>
+          <button className="btn btn-ghost px-2 py-1" title="Feita: riscar" onClick={() => setConcluindo(t)}><Check size={16} /></button>
+          <button className="btn btn-ghost px-2 py-1 hidden sm:inline-flex" title="Fiz uma parte: reescreve no fim da lista" onClick={() => fizUmaParte(t)}><RefreshCw size={14} /></button>
+          <RowMenu items={[
+            { label: "Fiz uma parte (vai para o fim)", icon: RefreshCw, onClick: () => fizUmaParte(t) },
+            { label: t.destacada ? "Tirar o marca-texto" : "Marca-texto (para não esquecer)", icon: Highlighter, onClick: () => trocar(t, { destacada: !t.destacada }) },
+            { label: "Editar", icon: Pencil, onClick: () => setEditando(t) },
+            { label: "Apagar", icon: Trash2, danger: true, separar: true, onClick: async () => {
+              if (!confirm(`Apagar a tarefa “${t.texto}”?`)) return;
+              setTarefas((l) => l?.filter((x) => x.id !== t.id) ?? null);
+              await supabase().from("estudo_tarefas").delete().eq("id", t.id);
+            } },
+          ]} />
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <Page wide tabs={<EstudosTabs />} title="Tarefas"
+      subtitle={tarefas ? `${ativas.length} ${ativas.length === 1 ? "tarefa na lista" : "tarefas na lista"}${urgentes ? ` · ${urgentes} com prazo perto` : ""}` : "…"}>
+      <div className="max-w-3xl space-y-5">
+        {guiaAberto ? (
+          <section className="card p-5 text-sm space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="font-medium">Como usar: o Sistema de Autofoco</h2>
+              <button className="text-faint hover:text-ink" title="Esconder" onClick={() => { setGuiaAberto(false); try { localStorage.setItem("tarefas-guia", "fechado"); } catch {} }}><X size={16} /></button>
+            </div>
+            <ol className="list-decimal pl-5 space-y-1 text-muted">
+              <li>Tudo numa lista só: o que surgir entra <b className="text-ink">no fim</b>, sem filtrar nem julgar.</li>
+              <li>Passe o olho pela página e escolha a tarefa que você <b className="text-ink">tem vontade</b> de fazer — não a mais urgente. Toque em ▶ para ligar o Timer nela.</li>
+              <li>Terminou: ✓. Não terminou: <b className="text-ink">“fiz uma parte”</b>, e ela é reescrita no fim.</li>
+              <li>Só passe para a próxima página quando nada mais chamar a sua atenção. O que sobrar depois de algumas passagens, marque com <b className="text-ink">marca-texto</b>.</li>
+            </ol>
+            <p className="text-muted"><b className="text-ink">Dica de ouro:</b> escreva tarefas mensuráveis — “ler 20 páginas de Madame Bovary”, “escrever por 1 hora”, não “ler Madame Bovary”.
+              Prazo só para o que tem data de verdade (ex.: antes da próxima aula).</p>
+          </section>
+        ) : (
+          <button className="text-xs text-faint hover:text-ink" onClick={() => { setGuiaAberto(true); try { localStorage.removeItem("tarefas-guia"); } catch {} }}>Como usar o Sistema de Autofoco</button>
+        )}
+
+        <NovaTarefa ordem={ordem} porId={porId} livros={livros} cursoInicial={curso === TODOS ? null : curso}
+          onCriar={async (dados) => { const t = await criarTarefa(dados, tarefas ?? []); setTarefas((l) => [...(l ?? []), t]); }} />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg bg-surface-2 p-1 text-sm">
+            {([["lista", "Lista"], ["prazo", "Por prazo"]] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setVista(k)} className={`px-3 py-1 rounded-md ${vista === k ? "bg-seg shadow-sm" : "text-muted"}`}>{l}</button>
+            ))}
+          </div>
+          {cursosComTarefa.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {[TODOS, ...cursosComTarefa].map((id) => (
+                <button key={id} onClick={() => { setCurso(id); setPagina(0); }}
+                  className={`text-xs rounded-full px-2.5 py-1 border ${curso === id ? "border-ink text-ink" : "border-line text-muted hover:text-ink"}`}>
+                  {id === TODOS ? "Todos os cursos" : nomeCurto(id)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {tarefas && !visiveis.length && <p className="text-sm text-muted">Nenhuma tarefa {curso === TODOS ? "na lista" : "neste curso"}. Escreva acima o que precisa fazer.</p>}
+
+        {vista === "lista" && daPagina.length > 0 && (
+          <section>
+            {paginas > 1 && (
+              <div className="flex items-center justify-between mb-2 px-1 text-xs text-muted">
+                <span>Página {pag + 1} de {paginas}</span>
+                <span className="flex gap-1">
+                  {Array.from({ length: paginas }, (_, i) => (
+                    <button key={i} onClick={() => setPagina(i)} className={`w-6 h-6 rounded-md tabular-nums ${i === pag ? "bg-sel text-ink" : "hover:text-ink"}`}>{i + 1}</button>
+                  ))}
+                </span>
+              </div>
+            )}
+            <ul className="card divide-y divide-line">{daPagina.map(linha)}</ul>
+            {paginas > 1 && (
+              <div className="mt-2 flex justify-end">
+                <button className="btn btn-ghost text-sm" onClick={() => setPagina((pag + 1) % paginas)}>
+                  Nada mais me chama nesta página → {pag + 1 < paginas ? "próxima" : "voltar à primeira"}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {vista === "prazo" && visiveis.length > 0 && (
+          <section>
+            {comPrazo.length ? <ul className="card divide-y divide-line">{comPrazo.map(linha)}</ul>
+              : <p className="text-sm text-muted">Nenhuma tarefa com prazo.</p>}
+            {visiveis.length > comPrazo.length && <p className="text-xs text-faint mt-2 px-1">{visiveis.length - comPrazo.length} sem prazo continuam na Lista.</p>}
+          </section>
+        )}
+
+        {voltamDepois.length > 0 && (
+          <details className="card group">
+            <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between text-sm">
+              <span><b className="font-medium">Voltam depois</b> <span className="text-muted">· {voltamDepois.length}</span></span>
+              <ChevronDown size={15} className="text-muted group-open:rotate-180 transition-transform" />
+            </summary>
+            <ul className="divide-y divide-line border-t border-line text-sm">
+              {voltamDepois.map((t) => (
+                <li key={t.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate">{t.texto}</span>
+                  <span className="flex items-center gap-2 shrink-0 text-xs text-muted">
+                    volta em {t.aparece_em?.split("-").reverse().slice(0, 2).join("/")}
+                    <button className="btn text-xs py-0.5" onClick={() => trocar(t, { aparece_em: null, posicao: proximaPosicao(tarefas ?? []) })}>Trazer agora</button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        {feitas.length > 0 && (
+          <details className="card group">
+            <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between text-sm">
+              <span><b className="font-medium">Feitas</b> <span className="text-muted">· {feitas.length} nos últimos 14 dias</span></span>
+              <ChevronDown size={15} className="text-muted group-open:rotate-180 transition-transform" />
+            </summary>
+            <ul className="divide-y divide-line border-t border-line text-sm">
+              {feitas.map((t) => (
+                <li key={t.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate text-muted line-through decoration-faint">{t.texto}</span>
+                  <button className="btn btn-ghost text-xs py-0.5 shrink-0" onClick={() => trocar(t, { feita_em: null, posicao: proximaPosicao(tarefas ?? []) })}>Desfazer</button>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
+
+      {concluindo && (
+        <Janela titulo="Feita!" onClose={() => setConcluindo(null)}>
+          <p className="text-sm">{concluindo.texto}</p>
+          <p className="text-sm text-muted">Ela precisa voltar a aparecer (para revisar ou praticar de novo)?</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([[null, "Não, concluída"], [1, "Amanhã"], [7, "Em 1 semana"], [30, "Em 1 mês"]] as const).map(([dias, rotulo]) => (
+              <button key={rotulo} className={`btn justify-center ${dias === null ? "btn-primary" : ""}`} onClick={async () => {
+                const t = concluindo;
+                setConcluindo(null);
+                await concluirTarefa(t, dias);
+                await load();
+              }}>{rotulo}</button>
+            ))}
+          </div>
+        </Janela>
+      )}
+      {editando && (
+        <Janela titulo="Editar tarefa" onClose={() => setEditando(null)}>
+          <FormTarefa ordem={ordem} porId={porId} livros={livros} inicial={editando} rotulo="Salvar"
+            onSalvar={async (dados) => { trocar(editando, dados); setEditando(null); }} />
+        </Janela>
+      )}
+    </Page>
+  );
+}
+
+function Janela({ titulo, onClose, children }: { titulo: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+      <div className="card w-full max-w-md p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg">{titulo}</h2>
+          <button className="text-muted hover:text-ink" onClick={onClose}><X size={18} /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+type Dados = Partial<Tarefa> & { texto: string };
+
+function NovaTarefa({ ordem, porId, livros, cursoInicial, onCriar }: {
+  ordem: { pasta: PastaEstudo; nivel: number }[]; porId: Map<string, PastaEstudo>; livros: Livro[]; cursoInicial: string | null; onCriar: (d: Dados) => Promise<void>;
+}) {
+  const [chave, setChave] = useState(0); // limpa o formulário depois de acrescentar
+  return (
+    <section className="card p-4">
+      <FormTarefa key={chave} ordem={ordem} porId={porId} livros={livros} inicial={{ pasta_id: cursoInicial }} rotulo="Acrescentar"
+        onSalvar={async (d) => { await onCriar(d); setChave((k) => k + 1); }} />
+    </section>
+  );
+}
+
+function FormTarefa({ ordem, porId, livros, inicial, rotulo, onSalvar }: {
+  ordem: { pasta: PastaEstudo; nivel: number }[]; porId: Map<string, PastaEstudo>; livros: Livro[];
+  inicial: Partial<Tarefa>; rotulo: string; onSalvar: (d: Dados) => Promise<void>;
+}) {
+  const [texto, setTexto] = useState(inicial.texto ?? "");
+  const [tipo, setTipo] = useState<TipoTarefa>(inicial.tipo ?? "ler");
+  const [pasta, setPasta] = useState<string | null>(inicial.pasta_id ?? null);
+  const [bookId, setBookId] = useState<string | null>(inicial.book_id ?? null);
+  const [busca, setBusca] = useState("");
+  const [link, setLink] = useState(inicial.link ?? "");
+  const [prazo, setPrazo] = useState(inicial.prazo ?? "");
+  const [mais, setMais] = useState(!!(inicial.prazo || inicial.link || inicial.book_id || inicial.pasta_id));
+  const [indo, setIndo] = useState(false);
+  const livro = bookId ? livros.find((b) => b.id === bookId) : undefined;
+  const dobra = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const achados = busca.trim().length >= 2
+    ? livros.filter((b) => dobra(busca).split(/\s+/).every((w) => dobra(`${b.title} ${b.author ?? ""}`).includes(w))).slice(0, 8) : [];
+  const exemplo = TIPOS.find((t) => t.id === tipo)?.exemplo ?? "";
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault();
+    if (!texto.trim() || indo) return;
+    setIndo(true);
+    try {
+      await onSalvar({ texto: texto.trim(), tipo, pasta_id: pasta, book_id: tipo === "ler" ? bookId : null, link: link.trim(), prazo: prazo || null });
+    } finally { setIndo(false); }
+  }
+
+  return (
+    <form onSubmit={salvar} className="space-y-3">
+      <div className="flex flex-wrap gap-1.5">
+        {TIPOS.map((t) => {
+          const Icone = ICONE[t.id];
+          return (
+            <button key={t.id} type="button" onClick={() => setTipo(t.id)}
+              className={`text-xs rounded-full px-2.5 py-1 border inline-flex items-center gap-1 ${tipo === t.id ? "border-ink text-ink" : "border-line text-muted hover:text-ink"}`}>
+              <Icone size={12} /> {t.nome}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex gap-2">
+        <input className="input flex-1" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={`ex.: ${exemplo}`} autoFocus={rotulo === "Salvar"} />
+        <button className="btn btn-primary shrink-0" disabled={!texto.trim() || indo}><Plus size={15} /> {rotulo}</button>
+      </div>
+      {!mais ? (
+        <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => setMais(true)}>+ curso, livro, link ou prazo</button>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-3 text-sm">
+          <label className="block"><span className="label">Curso (opcional)</span>
+            <select className="input mt-1" value={pasta ?? ""} onChange={(e) => setPasta(e.target.value || null)}>
+              <option value="">Sem curso</option>
+              {ordem.map(({ pasta: p }) => <option key={p.id} value={p.id}>{caminhoDaPasta(p.id, porId)}</option>)}
+            </select></label>
+          <label className="block"><span className="label">Prazo (opcional)</span>
+            <input type="date" className="input mt-1" value={prazo} onChange={(e) => setPrazo(e.target.value)} /></label>
+          {tipo === "ler" && (
+            <div className="sm:col-span-2">
+              <span className="label">Livro da Biblioteca (opcional)</span>
+              {livro ? (
+                <div className="mt-1 flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
+                  <span className="truncate">{livro.title}{livro.author ? <span className="text-muted"> · {livro.author}</span> : null}</span>
+                  <button type="button" className="text-faint hover:text-ink" onClick={() => setBookId(null)} title="Tirar o livro"><X size={14} /></button>
+                </div>
+              ) : (
+                <div className="relative mt-1">
+                  <label className="input flex items-center gap-2 py-1.5">
+                    <Search size={14} className="text-faint" />
+                    <input className="bg-transparent outline-none flex-1 min-w-0" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por título ou autor" />
+                  </label>
+                  {achados.length > 0 && (
+                    <div className="absolute z-20 left-0 right-0 mt-1 card shadow-xl py-1 max-h-64 overflow-y-auto">
+                      {achados.map((b) => (
+                        <button key={b.id} type="button" className="w-full text-left px-3 py-1.5 hover:bg-sel" onClick={() => { setBookId(b.id); setBusca(""); }}>
+                          <span className="block truncate">{b.title}</span>
+                          <span className="block truncate text-xs text-muted">{b.author}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {(tipo === "assistir" || link) && (
+            <label className="block sm:col-span-2"><span className="label">Link (opcional)</span>
+              <input className="input mt-1" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" /></label>
+          )}
+        </div>
+      )}
+    </form>
+  );
+}
