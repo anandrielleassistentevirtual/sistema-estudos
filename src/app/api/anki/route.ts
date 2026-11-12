@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ErroAnkiWeb, baixarColecao, entrar, meta } from "@/lib/server/ankiweb";
 import { lerColecao } from "@/lib/server/anki-colecao";
+import { LEITOR_ANKI as LEITOR } from "@/lib/anki-versao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,8 +21,6 @@ export const maxDuration = 60;
 
 /** A contagem de revisões do Anki no sistema começa neste dia (mesma regra de src/lib/anki.ts). */
 const ANKI_INICIO = "2026-11-08";
-/** Sobe quando a leitura da coleção passa a contar algo novo: força baixar de novo mesmo sem mudanças no AnkiWeb. */
-const LEITOR = 2; // 2: cartões e notas criados por dia
 
 async function cliente() {
   const loja = await cookies();

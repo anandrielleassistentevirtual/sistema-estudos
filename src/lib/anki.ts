@@ -7,6 +7,7 @@
  *    para revisar dentro do sistema e mandar destaques de leitura como cartões.
  */
 import { supabase } from "./supabase/client";
+import { LEITOR_ANKI } from "./anki-versao";
 const DEFAULT_URL = "http://127.0.0.1:8765";
 
 export function ankiUrl(): string {
@@ -72,7 +73,13 @@ export interface ContaAnki {
   sincronizado_em: string | null;
   erro: string | null;
   baralhos: BaralhoAnki[] | null;
-  resumo: { cartoes: number; revisar_hoje: number; aprendendo: number; novos: number; retencao_30d: number | null; revisoes_30d: number } | null;
+  resumo: { cartoes: number; revisar_hoje: number; aprendendo: number; novos: number; retencao_30d: number | null; revisoes_30d: number; leitor?: number } | null;
+}
+
+/** Os números precisam ser buscados de novo: há mais de `horas`, ou o sistema passou a contar algo novo. */
+export function ankiPrecisaAtualizar(c: ContaAnki, horas: number) {
+  if (!c.sincronizado_em || (c.resumo?.leitor ?? 0) < LEITOR_ANKI) return true;
+  return Date.now() - Date.parse(c.sincronizado_em) > horas * 3_600_000;
 }
 
 /** A conta do AnkiWeb ligada (sem a chave de acesso, que só o servidor lê). */
@@ -97,7 +104,7 @@ export async function sincronizarAnkiSeAntigo(horas: number): Promise<boolean> {
   try {
     const c = await contaAnki();
     if (!c) return false;
-    if (c.sincronizado_em && Date.now() - Date.parse(c.sincronizado_em) < horas * 3_600_000) return false;
+    if (!ankiPrecisaAtualizar(c, horas)) return false;
     await ankiWeb("sincronizar");
     return true;
   } catch {

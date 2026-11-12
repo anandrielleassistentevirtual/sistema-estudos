@@ -5,7 +5,7 @@ import { ChevronDown, Cloud, Play, RefreshCw } from "lucide-react";
 import { Page, Stat } from "@/components/page";
 import { IdiomasTabs } from "@/components/idiomas-tabs";
 import { Heatmap } from "@/components/heatmap";
-import { anki, ankiOnline, ankiUrl, ankiWeb, contaAnki, type ContaAnki } from "@/lib/anki";
+import { anki, ankiOnline, ankiPrecisaAtualizar, ankiUrl, ankiWeb, contaAnki, type ContaAnki } from "@/lib/anki";
 import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { DayStats, emptyDay, loadDaily } from "@/lib/stats";
 import { todas } from "@/lib/supabase/todas";
@@ -66,7 +66,7 @@ export default function AnkiPage() {
   useEffect(() => {
     void carregar().then((c) => {
       // números com mais de 30 minutos: busca no AnkiWeb sozinho
-      if (c && (!c.sincronizado_em || Date.now() - Date.parse(c.sincronizado_em) > 30 * 60_000)) void atualizar(true);
+      if (c && ankiPrecisaAtualizar(c, 0.5)) void atualizar(true);
     });
     void ankiOnline().then(setConectado);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -82,7 +82,9 @@ export default function AnkiPage() {
     return { c, n };
   };
   const criadosHoje = somaCriados(new Date());
-  const criadosSemana = somaCriados(weekStart(new Date()));
+  // desde o último domingo (inclusive)
+  const domingo = addDays(new Date(), -new Date().getDay());
+  const criadosSemana = somaCriados(domingo);
   const criados30 = somaCriados(addDays(new Date(), -29));
   const emNotas = (x: { c: number; n: number }) => (x.n && x.n !== x.c ? `em ${nf.format(x.n)} ${x.n === 1 ? "nota" : "notas"}` : undefined);
   const baralhos = conta?.baralhos ?? [];
@@ -124,7 +126,7 @@ export default function AnkiPage() {
             <h2 className="font-medium mb-3">Cartões criados</h2>
             <div className="grid grid-cols-3 gap-3 mb-4">
               <Stat label="Hoje" value={nf.format(criadosHoje.c)} hint={emNotas(criadosHoje)} />
-              <Stat label="Na semana" value={nf.format(criadosSemana.c)} hint={emNotas(criadosSemana)} />
+              <Stat label="Desde domingo" value={nf.format(criadosSemana.c)} hint={emNotas(criadosSemana)} />
               <Stat label="Últimos 30 dias" value={nf.format(criados30.c)} hint={emNotas(criados30)} />
             </div>
             <Heatmap data={criados} metric="anki" unidade="cartões criados" />
