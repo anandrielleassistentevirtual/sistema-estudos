@@ -8,6 +8,7 @@ import { BibliotecaTabs } from "@/components/biblioteca-tabs";
 import { RowMenu } from "@/components/row-menu";
 import { OPCOES_LIVRO, StatusPill } from "@/components/status-pill";
 import { supabase } from "@/lib/supabase/client";
+import { ppmDosLivros } from "@/lib/books";
 import { todas } from "@/lib/supabase/todas";
 import { fmtDuration } from "@/lib/dates";
 import { palavrasCurto, pctTexto, progressoDaMesa, type ItemObjetivo, type Objetivo } from "@/lib/objetivos";
@@ -31,11 +32,11 @@ export default function Mesa() {
 
   async function load() {
     const sb = supabase();
-    const [m, i, b, r, f] = await Promise.all([
+    const [m, i, b, ritmo, f] = await Promise.all([
       sb.from("objetivos").select("*").eq("id", id).maybeSingle(),
       sb.from("objetivo_itens").select("*").eq("objetivo_id", id).order("posicao"),
       todas<LivroLite>((de, ate) => sb.from("books").select("id,title,author,status,word_count,progress,format,folder_id").order("id").range(de, ate)),
-      sb.from("reading_sessions").select("seconds,words").order("started_at", { ascending: false }).limit(200),
+      ppmDosLivros(),
       sb.from("folders").select("id,code"),
     ]);
     if (!m.data) { setNaoAchada(true); return; }
@@ -45,9 +46,7 @@ export default function Mesa() {
     setLivros(b);
     setCdd(new Map(((f.data as { id: string; code: string | null }[]) ?? []).filter((x) => x.code).map((x) => [x.id, x.code as string])));
     setSecaoNova((s) => s || lista[lista.length - 1]?.secao || "");
-    const rs = (r.data as { seconds: number; words: number }[]) ?? [];
-    const secs = rs.reduce((a, x) => a + x.seconds, 0);
-    if (secs > 300) setPpm(Math.round(rs.reduce((a, x) => a + x.words, 0) / (secs / 60)));
+    if (ritmo) setPpm(ritmo);
   }
   useEffect(() => { void load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 

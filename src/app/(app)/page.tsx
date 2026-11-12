@@ -11,6 +11,7 @@ import { WritingPanel } from "@/components/writing-panel";
 import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { DayStats, inicio12Meses, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
+import { ppmDosLivros } from "@/lib/books";
 import { todas } from "@/lib/supabase/todas";
 import { progressoDoLivro, type Book } from "@/lib/types";
 
@@ -30,6 +31,8 @@ export default function Dashboard() {
 
   // ppm separado: leituras (livros) e estudos (aulas), últimos 30 dias; o principal é a média dos dois
   const [ppm, setPpm] = useState<{ leitura: number; estudos: number }>({ leitura: 0, estudos: 0 });
+  const [ritmoLivros, setRitmoLivros] = useState(0); // o mesmo ritmo usado na Biblioteca e nas mesas
+  useEffect(() => { void ppmDosLivros().then((v) => setRitmoLivros(v ?? 0)); }, []);
   useEffect(() => {
     const desde = dayKey(addDays(new Date(), -29));
     void todas<{ seconds: number; words: number; book_id: string | null; note_id: string | null }>((de, ate) =>
@@ -112,7 +115,7 @@ export default function Dashboard() {
 
   // média simples entre os dois ritmos (a aula falada costuma render mais palavras por minuto que o livro)
   const ppmMedia = ppm.leitura && ppm.estudos ? Math.round((ppm.leitura + ppm.estudos) / 2) : ppm.leitura || ppm.estudos || s.wpm;
-  const ppmLivros = ppm.leitura || ppmMedia;
+  const ppmLivros = ritmoLivros || ppm.leitura || ppmMedia;
 
   return (
     <Page title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
@@ -167,6 +170,11 @@ export default function Dashboard() {
                       <div className="h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
                         <div className="h-full bg-chart rounded-full" style={{ width: `${Math.round(progressoDoLivro(b) * 100)}%` }} />
                       </div>
+                      {b.word_count && ppmLivros ? (
+                        <div className="text-[11px] text-muted mt-1 tabular-nums">
+                          faltam {nf.format(Math.round(b.word_count * (1 - progressoDoLivro(b))))} palavras · ≈ {fmtDuration((b.word_count * (1 - progressoDoLivro(b)) / ppmLivros) * 60)}
+                        </div>
+                      ) : null}
                     </div>
                     <span className="text-xs text-muted tabular-nums">{Math.round(progressoDoLivro(b) * 100)}%</span>
                   </Link>

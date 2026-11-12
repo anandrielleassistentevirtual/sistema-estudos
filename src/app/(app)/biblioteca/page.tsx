@@ -5,7 +5,7 @@ import {
   ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronUp, Download, ChevronRight, Folder, FolderOpen, FolderPlus, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
-import { ACCEPT, addPhysicalBook, deleteBook, enqueue, limparCacheDeLivros, saveBookFile, uploadBook } from "@/lib/books";
+import { ACCEPT, addPhysicalBook, deleteBook, enqueue, limparCacheDeLivros, ppmDosLivros, saveBookFile, uploadBook } from "@/lib/books";
 import { useTimerEstado } from "@/components/timer-context";
 import { Cover } from "@/components/cover";
 import { RowMenu } from "@/components/row-menu";
@@ -54,18 +54,16 @@ export default function Biblioteca() {
 
   const load = useCallback(async () => {
     const sb = supabase();
-    const [f, b, r] = await Promise.all([
+    const [f, b, ritmo] = await Promise.all([
       sb.from("folders").select("*").order("position").order("name"),
       todas<Book>((de, ate) => sb.from("books").select("*").order("title").order("id").range(de, ate)),
-      sb.from("reading_sessions").select("seconds,words").order("started_at", { ascending: false }).limit(200),
+      ppmDosLivros(),
     ]);
     setFolders((f.data as F[]) ?? []);
     setBooks(b);
     void coverUrls(b).then(setCovers);
     void limparCacheDeLivros(b.map((x) => x.file_path));
-    const secs = (r.data ?? []).reduce((a, x) => a + x.seconds, 0);
-    const words = (r.data ?? []).reduce((a, x) => a + x.words, 0);
-    if (secs > 300) setWpm(Math.round(words / (secs / 60)));
+    if (ritmo) setWpm(ritmo);
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -216,9 +214,14 @@ export default function Biblioteca() {
                 <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px]">sem pasta</span>
               )}
               <span className="truncate">
-                {b.word_count ? ` · ${nf.format(b.word_count)} palavras · ≈ ${fmtDuration((b.word_count / wpm) * 60)}` : ""}
-                {b.format === "fisico" ? ` · físico${b.total_pages ? ` · p. ${b.current_page ?? 0}/${b.total_pages}` : ""}` : ""}
                 {b.status === "lendo" && progressoDoLivro(b) > 0 ? ` · ${Math.round(progressoDoLivro(b) * 100)}%` : ""}
+                {b.word_count
+                  ? b.status === "lendo"
+                    // em leitura: o que falta, no seu ritmo
+                    ? ` · faltam ${nf.format(Math.round(b.word_count * (1 - progressoDoLivro(b))))} palavras · ≈ ${fmtDuration((b.word_count * (1 - progressoDoLivro(b)) / wpm) * 60)}`
+                    : ` · ${nf.format(b.word_count)} palavras · ≈ ${fmtDuration((b.word_count / wpm) * 60)}`
+                  : ""}
+                {b.format === "fisico" ? ` · físico${b.total_pages ? ` · p. ${b.current_page ?? 0}/${b.total_pages}` : ""}` : ""}
               </span>
             </span>
           </span>

@@ -124,6 +124,9 @@ export default function Estudos() {
       .map(([k, l]) => [k === SEM_PASTA ? "Sem pasta" : caminhoDaPasta(k, porId), [...l].sort(porOrdem)] as [string, Aula[]]);
   }, [visiveis, porId, posNaArvore]);
 
+  // aulas em leitura (as mais adiantadas primeiro)
+  const lendo = useMemo(() => (aulas ?? []).filter((a) => a.situacao === "lendo").sort((x, y) => (y.progresso ?? 0) - (x.progresso ?? 0)), [aulas]);
+
   // ---- ordem das aulas dentro da pasta ----
   const chaveDaPasta = (a: Aula) => (a.pasta_id && porId.has(a.pasta_id) ? a.pasta_id : SEM_PASTA);
   /** Todas as aulas da mesma pasta (sem filtro nem busca), na ordem atual. */
@@ -348,6 +351,32 @@ export default function Estudos() {
           )}
           {aulas && total > 0 && !visiveis.length && <p className="text-sm text-muted">Nada encontrado.</p>}
 
+          {lendo.length > 0 && !q.trim() && (
+            <section className="mb-6">
+              <div className="flex items-baseline justify-between mb-2 px-1">
+                <h2 className="font-medium flex items-center gap-2"><BookOpen size={16} className="text-icon" /> Lendo agora</h2>
+                <span className="text-xs text-muted tabular-nums">≈ {tempo(lendo.reduce((n, a) => n + faltam(a), 0))} pela frente</span>
+              </div>
+              <div className="card divide-y divide-line">
+                {lendo.map((a) => (
+                  <button key={a.id} onClick={() => router.push(`/estudos/${a.id}`)} className="w-full flex items-center gap-3 p-3 text-left hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">{a.title}</span>
+                      <span className="block truncate text-xs text-muted">{a.course}</span>
+                      <span className="block h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
+                        <span className="block h-full bg-chart rounded-full" style={{ width: `${Math.round((a.progresso ?? 0) * 100)}%` }} />
+                      </span>
+                    </span>
+                    <span className="text-right shrink-0 tabular-nums">
+                      <span className="block text-sm">{Math.round((a.progresso ?? 0) * 100)}%</span>
+                      {a.palavras ? <span className="block text-xs text-muted">faltam ≈ {tempo(faltam(a))}</span> : null}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
           <div className="space-y-6">
             {grupos.map(([g, lista]) => (
               <div key={g}>
@@ -373,8 +402,9 @@ export default function Estudos() {
                             <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted mt-0.5">
                               {[
                                 a.professor || null,
-                                a.palavras ? `${nf.format(a.palavras)} palavras · ≈ ${tempo(a.palavras)}` : null,
                                 a.situacao === "lendo" && (a.progresso ?? 0) > 0 ? `${Math.round((a.progresso ?? 0) * 100)}%` : null,
+                                // em leitura: o que falta, no seu ritmo; senão, o total
+                                a.palavras ? (a.situacao === "lendo" ? `faltam ${nf.format(Math.round(faltam(a)))} palavras · ≈ ${tempo(faltam(a))}` : `${nf.format(a.palavras)} palavras · ≈ ${tempo(a.palavras)}`) : null,
                               ].filter(Boolean).join(" · ")}
                               {(a.anotacoes ?? "").trim() && (
                                 <span className="inline-flex items-center gap-1" title="Esta aula tem anotações suas">

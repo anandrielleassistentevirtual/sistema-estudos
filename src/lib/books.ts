@@ -3,6 +3,27 @@ import { supabase, userId } from "./supabase/client";
 import { countWords } from "./text";
 import type { Book } from "./types";
 import { aliviarEpub, COMPRIMIR_ACIMA, LIMITE_ENVIO, mb } from "./epub-leve";
+import { todas } from "./supabase/todas";
+import { addDays, dayKey } from "./dates";
+
+/**
+ * Seu ritmo nos livros (palavras por minuto), o mesmo em todas as telas: a leitura de livros dos últimos
+ * 30 dias; sem leitura nesse período, as últimas 200 sessões de livros. null = ainda sem dados.
+ */
+export async function ppmDosLivros(): Promise<number | null> {
+  const calc = (xs: { seconds: number; words: number }[]) => {
+    const secs = xs.reduce((a, x) => a + x.seconds, 0);
+    return secs > 120 ? Math.round(xs.reduce((a, x) => a + x.words, 0) / (secs / 60)) : 0;
+  };
+  const sb = supabase();
+  const desde = dayKey(addDays(new Date(), -29));
+  const ultimos30 = await todas<{ seconds: number; words: number }>((de, ate) =>
+    sb.from("reading_sessions").select("seconds,words").not("book_id", "is", null).gte("day", desde).order("id").range(de, ate)).catch(() => []);
+  const v = calc(ultimos30);
+  if (v) return v;
+  const { data } = await sb.from("reading_sessions").select("seconds,words").not("book_id", "is", null).order("started_at", { ascending: false }).limit(200);
+  return calc((data as { seconds: number; words: number }[] | null) ?? []) || null;
+}
 
 export const ACCEPT = ".epub,.txt,.md,.markdown";
 
