@@ -2,24 +2,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { countWords } from "@/lib/text";
 import { FONTS, ReaderHandle, ReaderProps, themeColors, TocItem } from "./types";
-
-const WORDS_PER_PAGE = 320;
-
-const TXT_HEADING = /^(cap[ií]tulo|parte|livro|canto|se[cç][aã]o|pr[oó]logo|ep[ií]logo|introdu[cç][aã]o|pref[aá]cio|chapter|part|book|prologue|epilogue)\b/i;
-
-/** Título de um parágrafo, se ele for um título (# do Markdown ou "Capítulo X" no TXT). */
-function headingOf(par: string, md: boolean): { label: string; level: number } | null {
-  const first = par.split("\n")[0].trim();
-  const m = first.match(/^(#{1,3})\s+(.+?)\s*#*$/);
-  if (m) return { label: m[2].replace(/[*_`]/g, ""), level: m[1].length };
-  if (md) return null;
-  if (first.length <= 80 && TXT_HEADING.test(first)) return { label: first, level: 1 };
-  if (first.length >= 3 && first.length <= 60 && first === first.toUpperCase() && /\p{L}/u.test(first) && !/[.!?,;]$/.test(first) && par.split("\n").length === 1)
-    return { label: first, level: 2 };
-  return null;
-}
+import { paginar } from "./paginar";
 
 /** Leitor paginado para TXT e Markdown: páginas de ~320 palavras, quebrando em parágrafos. */
 export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextReader(props, ref) {
@@ -33,29 +17,9 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     void props.data.text().then(setText);
   }, [props.data]);
 
-  const { pages, toc } = useMemo(() => {
-    if (text === null) return { pages: [], toc: [] as TocItem[] };
-    const paras = text.replace(/\r/g, "").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
-    const out: { text: string; words: number }[] = [];
-    const toc: TocItem[] = [];
-    let cur: string[] = [];
-    let n = 0;
-    for (const p of paras) {
-      const w = countWords(p);
-      if (n > 0 && n + w > WORDS_PER_PAGE * 1.15) {
-        out.push({ text: cur.join("\n\n"), words: n });
-        cur = [];
-        n = 0;
-      }
-      const h = headingOf(p, props.format === "md");
-      if (h) toc.push({ ...h, location: `p:${out.length}` });
-      cur.push(p);
-      n += w;
-    }
-    if (cur.length) out.push({ text: cur.join("\n\n"), words: n });
-    return { pages: out, toc };
+  const { pages, toc } = useMemo(() => (text === null ? { pages: [], toc: [] as TocItem[] } : paginar(text, props.format === "md")),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
+    [text]);
 
   useEffect(() => {
     if (pages.length) cb.current.onToc?.(toc);
