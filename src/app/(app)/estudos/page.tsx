@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronRight, CircleCheck, Download, FileText, FolderInput, FolderOpen, FolderPlus, FolderUp,
-  ListOrdered, NotebookPen, Pencil, Plus, Search, Trash2, Upload, X,
+  ListChecks, ListOrdered, NotebookPen, Pencil, Plus, Search, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { EstudosTabs } from "@/components/estudos-tabs";
@@ -23,6 +23,8 @@ const SEM_PASTA = "sem";
 export default function Estudos() {
   const router = useRouter();
   const [aulas, setAulas] = useState<Aula[] | null>(null);
+  /** aula → tarefas por fazer que ela pede feitas antes */
+  const [antesDe, setAntesDe] = useState<Map<string, number>>(new Map());
   const [pastas, setPastas] = useState<PastaEstudo[]>([]);
   const [sel, setSel] = useState<string>("todas"); // "todas" | "sem" (aulas sem pasta) | id da pasta
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
@@ -44,10 +46,14 @@ export default function Estudos() {
 
   async function load() {
     const sb = supabase();
-    const [a, p] = await Promise.all([
+    const [a, p, t] = await Promise.all([
       todas<Aula>((de, ate) => sb.from("notes").select(COLUNAS_AULA).eq("kind", "estudo").order("id").range(de, ate)),
       sb.from("estudo_pastas").select("id,parent_id,nome,posicao"),
+      sb.from("estudo_tarefas").select("antes_de").not("antes_de", "is", null).is("feita_em", null),
     ]);
+    const m = new Map<string, number>();
+    for (const x of (t.data as { antes_de: string | null }[] | null) ?? []) if (x.antes_de) m.set(x.antes_de, (m.get(x.antes_de) ?? 0) + 1);
+    setAntesDe(m);
     setAulas(a.sort(porTitulo));
     const ps = (p.data as PastaEstudo[]) ?? [];
     setPastas(ps);
@@ -407,6 +413,12 @@ export default function Estudos() {
                                 // em leitura: o que falta, no seu ritmo; senão, o total
                                 a.palavras ? (a.situacao === "lendo" ? `faltam ${nf.format(Math.round(faltam(a)))} palavras · ≈ ${tempo(faltam(a))}` : `${nf.format(a.palavras)} palavras · ≈ ${tempo(a.palavras)}`) : null,
                               ].filter(Boolean).join(" · ")}
+                              {!!antesDe.get(a.id) && (
+                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-px font-medium" title="Tarefas para fazer antes desta aula (não bloqueia a leitura)"
+                                  style={{ background: "color-mix(in srgb, #c98a1a 14%, transparent)", color: "#a8741a" }}>
+                                  <ListChecks size={11} /> {antesDe.get(a.id)} {antesDe.get(a.id) === 1 ? "tarefa antes" : "tarefas antes"}
+                                </span>
+                              )}
                               {(a.anotacoes ?? "").trim() && (
                                 <span className="inline-flex items-center gap-1" title="Esta aula tem anotações suas">
                                   · <NotebookPen size={11} /> anotações

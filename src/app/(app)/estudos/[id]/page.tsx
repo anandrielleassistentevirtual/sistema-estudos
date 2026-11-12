@@ -3,9 +3,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Check, ChevronLeft, ChevronRight, CircleCheck, Download, ListTree, NotebookPen, Pencil, Quote, Type, X, ZoomIn, ZoomOut,
+  Check, ChevronLeft, ChevronRight, CircleCheck, Download, ListChecks, ListTree, NotebookPen, Pencil, Quote, Type, X, ZoomIn, ZoomOut,
 } from "lucide-react";
 import { TextReader } from "@/components/reader/text-reader";
+import { TarefasDaAula } from "@/components/tarefas-da-aula";
 import { PrefsPanel } from "@/components/reader/prefs-panel";
 import { stepZoom, useEffectiveTheme, useReaderPrefs, zoomOf, ZOOM } from "@/components/reader/prefs";
 import { THEMES, type ReaderHandle, type TocItem } from "@/components/reader/types";
@@ -37,6 +38,8 @@ export default function AulaAberta() {
 
   const [painel, setPainel] = useState<null | "aa" | "sumario">(null);
   const [notas, setNotas] = useState(false);
+  const [tarefasAberto, setTarefasAberto] = useState(false);
+  const [tarefasPendentes, setTarefasPendentes] = useState(0);
   const [editar, setEditar] = useState(false);
   const [toc, setToc] = useState<TocItem[]>([]);
   const [local, setLocal] = useState("");
@@ -237,7 +240,17 @@ export default function AulaAberta() {
             <button className="p-2 opacity-70 hover:opacity-100" title="Aparência" onClick={() => setPainel(painel === "aa" ? null : "aa")}><Type size={18} /></button>
           </>
         )}
-        <button className={`p-2 hover:opacity-100 relative ${notas ? "opacity-100" : "opacity-70"}`} title="Minhas anotações" onClick={() => setNotas(!notas)}>
+        {aula && (
+          <button className={`p-2 hover:opacity-100 relative ${tarefasAberto ? "opacity-100" : "opacity-70"}`} title="Tarefas desta aula"
+            onClick={() => { setTarefasAberto(!tarefasAberto); if (!tarefasAberto && window.innerWidth < 1024) setNotas(false); }}>
+            <ListChecks size={18} />
+            {tarefasPendentes > 0 && !tarefasAberto && (
+              <span className="absolute top-0.5 right-0 min-w-[15px] h-[15px] px-0.5 rounded-full text-[10px] leading-[15px] text-center tabular-nums"
+                style={{ background: "#c98a1a", color: "#fff" }}>{tarefasPendentes}</span>
+            )}
+          </button>
+        )}
+        <button className={`p-2 hover:opacity-100 relative ${notas ? "opacity-100" : "opacity-70"}`} title="Minhas anotações" onClick={() => { setNotas(!notas); if (!notas) setTarefasAberto(false); }}>
           <NotebookPen size={18} />
           {!!aula?.anotacoes?.trim() && !notas && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-current" />}
         </button>
@@ -345,6 +358,11 @@ export default function AulaAberta() {
           </aside>
         )}
       </div>
+
+      {aula && (
+        <TarefasDaAula aula={{ id: aula.id, title: aula.title, pasta_id: (aula as { pasta_id?: string | null }).pasta_id ?? null, situacao: aula.situacao }}
+          aberto={tarefasAberto} onFechar={() => setTarefasAberto(false)} onPendentes={setTarefasPendentes} avisar={setAviso} />
+      )}
 
       {!editar && (
         <footer className="shrink-0 flex items-center gap-2 px-3 h-9 text-xs opacity-80">

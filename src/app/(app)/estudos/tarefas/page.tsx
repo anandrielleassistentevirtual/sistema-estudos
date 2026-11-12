@@ -1,8 +1,9 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
-  BookOpen, Check, ChevronDown, ExternalLink, Eye, Feather, Highlighter, ListChecks, Pencil, Play, Plus, RefreshCw, Repeat, Search, Trash2, X,
+  BookOpen, Check, ChevronDown, CornerDownRight, ExternalLink, Eye, GraduationCap, Feather, Highlighter, ListChecks, Pencil, Play, Plus, RefreshCw, Repeat, Search, Trash2, X,
 } from "lucide-react";
 import { Page } from "@/components/page";
 import { EstudosTabs } from "@/components/estudos-tabs";
@@ -10,18 +11,20 @@ import { RowMenu } from "@/components/row-menu";
 import { useTimerEstado } from "@/components/timer-context";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
-import { arvoreDePastas, caminhoDaPasta, type PastaEstudo } from "@/lib/estudos";
+import { arvoreDePastas, caminhoDaPasta, porOrdem, subarvore, type PastaEstudo } from "@/lib/estudos";
 import { ppmDosLivros } from "@/lib/books";
 import { fmtDuration, nf } from "@/lib/dates";
 import { progressoDoLivro, type Book } from "@/lib/types";
 import {
-  POR_PAGINA, TIPOS, carregarTarefas, concluirTarefa, criarTarefa, mudarTarefa, proximaPosicao, tempoPorTarefa, textoDoPrazo,
-  type Tarefa, type TipoTarefa,
+  POR_PAGINA, TIPOS, carregarAulasLite, carregarTarefas, concluirTarefa, criarTarefa, iniciarTarefa, mudarTarefa, proximaAula, proximaPosicao,
+  tempoPorTarefa, textoDoPrazo, type AulaLite, type Tarefa, type TipoTarefa,
 } from "@/lib/tarefas";
 
 type Livro = Pick<Book, "id" | "title" | "author" | "status" | "progress" | "word_count" | "format">;
 const ICONE: Record<TipoTarefa, typeof BookOpen> = { ler: BookOpen, assistir: Eye, escrever: Feather, revisar: RefreshCw, praticar: Repeat, outro: ListChecks };
 const TODOS = "todos";
+/** "Aula 05 — O problema do conhecimento" → curto o bastante para caber numa etiqueta. */
+const curto = (s: string, n = 48) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
 export default function Tarefas() {
   const router = useRouter();
@@ -29,6 +32,7 @@ export default function Tarefas() {
   const [tarefas, setTarefas] = useState<Tarefa[] | null>(null);
   const [pastas, setPastas] = useState<PastaEstudo[]>([]);
   const [livros, setLivros] = useState<Livro[]>([]);
+  const [aulas, setAulas] = useState<AulaLite[]>([]);
   const [tempo, setTempo] = useState<Map<string, number>>(new Map());
   const [ppm, setPpm] = useState(220);
   const [curso, setCurso] = useState<string>(TODOS);
@@ -40,18 +44,20 @@ export default function Tarefas() {
 
   async function load() {
     const sb = supabase();
-    const [t, p, b, tm, r] = await Promise.all([
+    const [t, p, b, tm, r, au] = await Promise.all([
       carregarTarefas(),
       sb.from("estudo_pastas").select("id,parent_id,nome,posicao"),
       todas<Livro>((de, ate) => sb.from("books").select("id,title,author,status,progress,word_count,format").order("title").order("id").range(de, ate)),
       tempoPorTarefa(),
       ppmDosLivros(),
+      carregarAulasLite().catch(() => [] as AulaLite[]),
     ]);
     setTarefas(t);
     setPastas((p.data as PastaEstudo[]) ?? []);
     setLivros(b);
     setTempo(tm);
     if (r) setPpm(r);
+    setAulas(au);
   }
   useEffect(() => {
     void load();
@@ -64,7 +70,8 @@ export default function Tarefas() {
   useEffect(() => { try { localStorage.setItem("tarefas-pagina", String(pagina)); localStorage.setItem("tarefas-vista", vista); } catch {} }, [pagina, vista]);
 
   const porId = useMemo(() => new Map(pastas.map((p) => [p.id, p])), [pastas]);
-  const { ordem } = useMemo(() => arvoreDePastas(pastas), [pastas]);
+  const { ordem, filhos } = useMemo(() => arvoreDePastas(pastas), [pastas]);
+  const aulaDe = useMemo(() => new Map(aulas.map((a) => [a.id, a])), [aulas]);
   const livroDe = useMemo(() => new Map(livros.map((b) => [b.id, b])), [livros]);
   const nomeCurto = (id: string | null) => (id ? porId.get(id)?.nome ?? "" : "");
 
@@ -88,14 +95,9 @@ export default function Tarefas() {
   const fizUmaParte = (t: Tarefa) => trocar(t, { posicao: proximaPosicao(tarefas ?? []), destacada: false });
 
   function fazerAgora(t: Tarefa) {
-    const b = t.book_id ? livroDe.get(t.book_id) : undefined;
-    timer.set({
-      category: b ? "Leitura" : "Estudos", label: t.texto, tarefaId: t.id, tarefaTexto: t.texto,
-      ...(b ? { bookId: b.id, bookTitle: b.title, bookPhysical: b.format === "fisico" } : { noteId: "", noteTitle: "" }),
-    });
-    timer.start();
-    if (b && b.format !== "fisico") router.push(`/ler/${b.id}`);
-    else if (t.link) window.open(t.link, "_blank", "noopener");
+    const ir = iniciarTarefa(t, timer, t.book_id ? livroDe.get(t.book_id) : null);
+    if (ir.rota) router.push(ir.rota);
+    else if (ir.link) window.open(ir.link, "_blank", "noopener");
   }
 
   function linha(t: Tarefa) {
@@ -113,6 +115,17 @@ export default function Tarefas() {
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
             {t.pasta_id && <span className="rounded-md bg-surface-2 px-1.5 py-0.5">{nomeCurto(t.pasta_id)}</span>}
+            {t.aula_id && aulaDe.get(t.aula_id) && (
+              <Link href={`/estudos/${t.aula_id}`} className="inline-flex items-center gap-1 hover:text-ink hover:underline underline-offset-2" title="De qual aula veio — abrir a aula">
+                <GraduationCap size={12} /> {curto(aulaDe.get(t.aula_id)!.title)}
+              </Link>
+            )}
+            {t.antes_de && aulaDe.get(t.antes_de) && (
+              <Link href={`/estudos/${t.antes_de}`} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:underline underline-offset-2"
+                style={{ background: "color-mix(in srgb, #c98a1a 14%, transparent)", color: "#a8741a" }} title="Fazer antes de abrir esta aula">
+                <CornerDownRight size={12} /> antes de {curto(aulaDe.get(t.antes_de)!.title, 40)}
+              </Link>
+            )}
             {b && (
               <span>
                 {b.title}
@@ -172,7 +185,7 @@ export default function Tarefas() {
           <button className="text-xs text-faint hover:text-ink" onClick={() => { setGuiaAberto(true); try { localStorage.removeItem("tarefas-guia"); } catch {} }}>Como usar o Sistema de Autofoco</button>
         )}
 
-        <NovaTarefa ordem={ordem} porId={porId} livros={livros} cursoInicial={curso === TODOS ? null : curso}
+        <NovaTarefa ordem={ordem} filhos={filhos} porId={porId} livros={livros} aulas={aulas} cursoInicial={curso === TODOS ? null : curso}
           onCriar={async (dados) => { const t = await criarTarefa(dados, tarefas ?? []); setTarefas((l) => [...(l ?? []), t]); }} />
 
         <div className="flex flex-wrap items-center gap-2">
@@ -282,7 +295,7 @@ export default function Tarefas() {
       )}
       {editando && (
         <Janela titulo="Editar tarefa" onClose={() => setEditando(null)}>
-          <FormTarefa ordem={ordem} porId={porId} livros={livros} inicial={editando} rotulo="Salvar"
+          <FormTarefa ordem={ordem} filhos={filhos} porId={porId} livros={livros} aulas={aulas} inicial={editando} rotulo="Salvar"
             onSalvar={async (dados) => { trocar(editando, dados); setEditando(null); }} />
         </Janela>
       )}
@@ -306,20 +319,19 @@ function Janela({ titulo, onClose, children }: { titulo: string; onClose: () => 
 
 type Dados = Partial<Tarefa> & { texto: string };
 
-function NovaTarefa({ ordem, porId, livros, cursoInicial, onCriar }: {
-  ordem: { pasta: PastaEstudo; nivel: number }[]; porId: Map<string, PastaEstudo>; livros: Livro[]; cursoInicial: string | null; onCriar: (d: Dados) => Promise<void>;
-}) {
+type Arvore = { ordem: { pasta: PastaEstudo; nivel: number }[]; filhos: Map<string | null, PastaEstudo[]>; porId: Map<string, PastaEstudo>; livros: Livro[]; aulas: AulaLite[] };
+
+function NovaTarefa({ cursoInicial, onCriar, ...arv }: Arvore & { cursoInicial: string | null; onCriar: (d: Dados) => Promise<void> }) {
   const [chave, setChave] = useState(0); // limpa o formulário depois de acrescentar
   return (
     <section className="card p-4">
-      <FormTarefa key={chave} ordem={ordem} porId={porId} livros={livros} inicial={{ pasta_id: cursoInicial }} rotulo="Acrescentar"
+      <FormTarefa key={chave} {...arv} inicial={{ pasta_id: cursoInicial }} rotulo="Acrescentar"
         onSalvar={async (d) => { await onCriar(d); setChave((k) => k + 1); }} />
     </section>
   );
 }
 
-function FormTarefa({ ordem, porId, livros, inicial, rotulo, onSalvar }: {
-  ordem: { pasta: PastaEstudo; nivel: number }[]; porId: Map<string, PastaEstudo>; livros: Livro[];
+function FormTarefa({ ordem, filhos, porId, livros, aulas, inicial, rotulo, onSalvar }: Arvore & {
   inicial: Partial<Tarefa>; rotulo: string; onSalvar: (d: Dados) => Promise<void>;
 }) {
   const [texto, setTexto] = useState(inicial.texto ?? "");
@@ -329,7 +341,9 @@ function FormTarefa({ ordem, porId, livros, inicial, rotulo, onSalvar }: {
   const [busca, setBusca] = useState("");
   const [link, setLink] = useState(inicial.link ?? "");
   const [prazo, setPrazo] = useState(inicial.prazo ?? "");
-  const [mais, setMais] = useState(!!(inicial.prazo || inicial.link || inicial.book_id || inicial.pasta_id));
+  const [aulaId, setAulaId] = useState<string | null>(inicial.aula_id ?? null);
+  const [antes, setAntes] = useState(!!inicial.antes_de);
+  const [mais, setMais] = useState(!!(inicial.prazo || inicial.link || inicial.book_id || inicial.pasta_id || inicial.aula_id));
   const [indo, setIndo] = useState(false);
   const livro = bookId ? livros.find((b) => b.id === bookId) : undefined;
   const dobra = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -337,12 +351,28 @@ function FormTarefa({ ordem, porId, livros, inicial, rotulo, onSalvar }: {
     ? livros.filter((b) => dobra(busca).split(/\s+/).every((w) => dobra(`${b.title} ${b.author ?? ""}`).includes(w))).slice(0, 8) : [];
   const exemplo = TIPOS.find((t) => t.id === tipo)?.exemplo ?? "";
 
+  // aulas do curso escolhido (com as das subpastas), na ordem das pastas e, dentro delas, na ordem das aulas
+  const posPasta = useMemo(() => new Map(ordem.map(({ pasta: p }, i) => [p.id, i])), [ordem]);
+  const aulasDoCurso = useMemo(() => {
+    if (!pasta) return [];
+    const dentro = subarvore(pasta, filhos);
+    return aulas.filter((a) => a.pasta_id && dentro.has(a.pasta_id))
+      .sort((a, b) => (posPasta.get(a.pasta_id!) ?? 0) - (posPasta.get(b.pasta_id!) ?? 0) || porOrdem(a, b));
+  }, [pasta, filhos, aulas, posPasta]);
+  const proxima = aulaId ? proximaAula(aulaId, aulas) : null;
+  // ao editar, mantém a aula "antes de" que já estava escolhida (se a aula de origem não mudou)
+  const antesDe = !antes ? null : aulaId === inicial.aula_id && inicial.antes_de ? inicial.antes_de : proxima?.id ?? null;
+  const nomeAntes = antesDe ? aulas.find((a) => a.id === antesDe)?.title : null;
+
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
     if (!texto.trim() || indo) return;
     setIndo(true);
     try {
-      await onSalvar({ texto: texto.trim(), tipo, pasta_id: pasta, book_id: tipo === "ler" ? bookId : null, link: link.trim(), prazo: prazo || null });
+      await onSalvar({
+        texto: texto.trim(), tipo, pasta_id: pasta, book_id: tipo === "ler" ? bookId : null, link: link.trim(), prazo: prazo || null,
+        aula_id: aulaId, antes_de: aulaId ? antesDe : null,
+      });
     } finally { setIndo(false); }
   }
 
@@ -364,16 +394,41 @@ function FormTarefa({ ordem, porId, livros, inicial, rotulo, onSalvar }: {
         <button className="btn btn-primary shrink-0" disabled={!texto.trim() || indo}><Plus size={15} /> {rotulo}</button>
       </div>
       {!mais ? (
-        <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => setMais(true)}>+ curso, livro, link ou prazo</button>
+        <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => setMais(true)}>+ curso, aula, livro, link ou prazo</button>
       ) : (
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
           <label className="block"><span className="label">Curso (opcional)</span>
-            <select className="input mt-1" value={pasta ?? ""} onChange={(e) => setPasta(e.target.value || null)}>
+            <select className="input mt-1" value={pasta ?? ""} onChange={(e) => { setPasta(e.target.value || null); setAulaId(null); setAntes(false); }}>
               <option value="">Sem curso</option>
               {ordem.map(({ pasta: p }) => <option key={p.id} value={p.id}>{caminhoDaPasta(p.id, porId)}</option>)}
             </select></label>
           <label className="block"><span className="label">Prazo (opcional)</span>
             <input type="date" className="input mt-1" value={prazo} onChange={(e) => setPrazo(e.target.value)} /></label>
+          {pasta && aulasDoCurso.length > 0 && (
+            <div className="sm:col-span-2 space-y-2">
+              <label className="block"><span className="label">De qual aula (opcional)</span>
+                <select className="input mt-1" value={aulaId ?? ""} onChange={(e) => { setAulaId(e.target.value || null); if (!e.target.value) setAntes(false); }}>
+                  <option value="">Nenhuma aula específica</option>
+                  {aulasDoCurso.map((a) => (
+                    <option key={a.id} value={a.id}>{a.pasta_id !== pasta ? `${porId.get(a.pasta_id!)?.nome} › ` : ""}{a.title}</option>
+                  ))}
+                </select></label>
+              {aulaId && (
+                <label className={`flex items-start gap-2 ${proxima || inicial.antes_de ? "cursor-pointer" : "opacity-60"}`}>
+                  <input type="checkbox" className="mt-1" checked={antes} disabled={!proxima && !(aulaId === inicial.aula_id && inicial.antes_de)}
+                    onChange={(e) => setAntes(e.target.checked)} />
+                  <span>
+                    Fazer antes da próxima aula
+                    <span className="block text-xs text-muted">
+                      {nomeAntes ? `Ao abrir “${nomeAntes}”, aparece um lembrete desta tarefa (a leitura não fica bloqueada).`
+                        : proxima ? `Ao abrir “${proxima.title}”, aparece um lembrete desta tarefa (a leitura não fica bloqueada).`
+                        : "Esta é a última aula da pasta."}
+                    </span>
+                  </span>
+                </label>
+              )}
+            </div>
+          )}
           {tipo === "ler" && (
             <div className="sm:col-span-2">
               <span className="label">Livro da Biblioteca (opcional)</span>
