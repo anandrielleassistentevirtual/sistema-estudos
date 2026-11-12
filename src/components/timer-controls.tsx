@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BookHeart, BookOpen, Feather, Pause, Play, RotateCcw, Square } from "lucide-react";
 import { CATEGORIAS, useTimer } from "./timer-context";
-import { fmtClock } from "@/lib/dates";
+import { dayKey, fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import { Language, loadLanguages } from "@/lib/languages";
@@ -45,7 +45,11 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
   }, [t.lastSaved]);
 
   const display = t.mode === "pomodoro" ? t.remaining : t.seconds;
-  const total = (t.phase === "foco" ? t.focusMin : t.breakMin) * 60;
+  const total = t.alvo;
+  const hoje = dayKey();
+  const serie = t.ciclosDia === hoje ? t.serie : 0;
+  const ciclosHoje = t.ciclosDia === hoje ? t.cycles : 0;
+  const foco = t.phase === "foco";
   const pct = t.mode === "pomodoro" ? 1 - t.remaining / total : (t.seconds % 3600) / 3600;
   const size = compact ? 150 : 260;
   const R = compact ? 64 : 110;
@@ -72,10 +76,10 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <div className="text-[10px] uppercase tracking-wider text-muted">
-            {t.mode === "pomodoro" ? (t.phase === "foco" ? "Foco" : "Pausa") : "Decorrido"}
+            {t.mode === "pomodoro" ? (foco ? `Foco · ${serie + 1} de ${t.ciclosAteLonga}` : t.pausaLonga ? "Pausa longa" : "Pausa") : "Decorrido"}
           </div>
           <div className={`${compact ? "text-3xl" : "text-5xl"} font-medium font-mono tabular-nums mt-0.5`}>{fmtClock(display)}</div>
-          {t.mode === "pomodoro" && !compact && <div className="text-xs text-faint mt-1">ciclos hoje: {t.cycles}</div>}
+          {t.mode === "pomodoro" && !compact && <div className="text-xs text-faint mt-1">ciclos hoje: {ciclosHoje}</div>}
         </div>
       </div>
 
@@ -90,6 +94,23 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         </button>
         <button className="btn btn-ghost px-2" onClick={t.reset} title="Zerar sem salvar"><RotateCcw size={15} /></button>
       </div>
+
+      {t.mode === "pomodoro" && (
+        // ajusta só a fase atual (mesmo com o timer rodando) e permite pular para a próxima
+        <div className={`flex flex-wrap items-center justify-center gap-1 ${compact ? "mt-2" : "mt-4"}`}>
+          <span className="text-xs text-muted mr-1 tabular-nums">{foco ? "Foco" : t.pausaLonga ? "Pausa longa" : "Pausa"} de {Math.round(t.alvo / 60)} min</span>
+          {[-5, -1, 1, 5].map((m) => (
+            <button key={m} className="btn btn-ghost px-2 py-0.5 text-xs tabular-nums" disabled={m < 0 && t.alvo + m * 60 < 60}
+              onClick={() => t.ajustar(m)} title={`${m > 0 ? "Acrescentar" : "Tirar"} ${Math.abs(m)} min ${foco ? "deste foco" : "desta pausa"}`}>
+              {m > 0 ? `+${m}` : `−${-m}`}
+            </button>
+          ))}
+          <button className="btn px-2 py-0.5 text-xs" onClick={t.pular} disabled={foco && t.seconds < 1}
+            title={foco ? "Encerra o foco agora (o tempo feito é salvo) e começa a pausa" : "Encerra a pausa"}>
+            {foco ? "Ir para a pausa" : "Voltar ao foco"}
+          </button>
+        </div>
+      )}
 
       <div className={`grid gap-3 w-full ${compact ? "mt-4" : "sm:grid-cols-2 max-w-md mt-8"}`}>
         <label className="space-y-1">
@@ -204,16 +225,28 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         )}
 
         {t.mode === "pomodoro" && (
-          <div className={`grid grid-cols-2 gap-3 ${compact ? "" : "sm:col-span-2"}`}>
+          // os tempos padrão podem mudar a qualquer momento (valem também para a fase em andamento)
+          <div className={`grid grid-cols-2 gap-3 ${compact ? "" : "sm:grid-cols-4 sm:col-span-2"}`}>
             <label className="space-y-1">
               <span className="label">Foco (min)</span>
-              <input className="input" type="number" min={1} max={180} value={t.focusMin} disabled={t.running}
-                onChange={(e) => t.set({ focusMin: Number(e.target.value) || 25 })} />
+              <input className="input" type="number" min={1} max={180} value={t.focusMin}
+                onChange={(e) => t.set({ focusMin: Math.max(1, Number(e.target.value) || 25) })} />
             </label>
             <label className="space-y-1">
               <span className="label">Pausa (min)</span>
-              <input className="input" type="number" min={1} max={60} value={t.breakMin} disabled={t.running}
-                onChange={(e) => t.set({ breakMin: Number(e.target.value) || 5 })} />
+              <input className="input" type="number" min={1} max={60} value={t.breakMin}
+                onChange={(e) => t.set({ breakMin: Math.max(1, Number(e.target.value) || 5) })} />
+            </label>
+            <label className="space-y-1">
+              <span className="label">Longa (min)</span>
+              <input className="input" type="number" min={1} max={90} value={t.longBreakMin}
+                onChange={(e) => t.set({ longBreakMin: Math.max(1, Number(e.target.value) || 15) })} />
+            </label>
+            <label className="space-y-1">
+              <span className="label">Longa a cada</span>
+              <select className="input" value={t.ciclosAteLonga} onChange={(e) => t.set({ ciclosAteLonga: Number(e.target.value) })}>
+                {[2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n} focos</option>)}
+              </select>
             </label>
           </div>
         )}

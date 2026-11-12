@@ -14,6 +14,17 @@ interface TimerState {
   elapsed: number; // segundos acumulados antes do último play
   focusMin: number;
   breakMin: number;
+  /** pomodoro clássico: depois de `ciclosAteLonga` focos, uma pausa longa */
+  longBreakMin: number;
+  ciclosAteLonga: number;
+  /** focos concluídos na série atual (volta a 0 depois da pausa longa) */
+  serie: number;
+  /** a pausa em andamento é a longa? */
+  pausaLonga: boolean;
+  /** minutos acrescentados (ou tirados) só na fase atual, em segundos */
+  ajuste: number;
+  /** dia dos "ciclos hoje" (para zerar a cada dia) */
+  ciclosDia: string;
   category: string;
   label: string; // texto livre (categorias sem lista)
   language: string; // Idiomas
@@ -35,6 +46,12 @@ export interface PendingPages {
 interface TimerApi extends TimerState {
   seconds: number;
   remaining: number;
+  /** duração da fase atual, em segundos (já com o ajuste) */
+  alvo: number;
+  /** muda só a fase atual: +1, −5… minutos (pode ser com o timer rodando) */
+  ajustar: (minutos: number) => void;
+  /** vai já para a próxima fase (o foco feito até aqui é salvo) */
+  pular: () => void;
   start: () => void;
   pause: () => void;
   stop: () => Promise<void>;
@@ -56,6 +73,12 @@ const initial: TimerState = {
   elapsed: 0,
   focusMin: 25,
   breakMin: 5,
+  longBreakMin: 15,
+  ciclosAteLonga: 4,
+  serie: 0,
+  pausaLonga: false,
+  ajuste: 0,
+  ciclosDia: "",
   category: "Leitura",
   label: "",
   language: "",
@@ -125,7 +148,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   }, [s.running]);
 
   const seconds = s.elapsed + (s.running && s.startedAt ? (now - s.startedAt) / 1000 : 0);
-  const target = (s.phase === "foco" ? s.focusMin : s.breakMin) * 60;
+  const target = Math.max(60, (s.phase === "foco" ? s.focusMin : s.pausaLonga ? s.longBreakMin : s.breakMin) * 60 + s.ajuste);
   const remaining = Math.max(0, target - seconds);
 
   const insert = useCallback(async (secs: number, st: TimerState, startedIso: string) => {
@@ -183,20 +206,29 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     setLastSaved(Date.now());
   }, [pending, insert]);
 
+  // passagem de fase: foco → pausa (longa depois do 4º foco) → foco
+  const paraPausa = useCallback((agora: number) => setS((p) => {
+    const hoje = dayKey();
+    const serie = (p.ciclosDia === hoje ? p.serie : 0) + 1;
+    const longa = serie >= Math.max(1, p.ciclosAteLonga);
+    return {
+      ...p, phase: "pausa", elapsed: 0, startedAt: agora, running: true, ajuste: 0, pausaLonga: longa,
+      serie: longa ? 0 : serie, cycles: (p.ciclosDia === hoje ? p.cycles : 0) + 1, ciclosDia: hoje,
+    };
+  }), []);
+  const paraFoco = useCallback(() => setS((p) => ({ ...p, phase: "foco", elapsed: 0, startedAt: null, running: false, ajuste: 0, pausaLonga: false })), []);
+
   // fim de fase do pomodoro
   useEffect(() => {
     if (s.mode !== "pomodoro" || !s.running || remaining > 0) return;
     beep();
-    if (s.phase === "foco") {
-      void save(target, s);
-      setS((p) => ({ ...p, phase: "pausa", elapsed: 0, startedAt: Date.now(), cycles: p.cycles + 1 }));
-    } else {
-      setS((p) => ({ ...p, phase: "foco", elapsed: 0, startedAt: null, running: false }));
-    }
+    const eraFoco = s.phase === "foco";
+    const vaiSerLonga = eraFoco && (s.ciclosDia === dayKey() ? s.serie : 0) + 1 >= Math.max(1, s.ciclosAteLonga);
+    if (eraFoco) { void save(target, s); paraPausa(Date.now()); } else paraFoco();
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(s.phase === "foco" ? "Foco concluído — hora da pausa" : "Pausa terminada — de volta ao foco");
+      new Notification(eraFoco ? (vaiSerLonga ? "Foco concluído — hora da pausa longa" : "Foco concluído — hora da pausa") : "Pausa terminada — de volta ao foco");
     }
-  }, [remaining, s, save, target]);
+  }, [remaining, s, save, target, paraPausa, paraFoco]);
 
   const start = useCallback(() => {
     if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
@@ -223,11 +255,22 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     stop: async () => {
       const secs = seconds;
       const snapshot = s;
-      setS((p) => ({ ...p, running: false, startedAt: null, elapsed: 0, phase: "foco" }));
+      setS((p) => ({ ...p, running: false, startedAt: null, elapsed: 0, phase: "foco", ajuste: 0, pausaLonga: false }));
       if (snapshot.phase === "foco") await save(secs, snapshot);
     },
-    reset: () => setS((p) => ({ ...p, running: false, startedAt: null, elapsed: 0, phase: "foco" })),
+    reset: () => setS((p) => ({ ...p, running: false, startedAt: null, elapsed: 0, phase: "foco", ajuste: 0, pausaLonga: false })),
     set,
+    alvo: target,
+    ajustar: (minutos: number) => setS((p) => {
+      const base = (p.phase === "foco" ? p.focusMin : p.pausaLonga ? p.longBreakMin : p.breakMin) * 60;
+      // nunca menos de 1 min no total
+      return { ...p, ajuste: Math.max(60 - base, p.ajuste + minutos * 60) };
+    }),
+    pular: () => {
+      if (s.phase === "foco") {
+        if (s.mode === "pomodoro") { void save(seconds, s); paraPausa(Date.now()); }
+      } else paraFoco();
+    },
   };
 
   return (
