@@ -7,7 +7,8 @@ import { IdiomasTabs } from "@/components/idiomas-tabs";
 import { Heatmap } from "@/components/heatmap";
 import { anki, ankiOnline, ankiUrl, ankiWeb, contaAnki, type ContaAnki } from "@/lib/anki";
 import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
-import { DayStats, loadDaily } from "@/lib/stats";
+import { DayStats, emptyDay, loadDaily } from "@/lib/stats";
+import { todas } from "@/lib/supabase/todas";
 import { supabase } from "@/lib/supabase/client";
 
 /** "agora há pouco", "há 12 min", "há 3 h", "ontem às 21:40" */
@@ -24,20 +25,26 @@ export default function AnkiPage() {
   const [conta, setConta] = useState<ContaAnki | null | undefined>(undefined); // undefined = carregando
   const [daily, setDaily] = useState<Map<string, DayStats>>(new Map());
   const [segundosHoje, setSegundosHoje] = useState(0);
+  /** cartões criados por dia (no formato do mapa de calor: o número vai em "anki") e notas criadas */
+  const [criados, setCriados] = useState<Map<string, DayStats>>(new Map());
+  const [notas, setNotas] = useState<Map<string, number>>(new Map());
   const [msg, setMsg] = useState<{ texto: string; erro?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [conectado, setConectado] = useState(false); // AnkiConnect (Anki aberto neste computador)
 
   async function carregar() {
     const desde = dayKey(addDays(weekStart(new Date()), -52 * 7));
-    const [c, d, hoje] = await Promise.all([
+    type Linha = { day: string; segundos: number; criados: number; notas_criadas: number };
+    const [c, d, linhas] = await Promise.all([
       contaAnki(),
       loadDaily(desde),
-      supabase().from("anki_daily").select("segundos").eq("day", dayKey()).maybeSingle(),
+      todas<Linha>((de, ate) => supabase().from("anki_daily").select("day,segundos,criados,notas_criadas").gte("day", desde).order("day").range(de, ate)).catch(() => [] as Linha[]),
     ]);
     setConta(c);
     setDaily(d);
-    setSegundosHoje((hoje.data as { segundos: number } | null)?.segundos ?? 0);
+    setSegundosHoje(linhas.find((l) => l.day === dayKey())?.segundos ?? 0);
+    setCriados(new Map(linhas.filter((l) => l.criados > 0).map((l) => [l.day, { ...emptyDay(), anki: l.criados }])));
+    setNotas(new Map(linhas.filter((l) => l.notas_criadas > 0).map((l) => [l.day, l.notas_criadas])));
     return c;
   }
 
@@ -68,6 +75,16 @@ export default function AnkiPage() {
   let semana = 0;
   for (let d = weekStart(new Date()); d <= new Date(); d = addDays(d, 1)) semana += daily.get(dayKey(d))?.anki ?? 0;
   const r = conta?.resumo;
+  // cartões criados: hoje, na semana, nos últimos 30 dias
+  const somaCriados = (desde: Date) => {
+    let c = 0, n = 0;
+    for (let d = desde; d <= new Date(); d = addDays(d, 1)) { c += criados.get(dayKey(d))?.anki ?? 0; n += notas.get(dayKey(d)) ?? 0; }
+    return { c, n };
+  };
+  const criadosHoje = somaCriados(new Date());
+  const criadosSemana = somaCriados(weekStart(new Date()));
+  const criados30 = somaCriados(addDays(new Date(), -29));
+  const emNotas = (x: { c: number; n: number }) => (x.n && x.n !== x.c ? `em ${nf.format(x.n)} ${x.n === 1 ? "nota" : "notas"}` : undefined);
   const baralhos = conta?.baralhos ?? [];
 
   return (
@@ -101,6 +118,20 @@ export default function AnkiPage() {
             <h2 className="font-medium mb-3">Histórico de revisões</h2>
             <Heatmap data={daily} metric="anki" />
             <p className="text-xs text-faint mt-2">A contagem no sistema começa em 08/11/2026.</p>
+          </section>
+
+          <section className="card p-5 mt-4">
+            <h2 className="font-medium mb-3">Cartões criados</h2>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <Stat label="Hoje" value={nf.format(criadosHoje.c)} hint={emNotas(criadosHoje)} />
+              <Stat label="Na semana" value={nf.format(criadosSemana.c)} hint={emNotas(criadosSemana)} />
+              <Stat label="Últimos 30 dias" value={nf.format(criados30.c)} hint={emNotas(criados30)} />
+            </div>
+            <Heatmap data={criados} metric="anki" unidade="cartões criados" />
+            <p className="text-xs text-faint mt-2">
+              Conta os cartões que existem hoje na sua coleção, pelo dia em que foram criados (desde 08/11/2026).
+              Uma nota com frente e verso invertido gera dois cartões; baralhos importados contam no dia da importação.
+            </p>
           </section>
 
           {baralhos.length > 0 && (

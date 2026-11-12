@@ -20,6 +20,8 @@ export const maxDuration = 60;
 
 /** A contagem de revisões do Anki no sistema começa neste dia (mesma regra de src/lib/anki.ts). */
 const ANKI_INICIO = "2026-11-08";
+/** Sobe quando a leitura da coleção passa a contar algo novo: força baixar de novo mesmo sem mudanças no AnkiWeb. */
+const LEITOR = 2; // 2: cartões e notas criados por dia
 
 async function cliente() {
   const loja = await cookies();
@@ -74,7 +76,7 @@ export async function POST(req: Request) {
     // ---- sincronizar ----
     const [{ data: ch }, { data: conta }] = await Promise.all([
       sb.rpc("anki_chave"),
-      sb.from("anki_conta").select("sincronizado_em").eq("user_id", claims.claims.sub).maybeSingle(),
+      sb.from("anki_conta").select("sincronizado_em,resumo").eq("user_id", claims.claims.sub).maybeSingle(),
     ]);
     const chave = (ch as { hkey: string; endpoint: string | null; colecao_mod: number | null }[] | null)?.[0];
     if (!chave) return NextResponse.json({ erro: "Conecte o AnkiWeb primeiro." }, { status: 400 });
@@ -82,8 +84,9 @@ export async function POST(req: Request) {
     const m = await meta(chave.hkey, chave.endpoint);
     // nada mudou no AnkiWeb desde a última vez, no mesmo dia: não precisa baixar de novo
     const diaDe = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
-    const ultima = (conta as { sincronizado_em: string | null } | null)?.sincronizado_em;
-    if (corpo.acao === "sincronizar" && chave.colecao_mod === m.meta.mod && ultima && diaDe(new Date(ultima)) === diaDe(new Date())) {
+    const c0 = conta as { sincronizado_em: string | null; resumo: { leitor?: number } | null } | null;
+    const ultima = c0?.sincronizado_em;
+    if (corpo.acao === "sincronizar" && chave.colecao_mod === m.meta.mod && c0?.resumo?.leitor === LEITOR && ultima && diaDe(new Date(ultima)) === diaDe(new Date())) {
       const agora = new Date().toISOString();
       await sb.from("anki_conta").update({ endpoint: m.endpoint, sincronizado_em: agora, erro: null }).eq("user_id", claims.claims.sub);
       return NextResponse.json({ ok: true, semNovidades: true, sincronizado_em: agora });
@@ -108,7 +111,7 @@ export async function POST(req: Request) {
       }
       const agora = new Date().toISOString();
       await sb.from("anki_conta").update({
-        endpoint: m.endpoint, colecao_mod: m.meta.mod, baralhos, resumo: { ...resumo, servidor_mod: m.meta.mod }, sincronizado_em: agora, erro: null,
+        endpoint: m.endpoint, colecao_mod: m.meta.mod, baralhos, resumo: { ...resumo, servidor_mod: m.meta.mod, leitor: LEITOR }, sincronizado_em: agora, erro: null,
       }).eq("user_id", claims.claims.sub);
       return NextResponse.json({ ok: true, dias: dias.length, sincronizado_em: agora, mensagem: m.meta.msg || null });
     } finally {

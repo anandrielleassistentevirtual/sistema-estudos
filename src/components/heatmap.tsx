@@ -14,6 +14,7 @@ export function Heatmap({
   end = new Date(),
   onSelect,
   selected,
+  unidade,
 }: {
   data: Map<string, DayStats>;
   metric: Metric;
@@ -21,9 +22,11 @@ export function Heatmap({
   end?: Date;
   onSelect?: (day: string) => void;
   selected?: string | null;
+  /** nome da quantidade na dica (padrão: o da métrica) */
+  unidade?: string;
 }) {
   const [hover, setHover] = useState<{ day: string; x: number; y: number } | null>(null);
-  const unit = METRICS.find((m) => m.id === metric)!.unit;
+  const unit = unidade ?? METRICS.find((m) => m.id === metric)!.unit;
   const today = dayKey();
 
   const { cells, months, thresholds } = useMemo(() => {

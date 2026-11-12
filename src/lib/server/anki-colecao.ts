@@ -5,7 +5,7 @@
  */
 import { DatabaseSync } from "node:sqlite";
 
-export interface DiaAnki { day: string; reviews: number; segundos: number }
+export interface DiaAnki { day: string; reviews: number; segundos: number; criados: number; notas_criadas: number }
 export interface BaralhoAnki { id: number; nome: string; revisar: number; aprendendo: number; novos: number; total: number }
 export interface ResumoAnki {
   cartoes: number;
@@ -65,10 +65,19 @@ export function lerColecao(arquivo: string, opcoes: { tz: string; desde: string;
 
     // revisões e tempo por dia (sem as mudanças manuais de data, que não são revisões)
     const desdeMs = (Date.parse(`${opcoes.desde}T00:00:00Z`) / 1000 - desloc) * 1000;
-    const dias = (db.prepare(`
+    const porDia = new Map<string, DiaAnki>();
+    const dia = (k: string) => porDia.get(k) ?? (porDia.set(k, { day: k, reviews: 0, segundos: 0, criados: 0, notas_criadas: 0 }), porDia.get(k)!);
+    for (const d of db.prepare(`
       select date(id / 1000 + ?, 'unixepoch') as day, count(*) as reviews, cast(sum(min(time, 60000)) / 1000 as integer) as segundos
-      from revlog where id >= ? and ease > 0 and type < 4 group by day order by day`).all(desloc, desdeMs) as unknown as DiaAnki[])
-      .map((d) => ({ day: d.day, reviews: Number(d.reviews), segundos: Number(d.segundos) }));
+      from revlog where id >= ? and ease > 0 and type < 4 group by day`).all(desloc, desdeMs) as { day: string; reviews: number; segundos: number }[]) {
+      const x = dia(d.day); x.reviews = Number(d.reviews); x.segundos = Number(d.segundos);
+    }
+    // cartões e notas criados: o id de cada um é o instante (em milissegundos) em que foi criado
+    for (const d of db.prepare(`select date(id / 1000 + ?, 'unixepoch') as day, count(*) as n from cards where id >= ? group by day`)
+      .all(desloc, desdeMs) as { day: string; n: number }[]) dia(d.day).criados = Number(d.n);
+    for (const d of db.prepare(`select date(id / 1000 + ?, 'unixepoch') as day, count(*) as n from notes where id >= ? group by day`)
+      .all(desloc, desdeMs) as { day: string; n: number }[]) dia(d.day).notas_criadas = Number(d.n);
+    const dias = [...porDia.values()].sort((a, b) => a.day.localeCompare(b.day));
 
     // retenção: das revisões de cartões já aprendidos nos últimos 30 dias, quantas você acertou
     const ret = db.prepare(`select count(*) as n, sum(case when ease > 1 then 1 else 0 end) as ok
