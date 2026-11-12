@@ -74,6 +74,21 @@ async function media(file: string, cache: Map<string, string>): Promise<string |
   }
 }
 
+/** O AnkiConnect responde isto quando a tela de revisão do Anki não está aberta (baralho sem cartões, fim, ou ainda abrindo). */
+const REVISAO_INATIVA = /not currently active/i;
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Quantos cartões o Anki deste computador ainda mostra hoje no baralho (novos + aprendendo + revisões). */
+async function cartoesParaHoje(deck: string): Promise<number | null> {
+  try {
+    const s = await anki<Record<string, { new_count: number; learn_count: number; review_count: number }>>("getDeckStats", { decks: [deck] });
+    const x = Object.values(s)[0];
+    return x ? x.new_count + x.learn_count + x.review_count : null;
+  } catch {
+    return null;
+  }
+}
+
 function srcdoc(html: string, css: string, dark: boolean) {
   return `<!doctype html><html><head><meta charset="utf-8">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&display=swap"><style>
@@ -104,6 +119,7 @@ export default function RevisarAnki() {
   const audio = useRef<HTMLAudioElement | null>(null);
   const start = useRef(Date.now());
   const busy = useRef(false);
+  const deckRef = useRef("");
 
   const [blocked, setBlocked] = useState(false);
   const [playingAudio, setPlayingAudio] = useState(false);
@@ -133,7 +149,24 @@ export default function RevisarAnki() {
 
   const load = useCallback(async (first = false) => {
     try {
-      const c = await anki<CurrentCard | null>("guiCurrentCard");
+      let c: CurrentCard | null = null;
+      // a revisão pode levar um instante para abrir no Anki; e, quando não há mais cartões, ela fecha sozinha
+      for (let tentativa = 0; ; tentativa++) {
+        try {
+          c = await anki<CurrentCard | null>("guiCurrentCard");
+          break;
+        } catch (e) {
+          if (!REVISAO_INATIVA.test((e as Error).message ?? "")) throw e;
+          const d = deckRef.current;
+          const resta = d ? await cartoesParaHoje(d) : null;
+          if (resta === 0 || (!d && tentativa >= 2)) { c = null; break; } // nada mais para hoje
+          if (tentativa >= 8) {
+            throw new Error("O Anki não abriu a revisão deste baralho. Clique no baralho na janela do Anki e depois em “Tentar de novo”.");
+          }
+          if (d && (tentativa === 2 || tentativa === 5)) await anki("guiDeckReview", { name: d }).catch(() => {});
+          await esperar(400);
+        }
+      }
       if (!c) { setState("fim"); setCard(null); return; }
       setCard(c);
       setShown(false);
@@ -150,9 +183,27 @@ export default function RevisarAnki() {
     }
   }, [play]);
 
-  // início: abre a revisão do baralho no Anki e pega o primeiro cartão
+  /** Abre a revisão do baralho no Anki e pega o primeiro cartão. */
+  const iniciar = useCallback(async () => {
+    const d = deckRef.current;
+    setState("carregando");
+    try {
+      if (d) {
+        const ok = await anki<boolean>("guiDeckReview", { name: d });
+        if (ok === false) throw new Error(`Não encontrei o baralho “${d}” no Anki deste computador. Sincronize o Anki e tente de novo.`);
+      }
+      await esperar(400);
+      await load(true);
+    } catch (e) {
+      setErr((e as Error).message || "Não foi possível falar com o Anki.");
+      setState("erro");
+    }
+  }, [load]);
+
+  // início
   useEffect(() => {
     const d = new URLSearchParams(window.location.search).get("deck") ?? "";
+    deckRef.current = d;
     setDeck(d);
     setDark(document.documentElement.dataset.theme === "dark" ||
       (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches));
@@ -161,16 +212,9 @@ export default function RevisarAnki() {
       setLangs(ls);
       const guess = ls.find((l) => d.toLowerCase().includes(l.name.toLowerCase()));
       setLang(guess?.name ?? ls[0]?.name ?? "");
-      try {
-        if (d) await anki("guiDeckReview", { name: d });
-        await new Promise((r) => setTimeout(r, 400));
-        await load(true);
-      } catch (e) {
-        setErr((e as Error).message || "Não foi possível falar com o Anki.");
-        setState("erro");
-      }
+      await iniciar();
     })();
-  }, [load]);
+  }, [iniciar]);
 
   // relógio da sessão
   useEffect(() => {
@@ -287,15 +331,28 @@ export default function RevisarAnki() {
           <p className="text-critical font-medium">Não consegui falar com o Anki.</p>
           <p className="text-muted">{err}</p>
           <p className="text-muted">Confira se o Anki está aberto neste computador e se o AnkiConnect está configurado (veja a aba Anki).</p>
-          <button className="btn" onClick={() => { setState("carregando"); void load(true); }}><RotateCcw size={14} /> Tentar de novo</button>
+          <button className="btn" onClick={() => void iniciar()}><RotateCcw size={14} /> Tentar de novo</button>
         </div>
       )}
 
       {state === "fim" && (
         <div className="card p-10 text-center space-y-3">
-          <div className="text-4xl">🎉</div>
-          <p className="font-medium text-lg">Parabéns! Você terminou este baralho por hoje.</p>
-          <p className="text-sm text-muted">{done} cartões em {fmtClock(secs)}.</p>
+          {done > 0 ? (
+            <>
+              <div className="text-4xl">🎉</div>
+              <p className="font-medium text-lg">Parabéns! Você terminou este baralho por hoje.</p>
+              <p className="text-sm text-muted">{done} {done === 1 ? "cartão" : "cartões"} em {fmtClock(secs)}.</p>
+            </>
+          ) : (
+            <>
+              <div className="text-4xl">✓</div>
+              <p className="font-medium text-lg">Nada para revisar agora neste baralho.</p>
+              <p className="text-sm text-muted max-w-md mx-auto">
+                Esse é o que o Anki deste computador mostra. Se você revisou no celular, sincronize o Anki do computador para ele ficar igual.
+                Cartões em aprendizado voltam daqui a alguns minutos.
+              </p>
+            </>
+          )}
           <Link href="/idiomas/anki" className="btn btn-primary inline-flex">Voltar aos baralhos</Link>
         </div>
       )}
