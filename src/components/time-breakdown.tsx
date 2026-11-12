@@ -32,7 +32,9 @@ export function TimeBreakdown() {
     ]).then(([s, r, n]) => {
       setSessions(s);
       setReading(r);
-      setCourseOf(new Map(n.map((x) => [x.id, x.course])));
+      // só a pasta do curso: "Paulo Cantarelli › EFESC › Correções" → "EFESC" (o autor e as subpastas ficam de fora)
+      const doCurso = (caminho: string) => { const p = caminho.split(" › ").map((x) => x.trim()).filter(Boolean); return p[1] ?? p[0] ?? ""; };
+      setCourseOf(new Map(n.map((x) => [x.id, doCurso(x.course)])));
     }).catch(() => {});
   }, []);
 
