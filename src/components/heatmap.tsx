@@ -15,6 +15,7 @@ export function Heatmap({
   onSelect,
   selected,
   unidade,
+  paleta,
 }: {
   data: Map<string, DayStats>;
   metric: Metric;
@@ -24,6 +25,8 @@ export function Heatmap({
   selected?: string | null;
   /** nome da quantidade na dica (padrão: o da métrica) */
   unidade?: string;
+  /** escala de cores (padrão: azul; "escritas" usa laranja) */
+  paleta?: "heat" | "out" | "ama";
 }) {
   const [hover, setHover] = useState<{ day: string; x: number; y: number } | null>(null);
   const unit = unidade ?? METRICS.find((m) => m.id === metric)!.unit;
@@ -66,7 +69,8 @@ export function Heatmap({
   };
   const level = (v: number) => nivel(v, thresholds);
   /** escrita (saída) em laranja; o resto em azul */
-  const cor = (_day: string, v: number) => `var(--${metric === "escritas" && v > 0 ? "out" : "heat"}-${level(v)})`;
+  const escala = paleta ?? (metric === "escritas" ? "out" : "heat");
+  const cor = (_day: string, v: number) => `var(--${v > 0 ? escala : "heat"}-${level(v)})`;
 
   const left = 26;
   const top = 16;
@@ -126,7 +130,7 @@ export function Heatmap({
       <div className="flex items-center gap-1.5 mt-2 text-xs text-muted justify-end">
         menos
         {[0, 1, 2, 3, 4, 5].map((l) => (
-          <span key={l} className="inline-block rounded-[3px]" style={{ width: 11, height: 11, background: `var(--${metric === "escritas" && l ? "out" : "heat"}-${l})` }} />
+          <span key={l} className="inline-block rounded-[3px]" style={{ width: 11, height: 11, background: `var(--${l ? escala : "heat"}-${l})` }} />
         ))}
         mais
       </div>

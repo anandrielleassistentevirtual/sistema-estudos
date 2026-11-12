@@ -37,6 +37,15 @@
   --out-3: #ffa53d;
   --out-4: #ff9500;
   --out-5: #c45f00;
+  /* amarelo: cartões criados no Anki */
+  --ama-0: #e8e8ed;
+  --ama-1: #fdf1bf;
+  --ama-2: #fbe07f;
+  --ama-3: #f4c93a;
+  --ama-4: #e0ad00;
+  --ama-5: #9c7600;
+  --ama-texto: #a87f00;
+  --azul-texto: #0071e3;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -74,6 +83,14 @@
     --out-3: #b86b06;
     --out-4: #ff9f0a;
     --out-5: #ffc670;
+    --ama-0: #2c2c2e;
+    --ama-1: #3d3407;
+    --ama-2: #6b5a08;
+    --ama-3: #a88b0a;
+    --ama-4: #ffd60a;
+    --ama-5: #ffe680;
+    --ama-texto: #ffd60a;
+    --azul-texto: #409cff;
   }
 }
 
@@ -111,6 +128,14 @@
   --out-3: #b86b06;
   --out-4: #ff9f0a;
   --out-5: #ffc670;
+  --ama-0: #2c2c2e;
+  --ama-1: #3d3407;
+  --ama-2: #6b5a08;
+  --ama-3: #a88b0a;
+  --ama-4: #ffd60a;
+  --ama-5: #ffe680;
+  --ama-texto: #ffd60a;
+  --azul-texto: #409cff;
 }
 
 @theme inline {

@@ -28,11 +28,11 @@ export function Page({
   );
 }
 
-export function Stat({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
+export function Stat({ label, value, hint, cor }: { label: string; value: React.ReactNode; hint?: string; cor?: string }) {
   return (
     <div className="card p-4">
       <div className="text-[13px] text-muted">{label}</div>
-      <div className="text-[1.75rem] font-normal tracking-tight mt-1 tabular-nums leading-none">{value}</div>
+      <div className="text-[1.75rem] font-normal tracking-tight mt-1 tabular-nums leading-none" style={cor ? { color: cor } : undefined}>{value}</div>
       {hint && <div className="text-xs text-faint mt-2">{hint}</div>}
     </div>
   );
