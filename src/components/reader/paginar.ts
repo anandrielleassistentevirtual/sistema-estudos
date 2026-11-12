@@ -3,6 +3,7 @@ import { countWords } from "@/lib/text";
 import type { TocItem } from "./types";
 
 export const WORDS_PER_PAGE = 320;
+const SEPARADOR = /^([-*_]\s*){3,}$/;
 
 const TXT_HEADING = /^(cap[ií]tulo|parte|livro|canto|se[cç][aã]o|pr[oó]logo|ep[ií]logo|introdu[cç][aã]o|pref[aá]cio|chapter|part|book|prologue|epilogue)\b/i;
 
@@ -24,7 +25,7 @@ export function headingOf(par: string, md: boolean): { label: string; level: num
  */
 export function presoAoSeguinte(par: string, md: boolean): boolean {
   const t = par.trim();
-  if (/^([-*_]\s*){3,}$/.test(t)) return true;
+  if (SEPARADOR.test(t)) return true;
   if (headingOf(t, md)) return true;
   const enfatico = /^(\*\*|__|\*|_)[^\n]+(\*\*|__|\*|_)$/.test(t);
   return enfatico && countWords(t) <= 14 && t.split("\n").length <= 2;
@@ -52,6 +53,13 @@ export function paginar(text: string, md: boolean): { pages: { text: string; wor
     n += w;
   }
   if (cur.length) out.push({ text: cur.map((x) => x.p).join("\n\n"), words: n });
+  // o separador (---) que cair no alto de uma página não aparece: a página nova já separa as seções
+  for (let i = 1; i < out.length; i++) {
+    const ps = out[i].text.split("\n\n");
+    let k = 0;
+    while (k < ps.length - 1 && SEPARADOR.test(ps[k].trim())) k++;
+    if (k) out[i] = { ...out[i], text: ps.slice(k).join("\n\n") };
+  }
   // sumário depois de montar as páginas (cada título aponta para a página onde ficou)
   const toc: TocItem[] = [];
   out.forEach((pg, i) => {
