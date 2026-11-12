@@ -11,10 +11,6 @@ import { DayStats, emptyDay, loadDaily } from "@/lib/stats";
 import { todas } from "@/lib/supabase/todas";
 import { supabase } from "@/lib/supabase/client";
 
-/** Cores da aba: azul para revisões, amarelo para cartões novos/criados. */
-const AZUL = "var(--azul-texto)";
-const AMARELO = "var(--ama-texto)";
-
 /** "agora há pouco", "há 12 min", "há 3 h", "ontem às 21:40" */
 function haQuanto(iso: string | null) {
   if (!iso) return "nunca";
@@ -112,10 +108,10 @@ export default function AnkiPage() {
       {conta !== null && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Stat cor={AZUL} label="Para revisar hoje" value={r ? nf.format(r.revisar_hoje + r.aprendendo) : "—"}
+            <Stat label="Para revisar hoje" value={r ? nf.format(r.revisar_hoje + r.aprendendo) : "—"}
               hint={r ? `${nf.format(r.revisar_hoje)} revisões · ${nf.format(r.aprendendo)} aprendendo` : undefined} />
-            <Stat cor={AZUL} label="Revisões hoje" value={nf.format(hoje)} hint={segundosHoje >= 60 ? `${fmtDuration(segundosHoje)} revisando` : undefined} />
-            <Stat cor={AZUL} label="Revisões na semana" value={nf.format(semana)} />
+            <Stat label="Revisões hoje" value={nf.format(hoje)} hint={segundosHoje >= 60 ? `${fmtDuration(segundosHoje)} revisando` : undefined} />
+            <Stat label="Revisões na semana" value={nf.format(semana)} />
             <Stat label="Acertos (30 dias)" value={r?.retencao_30d != null ? `${Math.round(r.retencao_30d * 100)}%` : "—"}
               hint={r?.revisoes_30d ? `de ${nf.format(r.revisoes_30d)} revisões de cartões já aprendidos` : undefined} />
           </div>
@@ -129,9 +125,9 @@ export default function AnkiPage() {
           <section className="card p-5 mt-4">
             <h2 className="font-medium mb-3">Cartões criados</h2>
             <div className="grid grid-cols-3 gap-3 mb-4">
-              <Stat cor={AMARELO} label="Hoje" value={nf.format(criadosHoje.c)} hint={emNotas(criadosHoje)} />
-              <Stat cor={AMARELO} label="Desde domingo" value={nf.format(criadosSemana.c)} hint={emNotas(criadosSemana)} />
-              <Stat cor={AMARELO} label="Últimos 30 dias" value={nf.format(criados30.c)} hint={emNotas(criados30)} />
+              <Stat label="Hoje" value={nf.format(criadosHoje.c)} hint={emNotas(criadosHoje)} />
+              <Stat label="Desde domingo" value={nf.format(criadosSemana.c)} hint={emNotas(criadosSemana)} />
+              <Stat label="Últimos 30 dias" value={nf.format(criados30.c)} hint={emNotas(criados30)} />
             </div>
             <Heatmap data={criados} metric="anki" unidade="cartões criados" paleta="ama" />
             <p className="text-xs text-faint mt-2">
@@ -157,9 +153,9 @@ export default function AnkiPage() {
                   {baralhos.map((d) => (
                     <tr key={d.nome} className="border-b border-line last:border-0">
                       <td className="p-3" style={{ paddingLeft: 12 + (d.nome.split("::").length - 1) * 16 }}>{d.nome.split("::").pop()}</td>
-                      <td className="p-3 text-right tabular-nums font-medium" style={{ color: d.revisar ? AZUL : undefined }}>{nf.format(d.revisar)}</td>
+                      <td className="p-3 text-right tabular-nums font-medium">{nf.format(d.revisar)}</td>
                       <td className="p-3 text-right tabular-nums">{nf.format(d.aprendendo)}</td>
-                      <td className="p-3 text-right tabular-nums" style={{ color: d.novos ? AMARELO : "var(--muted)" }}>{nf.format(d.novos)}</td>
+                      <td className="p-3 text-right tabular-nums text-muted">{nf.format(d.novos)}</td>
                       <td className="p-3 text-right tabular-nums text-muted hidden sm:table-cell">{nf.format(d.total)}</td>
                       {conectado && (
                         <td className="p-3 text-right">
