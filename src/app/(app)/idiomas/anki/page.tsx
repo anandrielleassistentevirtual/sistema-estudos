@@ -1,120 +1,223 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Play, RefreshCw } from "lucide-react";
+import { ChevronDown, Cloud, Play, RefreshCw } from "lucide-react";
 import { Page, Stat } from "@/components/page";
 import { IdiomasTabs } from "@/components/idiomas-tabs";
 import { Heatmap } from "@/components/heatmap";
-import { ANKI_INICIO, anki, ankiOnline, ankiUrl } from "@/lib/anki";
-import { addDays, dayKey, nf, weekStart } from "@/lib/dates";
+import { anki, ankiOnline, ankiUrl, ankiWeb, contaAnki, type ContaAnki } from "@/lib/anki";
+import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { DayStats, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
 
-interface DeckStat { deck_id: number; name: string; new_count: number; learn_count: number; review_count: number; total_in_deck: number }
+/** "agora há pouco", "há 12 min", "há 3 h", "ontem às 21:40" */
+function haQuanto(iso: string | null) {
+  if (!iso) return "nunca";
+  const min = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (min < 2) return "agora há pouco";
+  if (min < 60) return `há ${min} min`;
+  if (min < 24 * 60) return `há ${Math.round(min / 60)} h`;
+  return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
 
 export default function AnkiPage() {
-  const [online, setOnline] = useState<boolean | null>(null);
-  const [decks, setDecks] = useState<DeckStat[]>([]);
+  const [conta, setConta] = useState<ContaAnki | null | undefined>(undefined); // undefined = carregando
   const [daily, setDaily] = useState<Map<string, DayStats>>(new Map());
-  const [msg, setMsg] = useState<string | null>(null);
+  const [segundosHoje, setSegundosHoje] = useState(0);
+  const [msg, setMsg] = useState<{ texto: string; erro?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [deck, setDeck] = useState("Leituras");
-  const [url, setUrl] = useState("http://127.0.0.1:8765");
-  const [origin, setOrigin] = useState("");
+  const [conectado, setConectado] = useState(false); // AnkiConnect (Anki aberto neste computador)
 
-  async function refresh() {
+  async function carregar() {
+    const desde = dayKey(addDays(weekStart(new Date()), -52 * 7));
+    const [c, d, hoje] = await Promise.all([
+      contaAnki(),
+      loadDaily(desde),
+      supabase().from("anki_daily").select("segundos").eq("day", dayKey()).maybeSingle(),
+    ]);
+    setConta(c);
+    setDaily(d);
+    setSegundosHoje((hoje.data as { segundos: number } | null)?.segundos ?? 0);
+    return c;
+  }
+
+  async function atualizar(silencioso = false) {
     setBusy(true);
-    setMsg(null);
-    const ok = await ankiOnline();
-    setOnline(ok);
-    if (ok) {
-      try {
-        const names = await anki<string[]>("deckNames");
-        const stats = await anki<Record<string, DeckStat>>("getDeckStats", { decks: names });
-        setDecks(Object.values(stats).sort((a, b) => a.name.localeCompare(b.name)));
-        const byDay = await anki<[string, number][]>("getNumCardsReviewedByDay");
-        if (byDay.length) {
-          const rows = byDay.filter(([day]) => day >= ANKI_INICIO).map(([day, reviews]) => ({ day, reviews }));
-          for (let i = 0; i < rows.length; i += 500) await supabase().from("anki_daily").upsert(rows.slice(i, i + 500));
-          setMsg(`${rows.length} ${rows.length === 1 ? "dia" : "dias"} de revisões sincronizados com o calendário (contagem desde 08/11/2026).`);
-        }
-      } catch (e) {
-        setMsg((e as Error).message);
+    if (!silencioso) setMsg(null);
+    try {
+      const r = await ankiWeb("sincronizar");
+      if (!silencioso || r.mensagem) {
+        setMsg({ texto: r.mensagem ? `Recado do AnkiWeb: ${r.mensagem}` : r.vazio ? "Sua coleção no AnkiWeb está vazia." : r.semNovidades ? "Nada novo no AnkiWeb desde a última atualização." : "Atualizado com o AnkiWeb." });
       }
+    } catch (e) {
+      setMsg({ texto: (e as Error).message, erro: true });
     }
-    setDaily(await loadDaily(dayKey(addDays(weekStart(new Date()), -52 * 7))));
+    await carregar();
     setBusy(false);
   }
 
   useEffect(() => {
-    setOrigin(window.location.origin);
-    try {
-      setDeck(localStorage.getItem("anki-deck") || "Leituras");
-      setUrl(ankiUrl());
-    } catch {}
-    void refresh();
-  }, []);
+    void carregar().then((c) => {
+      // números com mais de 30 minutos: busca no AnkiWeb sozinho
+      if (c && (!c.sincronizado_em || Date.now() - Date.parse(c.sincronizado_em) > 30 * 60_000)) void atualizar(true);
+    });
+    void ankiOnline().then(setConectado);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const today = daily.get(dayKey())?.anki ?? 0;
-  let week = 0;
-  for (let d = weekStart(new Date()); d <= new Date(); d = addDays(d, 1)) week += daily.get(dayKey(d))?.anki ?? 0;
-  const due = decks.filter((d) => !d.name.includes("::")).reduce((a, d) => a + d.review_count + d.learn_count, 0);
+  const hoje = daily.get(dayKey())?.anki ?? 0;
+  let semana = 0;
+  for (let d = weekStart(new Date()); d <= new Date(); d = addDays(d, 1)) semana += daily.get(dayKey(d))?.anki ?? 0;
+  const r = conta?.resumo;
+  const baralhos = conta?.baralhos ?? [];
 
   return (
     <Page
       tabs={<IdiomasTabs />}
       title="Anki"
-      subtitle="Revise seus baralhos aqui mesmo: as respostas vão direto para o seu Anki (que precisa estar aberto neste computador)."
-      actions={<button className="btn" onClick={refresh} disabled={busy}><RefreshCw size={15} className={busy ? "animate-spin" : ""} /> Atualizar</button>}
+      subtitle={conta ? `Números do AnkiWeb · atualizado ${haQuanto(conta.sincronizado_em)}` : "Seus números do Anki, direto do AnkiWeb — sem precisar do Anki aberto."}
+      actions={conta ? (
+        <button className="btn" onClick={() => void atualizar()} disabled={busy}>
+          <RefreshCw size={15} className={busy ? "animate-spin" : ""} /> {busy ? "Atualizando…" : "Atualizar"}
+        </button>
+      ) : undefined}
     >
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label="Conexão" value={online === null ? "…" : online ? "Conectado" : "Desconectado"} hint={online ? "Anki aberto neste computador" : "abra o Anki com o AnkiConnect"} />
-        <Stat label="Para revisar hoje" value={online ? nf.format(due) : "—"} />
-        <Stat label="Revisões hoje" value={nf.format(today)} />
-        <Stat label="Revisões na semana" value={nf.format(week)} />
-      </div>
-      {msg && <p className="text-sm text-muted mt-3">{msg}</p>}
+      {conta === null && <Conectar onConectado={async () => { setMsg({ texto: "AnkiWeb conectado. Seus números já estão aqui." }); await carregar(); }} />}
 
-      <section className="card p-5 mt-4">
-        <h2 className="font-medium mb-3">Histórico de revisões</h2>
-        <Heatmap data={daily} metric="anki" />
-      </section>
+      {msg && <p className={`text-sm mb-3 ${msg.erro ? "text-critical" : "text-muted"}`}>{msg.texto}</p>}
+      {conta?.erro && !msg && <p className="text-sm mb-3 text-critical">Última tentativa: {conta.erro}</p>}
 
-      {online && decks.length > 0 && (
-        <section className="card mt-4 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted border-b border-line">
-                <th className="p-3 font-medium">Baralho</th>
-                <th className="p-3 font-medium text-right">Novos</th>
-                <th className="p-3 font-medium text-right">Aprendendo</th>
-                <th className="p-3 font-medium text-right">Revisar</th>
-                <th className="p-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {decks.map((d) => (
-                <tr key={d.deck_id} className="border-b border-line last:border-0">
-                  <td className="p-3" style={{ paddingLeft: 12 + (d.name.split("::").length - 1) * 16 }}>{d.name.split("::").pop()}</td>
-                  <td className="p-3 text-right tabular-nums">{d.new_count}</td>
-                  <td className="p-3 text-right tabular-nums">{d.learn_count}</td>
-                  <td className="p-3 text-right tabular-nums font-medium">{d.review_count}</td>
-                  <td className="p-3 text-right">
-                    <span className="inline-flex gap-1">
-                      <Link className="btn btn-primary text-xs py-1" href={`/idiomas/anki/revisar?deck=${encodeURIComponent(d.name)}`}><Play size={12} /> Revisar</Link>
-                      <button className="btn btn-ghost text-xs py-1" title="Abrir a revisão na janela do Anki" onClick={() => anki("guiDeckReview", { name: d.name }).catch(() => {})}>no Anki</button>
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+      {conta !== null && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Stat label="Para revisar hoje" value={r ? nf.format(r.revisar_hoje + r.aprendendo) : "—"}
+              hint={r ? `${nf.format(r.revisar_hoje)} revisões · ${nf.format(r.aprendendo)} aprendendo` : undefined} />
+            <Stat label="Revisões hoje" value={nf.format(hoje)} hint={segundosHoje >= 60 ? `${fmtDuration(segundosHoje)} revisando` : undefined} />
+            <Stat label="Revisões na semana" value={nf.format(semana)} />
+            <Stat label="Acertos (30 dias)" value={r?.retencao_30d != null ? `${Math.round(r.retencao_30d * 100)}%` : "—"}
+              hint={r?.revisoes_30d ? `de ${nf.format(r.revisoes_30d)} revisões de cartões já aprendidos` : undefined} />
+          </div>
+
+          <section className="card p-5 mt-4">
+            <h2 className="font-medium mb-3">Histórico de revisões</h2>
+            <Heatmap data={daily} metric="anki" />
+            <p className="text-xs text-faint mt-2">A contagem no sistema começa em 08/11/2026.</p>
+          </section>
+
+          {baralhos.length > 0 && (
+            <section className="card mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted border-b border-line">
+                    <th className="p-3 font-medium">Baralho</th>
+                    <th className="p-3 font-medium text-right">Revisar</th>
+                    <th className="p-3 font-medium text-right">Aprendendo</th>
+                    <th className="p-3 font-medium text-right" title="Cartões que você ainda não viu (o Anki libera alguns por dia)">Novos</th>
+                    <th className="p-3 font-medium text-right hidden sm:table-cell">Cartões</th>
+                    {conectado && <th className="p-3" />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {baralhos.map((d) => (
+                    <tr key={d.nome} className="border-b border-line last:border-0">
+                      <td className="p-3" style={{ paddingLeft: 12 + (d.nome.split("::").length - 1) * 16 }}>{d.nome.split("::").pop()}</td>
+                      <td className="p-3 text-right tabular-nums font-medium">{nf.format(d.revisar)}</td>
+                      <td className="p-3 text-right tabular-nums">{nf.format(d.aprendendo)}</td>
+                      <td className="p-3 text-right tabular-nums text-muted">{nf.format(d.novos)}</td>
+                      <td className="p-3 text-right tabular-nums text-muted hidden sm:table-cell">{nf.format(d.total)}</td>
+                      {conectado && (
+                        <td className="p-3 text-right">
+                          <Link className="btn btn-primary text-xs py-1" href={`/idiomas/anki/revisar?deck=${encodeURIComponent(d.nome)}`}><Play size={12} /> Revisar</Link>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          <p className="text-xs text-faint mt-3">
+            Os números são os da última vez que o seu Anki (celular ou computador) sincronizou com o AnkiWeb. Revisou? Sincronize no Anki e toque em Atualizar aqui.
+          </p>
+        </>
       )}
 
-      <section className="grid md:grid-cols-2 gap-4 mt-4">
-        <div className="card p-5 space-y-3">
-          <h2 className="font-medium">Preferências</h2>
+      <AnkiNoComputador conectado={conectado} setConectado={setConectado} />
+
+      {conta && (
+        <p className="text-xs text-faint mt-6 flex flex-wrap items-center gap-x-2">
+          <Cloud size={12} /> AnkiWeb: {conta.usuario}
+          <button className="underline underline-offset-2 hover:text-ink" onClick={async () => {
+            if (!confirm("Desligar o AnkiWeb deste sistema? O histórico que já está aqui continua.")) return;
+            await ankiWeb("sair").catch(() => {});
+            setMsg(null);
+            await carregar();
+          }}>desligar</button>
+        </p>
+      )}
+    </Page>
+  );
+}
+
+function Conectar({ onConectado }: { onConectado: () => Promise<void> }) {
+  const [usuario, setUsuario] = useState("");
+  const [senha, setSenha] = useState("");
+  const [indo, setIndo] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  return (
+    <section className="card p-5 mb-4 max-w-xl">
+      <h2 className="font-medium flex items-center gap-2"><Cloud size={17} className="text-icon" /> Conectar ao AnkiWeb</h2>
+      <p className="text-sm text-muted mt-1">
+        Use o mesmo e-mail e senha com que o seu Anki sincroniza. Depois disso é só tocar em <b className="text-ink">Atualizar</b>, no celular ou no computador — sem precisar do Anki aberto.
+      </p>
+      <form className="mt-4 space-y-3" onSubmit={async (e) => {
+        e.preventDefault();
+        if (!usuario.trim() || !senha || indo) return;
+        setIndo(true); setErro(null);
+        try {
+          await ankiWeb("entrar", { usuario: usuario.trim(), senha });
+          setSenha("");
+          await onConectado();
+        } catch (x) {
+          setErro((x as Error).message);
+        } finally { setIndo(false); }
+      }}>
+        <label className="block"><span className="label">E-mail do AnkiWeb</span>
+          <input className="input mt-1" type="email" autoComplete="username" value={usuario} onChange={(e) => setUsuario(e.target.value)} /></label>
+        <label className="block"><span className="label">Senha do AnkiWeb</span>
+          <input className="input mt-1" type="password" autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)} /></label>
+        {erro && <p className="text-sm text-critical">{erro}</p>}
+        <button className="btn btn-primary" disabled={!usuario.trim() || !senha || indo}>{indo ? "Conectando e baixando seus números…" : "Conectar"}</button>
+      </form>
+      <ul className="text-xs text-faint mt-4 space-y-1 list-disc pl-4">
+        <li>A senha não fica guardada: o AnkiWeb devolve uma chave de acesso (como faz com o próprio Anki), e só ela fica salva, protegida na sua conta.</li>
+        <li>O sistema só lê: baixa uma cópia da coleção para contar revisões e cartões, e nunca altera os seus baralhos.</li>
+      </ul>
+    </section>
+  );
+}
+
+/** AnkiConnect: opcional, para revisar dentro do sistema com o Anki aberto no computador. */
+function AnkiNoComputador({ conectado, setConectado }: { conectado: boolean; setConectado: (v: boolean) => void }) {
+  const [deck, setDeck] = useState("Leituras");
+  const [url, setUrl] = useState("http://127.0.0.1:8765");
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    setOrigin(window.location.origin);
+    try { setDeck(localStorage.getItem("anki-deck") || "Leituras"); setUrl(ankiUrl()); } catch {}
+  }, []);
+  return (
+    <details className="card group mt-6">
+      <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between text-sm">
+        <span>
+          <b className="font-medium">Revisar dentro do sistema</b>
+          <span className="text-muted"> · opcional, precisa do Anki aberto no computador{conectado ? " — conectado agora" : ""}</span>
+        </span>
+        <ChevronDown size={15} className="text-muted group-open:rotate-180 transition-transform" />
+      </summary>
+      <div className="border-t border-line p-5 grid md:grid-cols-2 gap-5 text-sm">
+        <div className="space-y-3">
+          <p className="text-muted">Com o Anki aberto neste computador (complemento AnkiConnect), aparece o botão <b className="text-ink">Revisar</b> em cada baralho, e os destaques de leitura podem virar cartões.</p>
           <label className="block space-y-1">
             <span className="label">Baralho para destaques de leitura</span>
             <input className="input" value={deck} onChange={(e) => { setDeck(e.target.value); try { localStorage.setItem("anki-deck", e.target.value); } catch {} }} />
@@ -124,19 +227,21 @@ export default function AnkiPage() {
             <span className="label">Endereço do AnkiConnect</span>
             <input className="input font-mono text-xs" value={url} onChange={(e) => { setUrl(e.target.value); try { localStorage.setItem("anki-url", e.target.value); } catch {} }} />
           </label>
+          <button className="btn text-xs" onClick={async () => { const ok = await ankiOnline(); setConectado(ok); if (ok) await anki("version").catch(() => {}); }}>
+            Testar conexão {conectado ? "✓" : ""}
+          </button>
         </div>
-        <div className="card p-5 text-sm space-y-2">
-          <h2 className="font-medium">Como conectar (uma vez por computador)</h2>
+        <div className="space-y-2">
+          <h3 className="font-medium">Como ligar (uma vez por computador)</h3>
           <ol className="list-decimal pl-5 space-y-1.5 text-muted">
             <li>No Anki: <b>Ferramentas → Complementos → Obter complementos</b> e cole o código <code className="bg-surface-2 px-1 rounded">2055492159</code> (AnkiConnect). Reinicie o Anki.</li>
             <li>Em <b>Complementos → AnkiConnect → Configuração</b>, adicione este site em <code>webCorsOriginList</code>:
               <pre className="bg-surface-2 rounded p-2 mt-1 text-xs overflow-x-auto">{`"webCorsOriginList": [\n  "http://localhost",\n  "${origin || "https://seu-site"}"\n]`}</pre>
             </li>
-            <li>Deixe o Anki aberto e clique em <b>Atualizar</b>. Se o navegador perguntar sobre acesso à rede local, permita.</li>
+            <li>Com o Anki aberto, toque em <b>Testar conexão</b>. Se o navegador perguntar sobre acesso à rede local, permita.</li>
           </ol>
-          <p className="text-xs text-faint">Funciona no computador onde o Anki está aberto. No celular, o histórico já sincronizado continua aparecendo.</p>
         </div>
-      </section>
-    </Page>
+      </div>
+    </details>
   );
 }

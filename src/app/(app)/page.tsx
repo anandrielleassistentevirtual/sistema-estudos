@@ -12,6 +12,7 @@ import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { DayStats, inicio12Meses, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
 import { ppmDosLivros } from "@/lib/books";
+import { sincronizarAnkiSeAntigo } from "@/lib/anki";
 import { todas } from "@/lib/supabase/todas";
 import { progressoDoLivro, type Book } from "@/lib/types";
 
@@ -55,6 +56,10 @@ export default function Dashboard() {
       setBooks(b);
       void coverUrls(b).then(setCovers);
     });
+  }, []);
+  // Anki: se os números estão velhos (mais de 3 horas), busca no AnkiWeb em segundo plano e atualiza a tela
+  useEffect(() => {
+    void sincronizarAnkiSeAntigo(3).then((ok) => { if (ok) void loadDaily(inicio12Meses()).then(setDaily); });
   }, []);
 
   const s = useMemo(() => {
