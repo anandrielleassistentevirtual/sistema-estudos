@@ -151,6 +151,10 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
         "object-fit": "contain",
         "break-inside": "avoid",
       },
+      // título, subtítulo e separador não ficam soltos no fim da página: seguem com o texto seguinte
+      "h1, h2, h3, h4, h5, h6, hr": { "break-after": "avoid !important", "page-break-after": "avoid !important", "break-inside": "avoid !important" },
+      // subtítulo: parágrafo que é só itálico ou só negrito, como "(1912–1982)"
+      "p:has(> em:only-child), p:has(> i:only-child), p:has(> strong:only-child), p:has(> b:only-child)": { "break-after": "avoid !important" },
       img: { display: "block", margin: "1em auto !important" },
       "figure, .figure": { margin: "1.2em auto !important", "text-align": "center !important", "break-inside": "avoid" },
       "figcaption, .caption": { "font-size": "0.85em !important", opacity: "0.75", "text-align": "center !important", "text-indent": "0 !important" },
