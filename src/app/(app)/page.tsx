@@ -115,7 +115,7 @@ export default function Dashboard() {
   const reading = books.filter((b) => b.status === "lendo");
   const lastDone = books.filter((b) => b.finished_at).sort((a, b) => (b.finished_at! > a.finished_at! ? 1 : -1))[0];
   const remainingWords = books
-    .filter((b) => b.status !== "lido")
+    .filter((b) => b.status !== "lido" && b.status !== "consulta") // obras de consulta não estão "pela frente"
     .reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
 
   // média simples entre os dois ritmos (a aula falada costuma render mais palavras por minuto que o livro)
@@ -198,6 +198,9 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          {count("consulta") > 0 && (
+            <p className="text-xs text-muted mt-3">+ {count("consulta")} {count("consulta") === 1 ? "obra" : "obras"} de consulta (fora dos indicadores)</p>
+          )}
           {lastDone && (
             <p className="text-xs text-muted mt-3">
               Último concluído: {lastDone.title}, em {new Date(lastDone.finished_at!).toLocaleDateString("pt-BR")}

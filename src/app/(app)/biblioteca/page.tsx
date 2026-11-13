@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronUp, Download, ChevronRight, Folder, FolderOpen, FolderPlus, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
+  ArrowDown, ArrowUp, BookMarked, BookOpen, ChevronDown, ChevronUp, Download, ChevronRight, Folder, FolderOpen, FolderPlus, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { ACCEPT, addPhysicalBook, deleteBook, enqueue, limparCacheDeLivros, ppmDosLivros, saveBookFile, uploadBook } from "@/lib/books";
@@ -22,7 +22,7 @@ import { todas } from "@/lib/supabase/todas";
 import { Book, BookStatus, Folder as F, STATUS_LABEL, progressoDoLivro } from "@/lib/types";
 
 type Sel = "todos" | "sem-pasta" | string;
-const STATUS: BookStatus[] = ["aguardando", "lendo", "pausado", "lido"];
+const STATUS: BookStatus[] = ["aguardando", "lendo", "pausado", "lido", "consulta"];
 const DEFAULT_WPM = 220;
 
 export default function Biblioteca() {
@@ -99,7 +99,7 @@ export default function Biblioteca() {
   const folderById = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
   /** Nº do livro = posição na fila de leitura (só livros na fila e ainda não lidos). */
   const queueNo = useMemo(() => {
-    const q = books.filter((b) => b.queue_position != null && b.status !== "lido")
+    const q = books.filter((b) => b.queue_position != null && b.status !== "lido" && b.status !== "consulta")
       .sort((a, b) => (a.queue_position ?? 0) - (b.queue_position ?? 0));
     return new Map(q.map((b, i) => [b.id, i + 1]));
   }, [books]);
@@ -151,6 +151,7 @@ export default function Biblioteca() {
 
   async function update(b: Book, patch: Partial<Book>) {
     if (patch.status === "lido") patch.finished_at = new Date().toISOString();
+    if (patch.status === "consulta") patch.queue_position = null; // obra de consulta não entra na fila
     if (patch.status === "lendo" && !b.started_at) patch.started_at = new Date().toISOString();
     if ("folder_id" in patch && patch.folder_id !== b.folder_id) {
       const target = books.filter((x) => x.folder_id === patch.folder_id && x.id !== b.id);
@@ -162,7 +163,9 @@ export default function Biblioteca() {
 
   const queued = useMemo(() => visible.filter((b) => queueNo.has(b.id)).sort((a, b) => queueNo.get(a.id)! - queueNo.get(b.id)!), [visible, queueNo]);
   // fora da fila: os já lidos continuam aparecendo, mas no fim
-  const rest = useMemo(() => visible.filter((b) => !queueNo.has(b.id)).sort((a, b) => Number(a.status === "lido") - Number(b.status === "lido")), [visible, queueNo]);
+  const rest = useMemo(() => visible.filter((b) => !queueNo.has(b.id) && b.status !== "consulta").sort((a, b) => Number(a.status === "lido") - Number(b.status === "lido")), [visible, queueNo]);
+  // obras de consulta: abaixo de tudo, à parte
+  const consulta = useMemo(() => visible.filter((b) => b.status === "consulta"), [visible]);
   const queueLeft = queued.reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
 
   /** Reordena a fila (troca com o vizinho) e renumera 1, 2, 3… */
@@ -215,7 +218,7 @@ export default function Biblioteca() {
               )}
               <span className="truncate">
                 {b.status === "lendo" && progressoDoLivro(b) > 0 ? ` · ${Math.round(progressoDoLivro(b) * 100)}%` : ""}
-                {b.word_count
+                {b.status === "consulta" ? " · para consulta (não conta nos indicadores)" : b.word_count
                   ? b.status === "lendo"
                     // em leitura: o que falta, no seu ritmo
                     ? ` · faltam ${nf.format(Math.round(b.word_count * (1 - progressoDoLivro(b))))} palavras · ≈ ${fmtDuration((b.word_count * (1 - progressoDoLivro(b)) / wpm) * 60)}`
@@ -234,9 +237,10 @@ export default function Biblioteca() {
         )}
         <StatusPill label="Status do livro" value={b.status} options={OPCOES_LIVRO} onChange={(st) => update(b, { status: st })} />
         <RowMenu items={[
-          b.format === "fisico"
-            ? { label: "Ler (liga o timer)", icon: Timer, onClick: () => readPhysical(b) }
-            : { label: "Abrir no leitor", icon: BookOpen, onClick: () => router.push(`/ler/${b.id}`) },
+          // livro físico de consulta: sem "ler com timer" (consulta não conta nos indicadores)
+          ...(b.format === "fisico"
+            ? (b.status === "consulta" ? [] : [{ label: "Ler (liga o timer)", icon: Timer, onClick: () => readPhysical(b) }])
+            : [{ label: "Abrir no leitor", icon: BookOpen, onClick: () => router.push(`/ler/${b.id}`) }]),
           ...(b.format !== "fisico" ? [{
             label: `Baixar o arquivo (${b.format.toUpperCase()})`, icon: Download,
             onClick: async () => { setToast("Preparando o download…"); try { await saveBookFile(b); setToast(null); } catch (e) { setToast((e as Error).message); } },
@@ -244,7 +248,7 @@ export default function Biblioteca() {
           { label: "Editar título, autor e pasta", icon: Pencil, onClick: () => setEditing(b) },
           naFila
             ? { label: "Tirar da fila", icon: X, onClick: () => dequeue(b), separar: true }
-            : { label: "Adicionar à fila", icon: ListOrdered, disabled: b.status === "lido", separar: true,
+            : { label: "Adicionar à fila", icon: ListOrdered, disabled: b.status === "lido" || b.status === "consulta", separar: true,
                 onClick: async () => { const p = await enqueue(b); setBooks((all) => all.map((x) => (x.id === b.id ? { ...x, queue_position: p } : x))); } },
           ...(naFila ? [
             { label: "Subir na fila", icon: ArrowUp, disabled: queueNo.get(b.id) === 1, onClick: () => moveQueue(b, -1) },
@@ -259,7 +263,7 @@ export default function Biblioteca() {
 
   const stats = (list: Book[]) => {
     const total = list.reduce((a, b) => a + (b.word_count ?? 0), 0);
-    const left = list.filter((b) => b.status !== "lido").reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
+    const left = list.filter((b) => b.status !== "lido" && b.status !== "consulta").reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
     const done = list.filter((b) => b.status === "lido").length;
     return { total, left, done, waiting: list.filter((b) => b.status === "aguardando").length, n: list.length };
   };
@@ -270,7 +274,7 @@ export default function Biblioteca() {
         {(children.get(parent) ?? []).map((f) => {
           const kids = children.get(f.id)?.length ?? 0;
           const isOpen = open.has(f.id);
-          const n = inFolder(f.id).filter((b) => b.status !== "lido").length;
+          const n = inFolder(f.id).filter((b) => b.status !== "lido" && b.status !== "consulta").length;
           return (
             <div key={f.id}>
               <div
@@ -408,6 +412,17 @@ export default function Biblioteca() {
                   </div>
                   <div className="card divide-y divide-line">
                     {rest.map((b) => renderRow(b))}
+                  </div>
+                </section>
+              )}
+              {consulta.length > 0 && (
+                <section className={queued.length || rest.length ? "mt-6" : ""}>
+                  <div className="flex items-baseline justify-between mb-2 px-1 gap-3">
+                    <h2 className="font-medium text-muted flex items-center gap-2"><BookMarked size={16} className="text-icon" /> Obras de consulta</h2>
+                    <span className="text-xs text-muted text-right">{consulta.length} {consulta.length === 1 ? "livro" : "livros"} · abrem onde você parou e não contam nos indicadores</span>
+                  </div>
+                  <div className="card divide-y divide-line">
+                    {consulta.map((b) => renderRow(b))}
                   </div>
                 </section>
               )}

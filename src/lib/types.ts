@@ -1,4 +1,5 @@
-export type BookStatus = "aguardando" | "lendo" | "pausado" | "lido";
+/** "consulta": obra de referência (dicionário, história…): abre onde parou, mas nada conta nos indicadores. */
+export type BookStatus = "aguardando" | "lendo" | "pausado" | "lido" | "consulta";
 
 export interface Folder {
   id: string;
@@ -81,6 +82,7 @@ export const STATUS_LABEL: Record<BookStatus, string> = {
   lendo: "Lendo",
   pausado: "Pausado",
   lido: "Lido",
+  consulta: "Consulta",
 };
 
 /**
@@ -89,6 +91,6 @@ export const STATUS_LABEL: Record<BookStatus, string> = {
  */
 export function progressoDoLivro(b: Pick<Book, "status" | "progress">): number {
   if (b.status === "lido") return 1;
-  if (b.status === "aguardando") return 0;
+  if (b.status === "aguardando" || b.status === "consulta") return 0;
   return Math.min(1, Math.max(0, b.progress || 0));
 }

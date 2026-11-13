@@ -34,4 +34,5 @@ export const OPCOES_LIVRO: OpcaoStatus<BookStatus>[] = [
   { value: "lendo", label: STATUS_LABEL.lendo, cor: "var(--accent)" },
   { value: "pausado", label: STATUS_LABEL.pausado, cor: "#c98a1a" },
   { value: "lido", label: STATUS_LABEL.lido, cor: "var(--good)" },
+  { value: "consulta", label: STATUS_LABEL.consulta, cor: "#8e6fd6" },
 ];

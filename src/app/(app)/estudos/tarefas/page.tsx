@@ -137,7 +137,7 @@ export default function Tarefas() {
               <span>
                 {b.title}
                 {b.status === "lendo" ? ` · ${Math.round(progressoDoLivro(b) * 100)}%${faltam ? ` · faltam ≈ ${fmtDuration((faltam / ppm) * 60)}` : ""}`
-                  : b.status === "lido" ? " · ✓ lido" : b.word_count ? ` · ${nf.format(b.word_count)} palavras · ≈ ${fmtDuration((b.word_count / ppm) * 60)}` : ""}
+                  : b.status === "lido" ? " · ✓ lido" : b.status === "consulta" ? " · consulta" : b.word_count ? ` · ${nf.format(b.word_count)} palavras · ≈ ${fmtDuration((b.word_count / ppm) * 60)}` : ""}
               </span>
             )}
             {t.link && <a href={t.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-ink underline-offset-2 hover:underline"><ExternalLink size={11} /> link</a>}

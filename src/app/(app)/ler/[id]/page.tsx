@@ -123,8 +123,11 @@ export default function Ler() {
     if (p > 0) setProgress(p);
     if (l) setLabel(l);
     if (!location) return;
-    if (bookRef.current?.status !== "lendo") return; // folheando: não grava posição nem porcentagem
-    pendingPos.current = { location, progress: p };
+    const st = bookRef.current?.status;
+    // obra de consulta: guarda só onde você parou (para voltar ali), nunca a porcentagem
+    if (st === "consulta") pendingPos.current = { location, progress: 0 };
+    else if (st !== "lendo") return; // folheando: não grava posição nem porcentagem
+    else pendingPos.current = { location, progress: p };
     if (posTimer.current) clearTimeout(posTimer.current);
     posTimer.current = setTimeout(savePos, 1200);
   }
@@ -246,9 +249,10 @@ export default function Ler() {
       {book && book.status !== "lendo" && (
         <div className="shrink-0 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-3 py-1.5 text-xs border-b" style={{ borderColor: tema === "escuro" ? "#2f2f2c" : "#00000014" }}>
           <span className="opacity-70">
-            {book.status === "lido" ? "Livro já lido — folheando: não conta nos indicadores." : "Folheando: não conta nos indicadores nem muda a porcentagem."}
+            {book.status === "consulta" ? "Obra de consulta: abre onde você parou e nada conta nos indicadores."
+              : book.status === "lido" ? "Livro já lido — folheando: não conta nos indicadores." : "Folheando: não conta nos indicadores nem muda a porcentagem."}
           </span>
-          {book.status !== "lido" && (
+          {book.status !== "lido" && book.status !== "consulta" && (
             <button className="btn text-xs py-0.5" onClick={() => void comecarALer()}>{book.status === "pausado" ? "Retomar a leitura" : "Começar a ler"}</button>
           )}
         </div>

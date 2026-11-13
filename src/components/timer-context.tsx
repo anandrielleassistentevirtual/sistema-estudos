@@ -190,7 +190,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     if (page === null) return;
     const sb = supabase();
     const { data: book } = await sb.from("books").select("current_page,total_pages,words_per_page,status,started_at").eq("id", p.state.bookId).single();
-    if (!book) return;
+    if (!book || book.status === "consulta") return; // obra de consulta: não vira leitura nem muda a página
     const before = book.current_page ?? 0;
     const pages = Math.max(0, page - before);
     const words = pages * (book.words_per_page ?? 300);
