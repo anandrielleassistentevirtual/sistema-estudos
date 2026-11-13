@@ -139,6 +139,11 @@ export function ListeningPainel({ idioma }: { idioma: string }) {
             <button className="btn btn-primary" onClick={() => void instalar()} disabled={indo}><Download size={14} /> {indo ? "Preparando…" : "Instalar neste aparelho"}</button>
           </div>
           <p className="text-xs text-faint">Abra esta página <b>no próprio aparelho</b> que vai escutar (no celular, pelo Firefox ou pelo Safari) e toque em “Instalar neste aparelho”.</p>
+          <div className="rounded-lg bg-surface-2 p-3 text-xs text-muted space-y-1">
+            <p><b className="text-ink">Como saber se está funcionando:</b> na página do curso aparece, no canto de baixo à esquerda, o selo <b className="text-ink">🎧 Listening</b>. Ao dar play ele mostra “● ouvindo” e, a cada minuto, “enviados ao sistema”.</p>
+            <p>Não apareceu o selo? O script não está rodando: confira se o Tampermonkey está instalado e com <b className="text-ink">Permitir scripts do usuário</b> ligado. Se, ao tocar em “Instalar neste aparelho”, abriu uma página cheia de código (em vez da tela “Instalar” do Tampermonkey), é sinal de que a extensão não está ligada neste navegador.</p>
+            <p>O selo aparece mas fica em “aguardando o áudio tocar” mesmo com o áudio tocando? Me avise: o player usa outro jeito de tocar e eu ajusto.</p>
+          </div>
         </div>
 
         {gerado && (

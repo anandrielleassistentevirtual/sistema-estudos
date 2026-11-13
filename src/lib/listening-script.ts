@@ -11,7 +11,7 @@ export function scriptListening(chave: string, idioma: string, aparelho = ""): s
   return `// ==UserScript==
 // @name         Sistema de Estudos · Listening (${nome})
 // @namespace    sistema-estudos
-// @version      1.1
+// @version      1.2
 // @description  Conta os minutos de áudio que tocam no curso e manda para o Sistema de Estudos (${idioma} → Listening).
 // @match        https://curso.mairovergara.com/*
 // @match        https://*.mairovergara.com/*
@@ -31,6 +31,26 @@ export function scriptListening(chave: string, idioma: string, aparelho = ""): s
   HTMLMediaElement.prototype.play = function () { midias.add(this); return tocar.apply(this, arguments); };
   document.addEventListener("play", (e) => { if (e.target instanceof HTMLMediaElement) midias.add(e.target); }, true);
 
+  // selo no canto da página do curso: mostra que o script está rodando, se achou o áudio e o que já enviou
+  let enviados = 0, estado = "aguardando", recolhido = false, selo = null;
+  const mmss = (s) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+  function desenharSelo() {
+    if (window.top !== window || !document.body) return;
+    if (!selo) {
+      selo = document.createElement("div");
+      selo.title = "Sistema de Estudos · Listening (clique para recolher)";
+      selo.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:2147483647;font:12px/1.3 system-ui,sans-serif;background:rgba(20,20,20,.86);color:#fff;padding:6px 10px;border-radius:999px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);user-select:none";
+      selo.addEventListener("click", () => { recolhido = !recolhido; desenharSelo(); });
+      document.body.appendChild(selo);
+    }
+    const total = enviados + pendente;
+    const texto = estado === "chave" ? "⚠ chave cancelada ou inválida — reinstale pelo Sistema de Estudos"
+      : estado === "rede" ? "⚠ sem conexão com o sistema — tento de novo · " + mmss(total)
+      : estado === "ouvindo" ? "● ouvindo · " + mmss(total) + " contados" + (enviados ? " · " + mmss(enviados) + " enviados" : "")
+      : enviados ? "✓ " + mmss(enviados) + " enviados ao sistema" : "aguardando o áudio tocar";
+    selo.textContent = recolhido ? "🎧" : "🎧 Listening · " + texto;
+  }
+
   const posicao = new WeakMap();
   let ultimoTique = Date.now(), pendente = 0, ultimoEnvio = Date.now();
   const hoje = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
@@ -49,6 +69,8 @@ export function scriptListening(chave: string, idioma: string, aparelho = ""): s
       if (avancou > 0 && avancou <= passou + 2) ouviu = Math.max(ouviu, avancou);
     }
     pendente += ouviu;
+    if (estado !== "chave") estado = ouviu > 0 ? "ouvindo" : estado === "ouvindo" ? "aguardando" : estado;
+    desenharSelo();
     if (pendente >= 60 || (pendente >= 5 && agora - ultimoEnvio > 60000)) enviar(false);
   }
 
@@ -61,10 +83,17 @@ export function scriptListening(chave: string, idioma: string, aparelho = ""): s
       method: "POST", keepalive: saindo,
       headers: { "content-type": "application/json", apikey: APIKEY },
       body: JSON.stringify({ p_chave: CHAVE, p_segundos: s, p_dia: hoje() }),
-    }).then((r) => { if (!r.ok && r.status !== 400) pendente += s; }).catch(() => { pendente += s; });
+    }).then((r) => {
+      if (r.ok) { enviados += s; if (estado === "rede") estado = "aguardando"; }
+      else if (r.status === 400) estado = "chave";
+      else { pendente += s; estado = "rede"; }
+      desenharSelo();
+    }).catch(() => { pendente += s; estado = "rede"; desenharSelo(); });
   }
 
   setInterval(tique, 1000);
+  // o selo aparece assim que a página abre (sinal de que o script está rodando)
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", desenharSelo); else desenharSelo();
   addEventListener("pagehide", () => { tique(); enviar(true); });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") { tique(); enviar(true); } });
 })();
