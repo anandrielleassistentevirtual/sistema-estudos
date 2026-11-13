@@ -102,10 +102,14 @@ export async function POST(req: Request) {
     try {
       const arquivo = join(dir, "colecao.anki2");
       await writeFile(arquivo, await baixarColecao(chave.hkey, m.endpoint, m.sessaoId));
-      const { dias, baralhos, resumo } = lerColecao(arquivo, { tz, desde: ANKI_INICIO });
+      const { dias, diasPorBaralho, baralhos, resumo } = lerColecao(arquivo, { tz, desde: ANKI_INICIO });
 
       for (let i = 0; i < dias.length; i += 500) {
         const { error } = await sb.from("anki_daily").upsert(dias.slice(i, i + 500).map((d) => ({ ...d, user_id: claims.claims.sub })));
+        if (error) throw new Error(error.message);
+      }
+      for (let i = 0; i < diasPorBaralho.length; i += 500) {
+        const { error } = await sb.from("anki_baralho_dia").upsert(diasPorBaralho.slice(i, i + 500).map((d) => ({ ...d, user_id: claims.claims.sub })));
         if (error) throw new Error(error.message);
       }
       const agora = new Date().toISOString();

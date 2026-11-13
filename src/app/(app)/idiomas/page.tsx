@@ -1,195 +1,271 @@
 "use client";
+/**
+ * Idiomas: cada idioma na sua seção. O tempo (Timer e registros), as revisões e os cartões criados no Anki
+ * aparecem só no idioma dono dos baralhos (Inglês ← "English"), nunca misturados.
+ */
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock, Pencil, Plus, Trash2, X } from "lucide-react";
-import { Empty, Page } from "@/components/page";
+import { Clock, Layers, Plus, Settings2, Trash2, X } from "lucide-react";
+import { Empty, Page, Stat } from "@/components/page";
 import { IdiomasTabs } from "@/components/idiomas-tabs";
 import { BarChart } from "@/components/bar-chart";
-import { Language, loadLanguages, ONDE, SUGESTOES } from "@/lib/languages";
-import { addDays, dayKey, fmtDuration, parseDay, weekStart } from "@/lib/dates";
+import { Heatmap } from "@/components/heatmap";
+import { Bandeira, BANDEIRAS, bandeiraDoIdioma } from "@/components/bandeira";
+import { Language, loadLanguages, ONDE, palpiteDeBaralhos, SUGESTOES } from "@/lib/languages";
+import { contaAnki, sincronizarAnkiSeAntigo, type BaralhoAnki } from "@/lib/anki";
+import { addDays, dayKey, fmtDuration, nf, parseDay, weekStart } from "@/lib/dates";
+import { emptyDay, type DayStats } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 
 interface Sess { day: string; seconds: number; language: string | null; label: string }
+interface DiaBaralho { day: string; baralho: string; reviews: number; segundos: number; criados: number; notas_criadas: number }
 
 const WEEKS = 12;
 
 export default function Idiomas() {
-  const [langs, setLangs] = useState<Language[]>([]);
+  const [langs, setLangs] = useState<Language[] | null>(null);
   const [sessions, setSessions] = useState<Sess[]>([]);
-  const [lang, setLang] = useState<string | null>(null);
+  const [ankiDias, setAnkiDias] = useState<DiaBaralho[]>([]);
+  const [baralhos, setBaralhos] = useState<BaralhoAnki[] | null>(null); // null = Anki não conectado
+  const [selId, setSelId] = useState<string | null>(null);
   const [modal, setModal] = useState<null | "idioma" | "tempo" | { edit: Language }>(null);
 
   const load = useCallback(async () => {
     const sb = supabase();
-    const [st, lg] = await Promise.all([
+    const desde = dayKey(addDays(weekStart(new Date()), -52 * 7));
+    const [st, lg, ad, conta] = await Promise.all([
       todas<Sess>((de, ate) => sb.from("study_sessions").select("day,seconds,language,label").eq("category", "Idiomas").order("id").range(de, ate)),
       loadLanguages(),
+      todas<DiaBaralho>((de, ate) => sb.from("anki_baralho_dia").select("day,baralho,reviews,segundos,criados,notas_criadas").gte("day", desde).order("day").order("baralho").range(de, ate)).catch(() => [] as DiaBaralho[]),
+      contaAnki(),
     ]);
     setSessions(st);
     setLangs(lg);
-    setLang((cur) => cur ?? lg[0]?.name ?? null);
+    setAnkiDias(ad);
+    setBaralhos(conta ? conta.baralhos ?? [] : null);
+    setSelId((cur) => {
+      if (cur && lg.some((l) => l.id === cur)) return cur;
+      let salvo: string | null = null;
+      try { salvo = localStorage.getItem("idioma-atual"); } catch {}
+      return lg.find((l) => l.id === salvo)?.id ?? lg[0]?.id ?? null;
+    });
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    // números do Anki velhos: busca no AnkiWeb em segundo plano e atualiza
+    void sincronizarAnkiSeAntigo(0.5).then((ok) => { if (ok) void load(); });
+  }, [load]);
+  useEffect(() => { if (selId) try { localStorage.setItem("idioma-atual", selId); } catch {} }, [selId]);
 
-  // idiomas cadastrados + qualquer idioma que já tenha tempo registrado
-  const allLangs = useMemo(() => {
-    const names = new Set(langs.map((l) => l.name));
-    const extra = [...new Set(sessions.map((s) => s.language).filter(Boolean) as string[])]
-      .filter((n) => !names.has(n))
-      .map((name) => ({ id: `extra-${name}`, name, weekly_goal_min: null, position: 999 }) as Language);
-    return [...langs, ...extra];
-  }, [langs, sessions]);
+  const sel = langs?.find((l) => l.id === selId) ?? null;
+  const decksDoIdioma = useMemo(() => new Set(sel?.anki_baralhos ?? []), [sel]);
+  const meusDias = useMemo(() => ankiDias.filter((d) => decksDoIdioma.has(d.baralho)), [ankiDias, decksDoIdioma]);
+  // a revisão feita aqui no sistema ("Anki · 12 cartões") já está no histórico do Anki: com baralhos ligados, não conta duas vezes
+  const minhasSessoes = useMemo(() => sessions.filter((s) => s.language === sel?.name && !(sel?.anki_baralhos.length && s.label.startsWith("Anki ·"))), [sessions, sel]);
 
-  const time = useMemo(() => {
-    const now = new Date();
-    const ws = dayKey(weekStart(now));
-    const ms = dayKey(new Date(now.getFullYear(), now.getMonth(), 1));
-    const out = new Map<string, { week: number; month: number; total: number }>();
-    for (const s of sessions) {
-      if (!s.language) continue;
-      const t = out.get(s.language) ?? { week: 0, month: 0, total: 0 };
-      t.total += s.seconds;
-      if (s.day >= ms) t.month += s.seconds;
-      if (s.day >= ws) t.week += s.seconds;
-      out.set(s.language, t);
+  // por dia: revisões (azul), criados (amarelo) e segundos no Anki
+  const { revisoes, criados } = useMemo(() => {
+    const revisoes = new Map<string, DayStats>(), criados = new Map<string, DayStats>();
+    for (const d of meusDias) {
+      if (d.reviews) revisoes.set(d.day, { ...emptyDay(), anki: (revisoes.get(d.day)?.anki ?? 0) + d.reviews });
+      if (d.criados) criados.set(d.day, { ...emptyDay(), anki: (criados.get(d.day)?.anki ?? 0) + d.criados });
     }
-    return out;
-  }, [sessions]);
+    return { revisoes, criados };
+  }, [meusDias]);
 
-  const weekly = useMemo(() => {
-    const ws = weekStart(new Date());
+  const hoje = dayKey();
+  const ws = dayKey(weekStart(new Date()));
+  const domingo = dayKey(addDays(new Date(), -new Date().getDay()));
+  const ms = dayKey(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const soma = <T,>(xs: T[], f: (x: T) => number) => xs.reduce((a, x) => a + f(x), 0);
+  const timerSemana = soma(minhasSessoes.filter((s) => s.day >= ws), (s) => s.seconds);
+  const ankiSemana = soma(meusDias.filter((d) => d.day >= ws), (d) => d.segundos);
+  const totalMes = soma(minhasSessoes.filter((s) => s.day >= ms), (s) => s.seconds) + soma(meusDias.filter((d) => d.day >= ms), (d) => d.segundos);
+  const revHoje = soma(meusDias.filter((d) => d.day === hoje), (d) => d.reviews);
+  const revSemana = soma(meusDias.filter((d) => d.day >= ws), (d) => d.reviews);
+  const criadosDomingo = soma(meusDias.filter((d) => d.day >= domingo), (d) => d.criados);
+  const notasDomingo = soma(meusDias.filter((d) => d.day >= domingo), (d) => d.notas_criadas);
+  const tabela = (baralhos ?? []).filter((b) => decksDoIdioma.has(b.nome.split("::")[0]));
+  const paraHoje = soma(tabela.filter((b) => !b.nome.includes("::")), (b) => b.revisar + b.aprendendo);
+  const meta = sel?.weekly_goal_min ? sel.weekly_goal_min * 60 : 0;
+
+  const semanal = useMemo(() => {
+    const w0 = weekStart(new Date());
     return Array.from({ length: WEEKS }, (_, i) => {
-      const start = addDays(ws, -(WEEKS - 1 - i) * 7);
+      const start = addDays(w0, -(WEEKS - 1 - i) * 7);
       const a = dayKey(start), z = dayKey(addDays(start, 6));
-      const secs = sessions.filter((s) => s.language === lang && s.day >= a && s.day <= z).reduce((x, s) => x + s.seconds, 0);
+      const t = soma(minhasSessoes.filter((s) => s.day >= a && s.day <= z), (s) => s.seconds);
+      const k = soma(meusDias.filter((d) => d.day >= a && d.day <= z), (d) => d.segundos);
       return {
         label: start.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-        detail: `semana de ${start.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })} · ${fmtDuration(secs)}`,
-        value: Math.round(secs / 60),
+        detail: `semana de ${start.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })} · ${fmtDuration(t + k)}${k ? ` (Anki ${fmtDuration(k)})` : ""}`,
+        value: Math.round((t + k) / 60),
       };
     });
-  }, [sessions, lang]);
+  }, [minhasSessoes, meusDias]);
 
-  const bySource = useMemo(() => {
+  const ondeFoi = useMemo(() => {
     const m = new Map<string, number>();
     const from = dayKey(addDays(new Date(), -29));
-    for (const s of sessions) {
-      if (s.language !== lang || s.day < from) continue;
-      const k = s.label.startsWith("Lição") ? "Lições (este sistema)" : s.label === "Playlist" ? "Playlist (este sistema)" : s.label || "Timer";
+    for (const s of minhasSessoes) {
+      if (s.day < from) continue;
+      const k = s.label.startsWith("Lição") ? "Lições (este sistema)" : s.label.startsWith("Anki ·") ? "Anki (revisão no sistema)" : s.label || "Timer";
       m.set(k, (m.get(k) ?? 0) + s.seconds);
     }
+    const anki = soma(meusDias.filter((d) => d.day >= from), (d) => d.segundos);
+    if (anki) m.set("Anki (revisões)", (m.get("Anki (revisões)") ?? 0) + anki);
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
-  }, [sessions, lang]);
+  }, [minhasSessoes, meusDias]);
 
-  const recent = sessions.filter((s) => s.language === lang).sort((a, b) => (a.day < b.day ? 1 : -1)).slice(0, 6);
+  const recentes = [...minhasSessoes].sort((a, b) => (a.day < b.day ? 1 : -1)).slice(0, 6);
 
   return (
     <Page
       tabs={<IdiomasTabs />}
       title="Idiomas"
-      subtitle="Quanto tempo vai para cada idioma. As revisões ficam no Anki."
+      subtitle="Cada idioma com o seu tempo, as suas revisões e os seus cartões do Anki."
       actions={
         <>
           <button className="btn" onClick={() => setModal("idioma")}><Plus size={15} /> Cadastrar idioma</button>
-          <button className="btn" onClick={() => setModal("tempo")} disabled={!allLangs.length}><Clock size={15} /> Registrar tempo</button>
+          <button className="btn" onClick={() => setModal("tempo")} disabled={!langs?.length}><Clock size={15} /> Registrar tempo</button>
         </>
       }
     >
-      {allLangs.length === 0 ? (
-        <Empty>Cadastre os idiomas que você estuda para acompanhar quanto tempo vai para cada um.</Empty>
-      ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
-          {allLangs.map((l) => {
-            const t = time.get(l.name) ?? { week: 0, month: 0, total: 0 };
-            const goal = l.weekly_goal_min ? l.weekly_goal_min * 60 : 0;
-            const pct = goal ? Math.min(1, t.week / goal) : 0;
-            const registered = !l.id.startsWith("extra-");
-            return (
-              <div key={l.id} onClick={() => setLang(l.name)}
-                className={`card p-4 cursor-pointer transition-colors group ${lang === l.name ? "border-muted" : "hover:border-faint"}`}>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{l.name}</span>
-                  <span className="flex gap-1 opacity-0 group-hover:opacity-100">
-                    {registered ? (
-                      <button className="p-1 text-faint hover:text-ink" title="Editar meta" onClick={(e) => { e.stopPropagation(); setModal({ edit: l }); }}><Pencil size={13} /></button>
-                    ) : (
-                      <button className="text-xs text-accent" onClick={(e) => { e.stopPropagation(); setModal("idioma"); }}>cadastrar</button>
-                    )}
-                  </span>
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-2xl font-medium tabular-nums">{fmtDuration(t.week)}</span>
-                  <span className="text-xs text-muted">esta semana{goal ? ` de ${fmtDuration(goal)}` : ""}</span>
-                </div>
-                {goal > 0 && (
-                  <div className="mt-2 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: pct >= 1 ? "var(--good)" : "var(--chart)" }} />
-                  </div>
-                )}
-                <div className="mt-2 flex justify-between text-xs text-muted">
-                  <span>mês: {fmtDuration(t.month)}</span>
-                  <span>total: {fmtDuration(t.total)}</span>
-                </div>
-              </div>
-            );
-          })}
+      {langs && langs.length === 0 && <Empty>Cadastre os idiomas que você estuda: cada um ganha a sua seção, com o tempo e os baralhos do Anki dele.</Empty>}
+
+      {langs && langs.length > 1 && (
+        <div className="flex flex-wrap gap-2 mb-5">
+          {langs.map((l) => (
+            <button key={l.id} onClick={() => setSelId(l.id)}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${l.id === selId ? "border-ink font-medium" : "border-line text-muted hover:text-ink"}`}>
+              <Bandeira codigo={l.bandeira} tamanho={14} /> {l.name}
+            </button>
+          ))}
         </div>
       )}
 
-      {lang && (
-        <div className="grid lg:grid-cols-[1fr_300px] gap-4 mb-6">
-          <section className="card p-5">
-            <div className="flex items-baseline justify-between mb-3">
-              <h2 className="font-medium">{lang}: minutos por semana</h2>
-              <span className="text-xs text-muted">últimas {WEEKS} semanas</span>
-            </div>
-            <BarChart data={weekly} unit="min" />
-          </section>
-          <section className="card p-5">
-            <h2 className="font-medium mb-3">Onde foi o tempo</h2>
-            <p className="text-xs text-muted -mt-2 mb-3">últimos 30 dias</p>
-            {bySource.length === 0 ? (
-              <p className="text-sm text-muted">Nada ainda. Use o Timer (categoria Idiomas) ou “Registrar tempo”.</p>
-            ) : (
-              <ul className="space-y-1.5 text-sm">
-                {bySource.map(([k, v]) => (
-                  <li key={k} className="flex justify-between gap-2"><span className="text-muted truncate">{k}</span><span className="tabular-nums">{fmtDuration(v)}</span></li>
-                ))}
-              </ul>
-            )}
-            {recent.length > 0 && (
-              <>
-                <h3 className="label mt-5 mb-2">Últimos registros</h3>
-                <ul className="space-y-1 text-xs text-muted">
-                  {recent.map((s, i) => (
-                    <li key={i} className="flex justify-between gap-2">
-                      <span className="truncate">{parseDay(s.day).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} · {s.label || "Timer"}</span>
-                      <span className="tabular-nums">{fmtDuration(s.seconds)}</span>
-                    </li>
+      {sel && (
+        <>
+          <div className="flex items-center gap-3 mb-4">
+            <Bandeira codigo={sel.bandeira} tamanho={26} />
+            <h2 className="text-xl font-medium">{sel.name}</h2>
+            <button className="btn btn-ghost text-xs" onClick={() => setModal({ edit: sel })}><Settings2 size={14} /> Configurar</button>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Stat label="Tempo esta semana" value={fmtDuration(timerSemana + ankiSemana)}
+              hint={[meta ? `meta ${fmtDuration(meta)} · ${Math.round(Math.min(1, (timerSemana + ankiSemana) / meta) * 100)}%` : null,
+                ankiSemana ? `Anki ${fmtDuration(ankiSemana)}` : null, timerSemana ? `Timer ${fmtDuration(timerSemana)}` : null,
+                `mês ${fmtDuration(totalMes)}`].filter(Boolean).join(" · ")} />
+            <Stat label="Para revisar hoje" value={baralhos ? nf.format(paraHoje) : "—"} hint={baralhos ? "nos baralhos deste idioma" : "conecte o AnkiWeb na aba Anki"} />
+            <Stat label="Revisões" value={nf.format(revHoje)} hint={`hoje · ${nf.format(revSemana)} na semana`} />
+            <Stat label="Cartões criados" value={nf.format(criadosDomingo)} hint={`desde domingo${notasDomingo && notasDomingo !== criadosDomingo ? ` · em ${nf.format(notasDomingo)} notas` : ""}`} />
+          </div>
+
+          {!sel.anki_baralhos.length && (
+            <p className="text-sm text-muted mt-3">
+              Nenhum baralho do Anki ligado a {sel.name}. <button className="underline underline-offset-2 hover:text-ink" onClick={() => setModal({ edit: sel })}>Escolher os baralhos</button>
+              {baralhos === null && <> · antes, <Link href="/idiomas/anki" className="underline underline-offset-2 hover:text-ink">conecte o AnkiWeb</Link></>}.
+            </p>
+          )}
+
+          <div className="grid lg:grid-cols-[1fr_300px] gap-4 mt-4">
+            <section className="card p-5">
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="font-medium">Minutos por semana</h3>
+                <span className="text-xs text-muted">últimas {WEEKS} semanas · Timer + Anki</span>
+              </div>
+              <BarChart data={semanal} unit="min" />
+            </section>
+            <section className="card p-5">
+              <h3 className="font-medium mb-3">Onde foi o tempo</h3>
+              <p className="text-xs text-muted -mt-2 mb-3">últimos 30 dias</p>
+              {ondeFoi.length === 0 ? (
+                <p className="text-sm text-muted">Nada ainda. Use o Timer (categoria Idiomas → {sel.name}) ou “Registrar tempo”.</p>
+              ) : (
+                <ul className="space-y-1.5 text-sm">
+                  {ondeFoi.map(([k, v]) => (
+                    <li key={k} className="flex justify-between gap-2"><span className="text-muted truncate">{k}</span><span className="tabular-nums">{fmtDuration(v)}</span></li>
                   ))}
                 </ul>
-              </>
-            )}
-          </section>
-        </div>
+              )}
+              {recentes.length > 0 && (
+                <>
+                  <h4 className="label mt-5 mb-2">Últimos registros</h4>
+                  <ul className="space-y-1 text-xs text-muted">
+                    {recentes.map((s, i) => (
+                      <li key={i} className="flex justify-between gap-2">
+                        <span className="truncate">{parseDay(s.day).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} · {s.label || "Timer"}</span>
+                        <span className="tabular-nums">{fmtDuration(s.seconds)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+          </div>
+
+          {sel.anki_baralhos.length > 0 && (
+            <>
+              <section className="card p-5 mt-4">
+                <h3 className="font-medium mb-3">Revisões no Anki</h3>
+                <Heatmap data={revisoes} metric="anki" />
+              </section>
+              <section className="card p-5 mt-4">
+                <h3 className="font-medium mb-3">Cartões criados</h3>
+                <Heatmap data={criados} metric="anki" unidade="cartões criados" paleta="ama" />
+                <p className="text-xs text-faint mt-2">Contagem desde 08/11/2026, só nos baralhos de {sel.name}: {sel.anki_baralhos.join(", ")}.</p>
+              </section>
+              {tabela.length > 0 && (
+                <section className="card mt-4 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-muted border-b border-line">
+                        <th className="p-3 font-medium flex items-center gap-1.5"><Layers size={14} /> Baralho</th>
+                        <th className="p-3 font-medium text-right">Revisar</th>
+                        <th className="p-3 font-medium text-right">Aprendendo</th>
+                        <th className="p-3 font-medium text-right">Novos</th>
+                        <th className="p-3 font-medium text-right hidden sm:table-cell">Cartões</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tabela.map((d) => (
+                        <tr key={d.nome} className="border-b border-line last:border-0">
+                          <td className="p-3" style={{ paddingLeft: 12 + (d.nome.split("::").length - 1) * 16 }}>{d.nome.split("::").pop()}</td>
+                          <td className="p-3 text-right tabular-nums font-medium">{nf.format(d.revisar)}</td>
+                          <td className="p-3 text-right tabular-nums">{nf.format(d.aprendendo)}</td>
+                          <td className="p-3 text-right tabular-nums text-muted">{nf.format(d.novos)}</td>
+                          <td className="p-3 text-right tabular-nums text-muted hidden sm:table-cell">{nf.format(d.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </section>
+              )}
+            </>
+          )}
+        </>
       )}
 
       {(modal === "idioma" || (modal && typeof modal === "object")) && (
-        <LanguageModal edit={typeof modal === "object" ? modal.edit : null} existing={langs.map((l) => l.name)}
-          onClose={() => setModal(null)} onSaved={(name) => { setModal(null); setLang(name); void load(); }} />
+        <LanguageModal edit={typeof modal === "object" ? modal.edit : null} existing={(langs ?? []).map((l) => l.name)}
+          baralhos={(baralhos ?? []).filter((b) => !b.nome.includes("::"))}
+          usados={new Map((langs ?? []).flatMap((l) => l.anki_baralhos.map((b) => [b, l.name] as [string, string])))}
+          onClose={() => setModal(null)} onSaved={(id) => { setModal(null); if (id) setSelId(id); void load(); }} />
       )}
       {modal === "tempo" && (
-        <TimeModal langs={allLangs.map((l) => l.name)} defaultLang={lang ?? allLangs[0]?.name ?? ""}
+        <TimeModal langs={(langs ?? []).map((l) => l.name)} defaultLang={sel?.name ?? langs?.[0]?.name ?? ""}
           onClose={() => setModal(null)} onSaved={() => { setModal(null); void load(); }} />
       )}
     </Page>
   );
 }
 
-function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className={`card w-full ${wide ? "max-w-3xl" : "max-w-md"} max-h-[90vh] overflow-y-auto p-5 space-y-3`}>
+      <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-3">
         <div className="flex justify-between items-center">
           <h2 className="font-medium">{title}</h2>
           <button type="button" onClick={onClose}><X size={18} /></button>
@@ -200,41 +276,88 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
   );
 }
 
-function LanguageModal({ edit, existing, onClose, onSaved }: { edit: Language | null; existing: string[]; onClose: () => void; onSaved: (name: string) => void }) {
+function LanguageModal({ edit, existing, baralhos, usados, onClose, onSaved }: {
+  edit: Language | null; existing: string[]; baralhos: BaralhoAnki[]; usados: Map<string, string>;
+  onClose: () => void; onSaved: (id: string | null) => void;
+}) {
   const [name, setName] = useState(edit?.name ?? "");
   const [goalH, setGoalH] = useState(edit?.weekly_goal_min ? String(edit.weekly_goal_min / 60) : "");
+  const [bandeira, setBandeira] = useState<string | null>(edit?.bandeira ?? null);
+  const [decks, setDecks] = useState<string[]>(edit?.anki_baralhos ?? []);
+  const [tocouBandeira, setTocouBandeira] = useState(!!edit?.bandeira);
+  const [tocouDecks, setTocouDecks] = useState(!!edit);
   const [err, setErr] = useState<string | null>(null);
+
+  // idioma novo: sugere a bandeira e os baralhos pelo nome (dá para mudar)
+  useEffect(() => {
+    if (!tocouBandeira) setBandeira(bandeiraDoIdioma(name));
+    if (!tocouDecks) setDecks(palpiteDeBaralhos(name, baralhos.map((b) => b.nome)).filter((b) => !usados.has(b)));
+  }, [name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const n = name.trim();
     if (!n) return;
     const weekly_goal_min = goalH ? Math.round(Number(goalH.replace(",", ".")) * 60) : null;
+    const campos = { name: n, weekly_goal_min, bandeira, anki_baralhos: decks };
     const sb = supabase();
-    const { error } = edit
-      ? await sb.from("languages").update({ name: n, weekly_goal_min }).eq("id", edit.id)
-      : await sb.from("languages").insert({ name: n, weekly_goal_min, position: existing.length });
+    const { data, error } = edit
+      ? await sb.from("languages").update(campos).eq("id", edit.id).select("id").single()
+      : await sb.from("languages").insert({ ...campos, position: existing.length }).select("id").single();
     if (error) return setErr(error.code === "23505" ? "Esse idioma já está cadastrado." : error.message);
-    if (edit && n !== edit.name) {
-      await sb.from("study_sessions").update({ language: n }).eq("language", edit.name);
-    }
-    onSaved(n);
+    if (edit && n !== edit.name) await sb.from("study_sessions").update({ language: n }).eq("language", edit.name);
+    onSaved((data as { id: string }).id);
   }
 
   async function remove() {
-    if (!edit || !confirm(`Remover “${edit.name}” da lista? O tempo e as lições continuam salvos.`)) return;
+    if (!edit || !confirm(`Remover “${edit.name}”? O tempo já registrado continua salvo, e os baralhos continuam no seu Anki.`)) return;
     await supabase().from("languages").delete().eq("id", edit.id);
-    onSaved("");
+    onSaved(null);
   }
 
   return (
-    <Modal title={edit ? `Editar ${edit.name}` : "Cadastrar idioma"} onClose={onClose}>
-      <form onSubmit={save} className="space-y-3">
+    <Modal title={edit ? `Configurar ${edit.name}` : "Cadastrar idioma"} onClose={onClose}>
+      <form onSubmit={save} className="space-y-4">
         <label className="block space-y-1">
           <span className="label">Idioma</span>
-          <input className="input" list="sugestoes-idiomas" required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="ex.: Italiano" />
+          <input className="input" list="sugestoes-idiomas" required autoFocus={!edit} value={name} onChange={(e) => setName(e.target.value)} placeholder="ex.: Inglês" />
           <datalist id="sugestoes-idiomas">{SUGESTOES.filter((s) => !existing.includes(s)).map((s) => <option key={s} value={s} />)}</datalist>
         </label>
+        <div>
+          <span className="label">Bandeira</span>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {BANDEIRAS.map((b) => (
+              <button key={b.id} type="button" title={b.nome} onClick={() => { setBandeira(b.id); setTocouBandeira(true); }}
+                className={`rounded-md p-1.5 border ${bandeira === b.id ? "border-ink bg-surface-2" : "border-transparent hover:border-line"}`}>
+                <Bandeira codigo={b.id} tamanho={16} />
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <span className="label">Baralhos do Anki deste idioma</span>
+          {baralhos.length === 0 ? (
+            <p className="text-xs text-muted mt-1">Conecte o AnkiWeb na aba Anki para escolher os baralhos.</p>
+          ) : (
+            <div className="mt-1.5 space-y-1">
+              {baralhos.map((b) => {
+                const dono = usados.get(b.nome);
+                const deOutro = dono && dono !== edit?.name;
+                return (
+                  <label key={b.nome} className={`flex items-center justify-between gap-2 text-sm rounded-md px-2 py-1.5 hover:bg-surface-2 ${deOutro ? "opacity-50" : "cursor-pointer"}`}>
+                    <span className="flex items-center gap-2">
+                      <input type="checkbox" disabled={!!deOutro} checked={decks.includes(b.nome)}
+                        onChange={(e) => { setTocouDecks(true); setDecks((d) => (e.target.checked ? [...d, b.nome] : d.filter((x) => x !== b.nome))); }} />
+                      {b.nome}
+                    </span>
+                    <span className="text-xs text-muted">{deOutro ? `de ${dono}` : `${nf.format(b.total)} cartões`}</span>
+                  </label>
+                );
+              })}
+              <p className="text-xs text-faint pt-1">Os subbaralhos entram junto. Só os baralhos marcados contam neste idioma.</p>
+            </div>
+          )}
+        </div>
         <label className="block space-y-1">
           <span className="label">Meta semanal (horas, opcional)</span>
           <input className="input" inputMode="decimal" value={goalH} onChange={(e) => setGoalH(e.target.value)} placeholder="ex.: 5" />

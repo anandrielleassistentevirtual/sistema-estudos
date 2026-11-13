@@ -6,6 +6,8 @@
 import { DatabaseSync } from "node:sqlite";
 
 export interface DiaAnki { day: string; reviews: number; segundos: number; criados: number; notas_criadas: number }
+/** Números de um dia num baralho de cima (subbaralhos somam nele). */
+export interface DiaBaralho { day: string; baralho: string; reviews: number; segundos: number; criados: number; notas_criadas: number }
 export interface BaralhoAnki { id: number; nome: string; revisar: number; aprendendo: number; novos: number; total: number }
 export interface ResumoAnki {
   cartoes: number;
@@ -79,6 +81,26 @@ export function lerColecao(arquivo: string, opcoes: { tz: string; desde: string;
       .all(desloc, desdeMs) as { day: string; n: number }[]) dia(d.day).notas_criadas = Number(d.n);
     const dias = [...porDia.values()].sort((a, b) => a.day.localeCompare(b.day));
 
+    // o mesmo, separado por baralho de cima: cada idioma vê só os seus ("English" ≠ "Italiano")
+    const nomesBaralho = nomesDosBaralhos(db);
+    const deCima = (did: number) => (nomesBaralho.get(Number(did)) ?? "(baralho apagado)").split("::")[0];
+    const porBaralhoDia = new Map<string, DiaBaralho>();
+    const dB = (day: string, baralho: string) => {
+      const k = `${day}|${baralho}`;
+      return porBaralhoDia.get(k) ?? (porBaralhoDia.set(k, { day, baralho, reviews: 0, segundos: 0, criados: 0, notas_criadas: 0 }), porBaralhoDia.get(k)!);
+    };
+    for (const r of db.prepare(`
+      select date(r.id / 1000 + ?, 'unixepoch') as day, c.did as did, count(*) as n, cast(sum(min(r.time, 60000)) / 1000 as integer) as s
+      from revlog r left join cards c on c.id = r.cid
+      where r.id >= ? and r.ease > 0 and r.type < 4 group by day, c.did`).all(desloc, desdeMs) as { day: string; did: number | null; n: number; s: number }[]) {
+      const x = dB(r.day, r.did == null ? "(cartão apagado)" : deCima(r.did)); x.reviews += Number(r.n); x.segundos += Number(r.s);
+    }
+    for (const r of db.prepare(`select date(id / 1000 + ?, 'unixepoch') as day, did, count(*) as n, count(distinct nid) as notas
+      from cards where id >= ? group by day, did`).all(desloc, desdeMs) as { day: string; did: number; n: number; notas: number }[]) {
+      const x = dB(r.day, deCima(r.did)); x.criados += Number(r.n); x.notas_criadas += Number(r.notas);
+    }
+    const diasPorBaralho = [...porBaralhoDia.values()];
+
     // retenção: das revisões de cartões já aprendidos nos últimos 30 dias, quantas você acertou
     const ret = db.prepare(`select count(*) as n, sum(case when ease > 1 then 1 else 0 end) as ok
       from revlog where id >= ? and type = 1 and ease > 0`).get((agoraS - 30 * 86400) * 1000) as { n: number; ok: number };
@@ -121,7 +143,7 @@ export function lerColecao(arquivo: string, opcoes: { tz: string; desde: string;
       revisoes_30d: Number(ret.n),
       virada_hora: virada,
     };
-    return { dias, baralhos, resumo };
+    return { dias, diasPorBaralho, baralhos, resumo };
   } finally {
     db.close();
   }

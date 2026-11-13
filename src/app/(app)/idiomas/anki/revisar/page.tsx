@@ -210,7 +210,8 @@ export default function RevisarAnki() {
     (async () => {
       const ls = await loadLanguages();
       setLangs(ls);
-      const guess = ls.find((l) => d.toLowerCase().includes(l.name.toLowerCase()));
+      // o idioma dono do baralho (Inglês ← "English"); senão, pelo nome
+      const guess = ls.find((l) => l.anki_baralhos.includes(d.split("::")[0])) ?? ls.find((l) => d.toLowerCase().includes(l.name.toLowerCase()));
       setLang(guess?.name ?? ls[0]?.name ?? "");
       await iniciar();
     })();
