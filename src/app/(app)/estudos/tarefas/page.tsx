@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
-  BookOpen, Check, ChevronDown, CornerDownRight, ExternalLink, Eye, GraduationCap, Feather, Highlighter, ListChecks, Pencil, Play, Plus, RefreshCw, Repeat, Search, Trash2, X,
+  BookOpen, Check, ChevronDown, CornerDownRight, ExternalLink, Eye, Feather, GraduationCap, Highlighter, Info, ListChecks, Pencil, Play, Plus, RefreshCw, Repeat, Search, Trash2, X,
 } from "lucide-react";
 import { Page } from "@/components/page";
 import { EstudosTabs } from "@/components/estudos-tabs";
@@ -40,7 +40,8 @@ export default function Tarefas() {
   const [pagina, setPagina] = useState(0);
   const [concluindo, setConcluindo] = useState<Tarefa | null>(null);
   const [editando, setEditando] = useState<Tarefa | null>(null);
-  const [guiaAberto, setGuiaAberto] = useState(true);
+  const [guia, setGuia] = useState(false);
+  const [abertas, setAbertas] = useState<Set<string>>(new Set()); // descrições mostradas por inteiro
 
   async function load() {
     const sb = supabase();
@@ -63,7 +64,6 @@ export default function Tarefas() {
     void load();
     try {
       setPagina(Number(localStorage.getItem("tarefas-pagina")) || 0);
-      setGuiaAberto(localStorage.getItem("tarefas-guia") !== "fechado");
       const v = localStorage.getItem("tarefas-vista"); if (v === "lista" || v === "prazo") setVista(v);
     } catch {}
   }, []);
@@ -113,6 +113,13 @@ export default function Tarefas() {
           <div className="leading-snug">
             <span className={t.destacada ? "rounded px-1 -mx-1" : ""} style={t.destacada ? { background: "color-mix(in srgb, #e9c46a 35%, transparent)" } : undefined}>{t.texto}</span>
           </div>
+          {t.descricao?.trim() && (
+            <button type="button" className={`w-full text-left text-sm text-muted whitespace-pre-wrap mt-1 hover:text-ink ${abertas.has(t.id) ? "block" : "line-clamp-2"}`}
+              title={abertas.has(t.id) ? "Recolher a descrição" : "Ver a descrição inteira"}
+              onClick={() => setAbertas((a) => { const n = new Set(a); if (n.has(t.id)) n.delete(t.id); else n.add(t.id); return n; })}>
+              {t.descricao.trim()}
+            </button>
+          )}
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
             {t.pasta_id && <span className="rounded-md bg-surface-2 px-1.5 py-0.5">{nomeCurto(t.pasta_id)}</span>}
             {t.aula_id && aulaDe.get(t.aula_id) && (
@@ -164,27 +171,9 @@ export default function Tarefas() {
 
   return (
     <Page wide tabs={<EstudosTabs />} title="Tarefas"
+      titleExtra={<button className="text-faint hover:text-ink" title="Como usar as Tarefas" aria-label="Como usar as Tarefas" onClick={() => setGuia(true)}><Info size={18} /></button>}
       subtitle={tarefas ? `${ativas.length} ${ativas.length === 1 ? "tarefa na lista" : "tarefas na lista"}${urgentes ? ` · ${urgentes} com prazo perto` : ""}` : "…"}>
       <div className="max-w-3xl space-y-5">
-        {guiaAberto ? (
-          <section className="card p-5 text-sm space-y-2">
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="font-medium">Como usar: o Sistema de Autofoco</h2>
-              <button className="text-faint hover:text-ink" title="Esconder" onClick={() => { setGuiaAberto(false); try { localStorage.setItem("tarefas-guia", "fechado"); } catch {} }}><X size={16} /></button>
-            </div>
-            <ol className="list-decimal pl-5 space-y-1 text-muted">
-              <li>Tudo numa lista só: o que surgir entra <b className="text-ink">no fim</b>, sem filtrar nem julgar.</li>
-              <li>Passe o olho pela página e escolha a tarefa que você <b className="text-ink">tem vontade</b> de fazer — não a mais urgente. Toque em ▶ para ligar o Timer nela.</li>
-              <li>Terminou: ✓. Não terminou: <b className="text-ink">“fiz uma parte”</b>, e ela é reescrita no fim.</li>
-              <li>Só passe para a próxima página quando nada mais chamar a sua atenção. O que sobrar depois de algumas passagens, marque com <b className="text-ink">marca-texto</b>.</li>
-            </ol>
-            <p className="text-muted"><b className="text-ink">Dica de ouro:</b> escreva tarefas mensuráveis — “ler 20 páginas de Madame Bovary”, “escrever por 1 hora”, não “ler Madame Bovary”.
-              Prazo só para o que tem data de verdade (ex.: antes da próxima aula).</p>
-          </section>
-        ) : (
-          <button className="text-xs text-faint hover:text-ink" onClick={() => { setGuiaAberto(true); try { localStorage.removeItem("tarefas-guia"); } catch {} }}>Como usar o Sistema de Autofoco</button>
-        )}
-
         <NovaTarefa ordem={ordem} filhos={filhos} porId={porId} livros={livros} aulas={aulas} cursoInicial={curso === TODOS ? null : curso}
           onCriar={async (dados) => { const t = await criarTarefa(dados, tarefas ?? []); setTarefas((l) => [...(l ?? []), t]); }} />
 
@@ -277,6 +266,20 @@ export default function Tarefas() {
         )}
       </div>
 
+      {guia && (
+        <Janela titulo="Como usar: o Sistema de Autofoco" onClose={() => setGuia(false)}>
+          <ol className="list-decimal pl-5 space-y-1.5 text-sm text-muted">
+            <li>Tudo numa lista só: o que surgir entra <b className="text-ink">no fim</b>, sem filtrar nem julgar.</li>
+            <li>Passe o olho pela página e escolha a tarefa que você <b className="text-ink">tem vontade</b> de fazer — não a mais urgente. Toque em ▶ para ligar o Timer nela.</li>
+            <li>Terminou: ✓. Não terminou: <b className="text-ink">“fiz uma parte”</b>, e ela é reescrita no fim.</li>
+            <li>Só passe para a próxima página quando nada mais chamar a sua atenção. O que sobrar depois de algumas passagens, marque com <b className="text-ink">marca-texto</b>.</li>
+          </ol>
+          <p className="text-sm text-muted"><b className="text-ink">Dica de ouro:</b> escreva tarefas mensuráveis — “ler 20 páginas de Madame Bovary”, “escrever por 1 hora”, não “ler Madame Bovary”.
+            Prazo só para o que tem data de verdade (ex.: antes da próxima aula).</p>
+          <p className="text-sm text-muted">Precisa de detalhes (passos, o que o professor pediu)? Use a <b className="text-ink">descrição</b>: o título fica curto e a lista continua fácil de passar o olho.</p>
+          <button className="btn btn-primary w-full justify-center" onClick={() => setGuia(false)}>Entendi</button>
+        </Janela>
+      )}
       {concluindo && (
         <Janela titulo="Feita!" onClose={() => setConcluindo(null)}>
           <p className="text-sm">{concluindo.texto}</p>
@@ -335,6 +338,7 @@ function FormTarefa({ ordem, filhos, porId, livros, aulas, inicial, rotulo, onSa
   inicial: Partial<Tarefa>; rotulo: string; onSalvar: (d: Dados) => Promise<void>;
 }) {
   const [texto, setTexto] = useState(inicial.texto ?? "");
+  const [descricao, setDescricao] = useState(inicial.descricao ?? "");
   const [tipo, setTipo] = useState<TipoTarefa>(inicial.tipo ?? "ler");
   const [pasta, setPasta] = useState<string | null>(inicial.pasta_id ?? null);
   const [bookId, setBookId] = useState<string | null>(inicial.book_id ?? null);
@@ -343,7 +347,7 @@ function FormTarefa({ ordem, filhos, porId, livros, aulas, inicial, rotulo, onSa
   const [prazo, setPrazo] = useState(inicial.prazo ?? "");
   const [aulaId, setAulaId] = useState<string | null>(inicial.aula_id ?? null);
   const [antes, setAntes] = useState(!!inicial.antes_de);
-  const [mais, setMais] = useState(!!(inicial.prazo || inicial.link || inicial.book_id || inicial.pasta_id || inicial.aula_id));
+  const [mais, setMais] = useState(!!(inicial.prazo || inicial.link || inicial.book_id || inicial.pasta_id || inicial.aula_id || inicial.descricao));
   const [indo, setIndo] = useState(false);
   const livro = bookId ? livros.find((b) => b.id === bookId) : undefined;
   const dobra = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -370,7 +374,7 @@ function FormTarefa({ ordem, filhos, porId, livros, aulas, inicial, rotulo, onSa
     setIndo(true);
     try {
       await onSalvar({
-        texto: texto.trim(), tipo, pasta_id: pasta, book_id: tipo === "ler" ? bookId : null, link: link.trim(), prazo: prazo || null,
+        texto: texto.trim(), descricao: descricao.trim(), tipo, pasta_id: pasta, book_id: tipo === "ler" ? bookId : null, link: link.trim(), prazo: prazo || null,
         aula_id: aulaId, antes_de: aulaId ? antesDe : null,
       });
     } finally { setIndo(false); }
@@ -394,9 +398,12 @@ function FormTarefa({ ordem, filhos, porId, livros, aulas, inicial, rotulo, onSa
         <button className="btn btn-primary shrink-0" disabled={!texto.trim() || indo}><Plus size={15} /> {rotulo}</button>
       </div>
       {!mais ? (
-        <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => setMais(true)}>+ curso, aula, livro, link ou prazo</button>
+        <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => setMais(true)}>+ descrição, curso, aula, livro, link ou prazo</button>
       ) : (
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
+          <label className="block sm:col-span-2"><span className="label">Descrição (opcional)</span>
+            <textarea className="input mt-1 min-h-[72px] resize-y leading-relaxed" value={descricao} onChange={(e) => setDescricao(e.target.value)}
+              placeholder="Detalhes, passos, o que o professor pediu…" /></label>
           <label className="block"><span className="label">Curso (opcional)</span>
             <select className="input mt-1" value={pasta ?? ""} onChange={(e) => { setPasta(e.target.value || null); setAulaId(null); setAntes(false); }}>
               <option value="">Sem curso</option>

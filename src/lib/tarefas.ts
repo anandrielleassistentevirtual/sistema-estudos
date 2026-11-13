@@ -16,6 +16,8 @@ export type TipoTarefa = "ler" | "assistir" | "escrever" | "revisar" | "praticar
 export interface Tarefa {
   id: string;
   texto: string;
+  /** detalhes opcionais (passos, o que o professor pediu) */
+  descricao: string;
   tipo: TipoTarefa;
   pasta_id: string | null;
   book_id: string | null;
@@ -47,7 +49,7 @@ export const TIPOS: { id: TipoTarefa; nome: string; exemplo: string }[] = [
 /** Itens por página, como numa página de caderno. */
 export const POR_PAGINA = 15;
 
-const COLUNAS = "id,texto,tipo,pasta_id,book_id,link,prazo,aparece_em,posicao,destacada,feita_em,created_at,aula_id,antes_de";
+const COLUNAS = "id,texto,descricao,tipo,pasta_id,book_id,link,prazo,aparece_em,posicao,destacada,feita_em,created_at,aula_id,antes_de";
 
 /** Tarefas ainda por fazer + as feitas nos últimos 14 dias. As que "voltam hoje" entram no fim da lista. */
 export async function carregarTarefas(): Promise<Tarefa[]> {

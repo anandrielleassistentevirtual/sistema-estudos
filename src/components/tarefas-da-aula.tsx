@@ -91,6 +91,7 @@ export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
         </button>
         <div className="min-w-0 flex-1 text-sm">
           <div className={t.feita_em ? "line-through text-muted decoration-faint" : ""}>{t.texto}</div>
+          {!compacto && t.descricao?.trim() && !t.feita_em && <p className="text-xs text-muted whitespace-pre-wrap mt-0.5">{t.descricao.trim()}</p>}
           {!compacto && (
             <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-muted">
               {origem && <span>da {origem}</span>}
@@ -161,6 +162,8 @@ function NovaTarefaDaAula({ aula, proxima, onCriada }: {
   aula: { id: string; pasta_id: string | null }; proxima: AulaLite | null; onCriada: (t: Tarefa) => void;
 }) {
   const [texto, setTexto] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [comDescricao, setComDescricao] = useState(false);
   const [tipo, setTipo] = useState<TipoTarefa>("ler");
   const [antes, setAntes] = useState(true);
   const [indo, setIndo] = useState(false);
@@ -172,10 +175,12 @@ function NovaTarefaDaAula({ aula, proxima, onCriada }: {
     setIndo(true); setErro(null);
     try {
       const t = await criarTarefaNoFim({
-        texto: texto.trim(), tipo, pasta_id: aula.pasta_id, aula_id: aula.id, antes_de: antes && proxima ? proxima.id : null,
+        texto: texto.trim(), descricao: descricao.trim(), tipo, pasta_id: aula.pasta_id, aula_id: aula.id, antes_de: antes && proxima ? proxima.id : null,
       });
       onCriada(t);
       setTexto("");
+      setDescricao("");
+      setComDescricao(false);
     } catch (x) {
       setErro(`Não consegui salvar: ${(x as Error).message}`);
     } finally { setIndo(false); }
@@ -202,6 +207,12 @@ function NovaTarefaDaAula({ aula, proxima, onCriada }: {
         </label>
       ) : (
         <p className="text-xs text-muted">Esta é a última aula da pasta.</p>
+      )}
+      {comDescricao ? (
+        <textarea className="input min-h-[64px] resize-y text-sm leading-relaxed" value={descricao} onChange={(e) => setDescricao(e.target.value)}
+          placeholder="Detalhes, passos, o que o professor pediu…" autoFocus />
+      ) : (
+        <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => setComDescricao(true)}>+ descrição</button>
       )}
       {erro && <p className="text-xs text-critical">{erro}</p>}
     </form>

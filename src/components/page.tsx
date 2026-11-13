@@ -5,8 +5,11 @@ export function Page({
   children,
   wide,
   tabs,
+  titleExtra,
 }: {
   tabs?: React.ReactNode;
+  /** algo pequeno ao lado do título (ex.: botão de ajuda) */
+  titleExtra?: React.ReactNode;
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
@@ -18,7 +21,7 @@ export function Page({
       {tabs}
       <div className="flex flex-wrap items-end justify-between gap-3 mb-7">
         <div>
-          <h1 className="text-[1.6rem] font-normal tracking-tight leading-tight">{title}</h1>
+          <h1 className="text-[1.6rem] font-normal tracking-tight leading-tight flex items-center gap-2">{title}{titleExtra}</h1>
           {subtitle && <p className="text-sm text-muted mt-1">{subtitle}</p>}
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
