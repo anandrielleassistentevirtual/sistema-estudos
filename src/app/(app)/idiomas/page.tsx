@@ -8,6 +8,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Clock, Layers, Play, Plus, Settings2, Trash2, X } from "lucide-react";
 import { Empty, Page, Stat } from "@/components/page";
 import { AnkiNoComputador, AnkiWebBarra, Conectar } from "@/components/anki-conta";
+import { ListeningPainel } from "@/components/listening-painel";
+import { ROTULO_LISTENING } from "@/lib/listening";
 import { BarChart } from "@/components/bar-chart";
 import { Heatmap } from "@/components/heatmap";
 import { Bandeira, BANDEIRAS, bandeiraDoIdioma } from "@/components/bandeira";
@@ -92,6 +94,10 @@ export default function Idiomas() {
   const tabela = (baralhos ?? []).filter((b) => decksDoIdioma.has(b.nome.split("::")[0]));
   const paraHoje = soma(tabela.filter((b) => !b.nome.includes("::")), (b) => b.revisar + b.aprendendo);
   const meta = sel?.weekly_goal_min ? sel.weekly_goal_min * 60 : 0;
+  // Listening (curso do Mairo, medido pelo script)
+  const escuta = minhasSessoes.filter((s) => s.label === ROTULO_LISTENING);
+  const escutaHoje = soma(escuta.filter((s) => s.day === hoje), (s) => s.seconds);
+  const escutaSemana = soma(escuta.filter((s) => s.day >= ws), (s) => s.seconds);
 
   const semanal = useMemo(() => {
     const w0 = weekStart(new Date());
@@ -155,12 +161,14 @@ export default function Idiomas() {
             <button className="btn btn-ghost text-xs" onClick={() => setModal({ edit: sel })}><Settings2 size={14} /> Configurar</button>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <Stat label="Tempo esta semana" value={fmtDuration(timerSemana + ankiSemana)}
               hint={[meta ? `meta ${fmtDuration(meta)} · ${Math.round(Math.min(1, (timerSemana + ankiSemana) / meta) * 100)}%` : null,
-                ankiSemana ? `Anki ${fmtDuration(ankiSemana)}` : null, timerSemana ? `Timer ${fmtDuration(timerSemana)}` : null,
+                escutaSemana ? `Listening ${fmtDuration(escutaSemana)}` : null, ankiSemana ? `Anki ${fmtDuration(ankiSemana)}` : null,
+                timerSemana - escutaSemana > 0 ? `Timer ${fmtDuration(timerSemana - escutaSemana)}` : null,
                 `mês ${fmtDuration(totalMes)}`].filter(Boolean).join(" · ")} />
-            <Stat label="Para revisar hoje" value={baralhos ? nf.format(paraHoje) : "—"} hint={baralhos ? "nos baralhos deste idioma" : "conecte o AnkiWeb na aba Anki"} />
+            <Stat label="Para revisar hoje" value={baralhos ? nf.format(paraHoje) : "—"} hint={baralhos ? "nos baralhos deste idioma" : "conecte o AnkiWeb (no fim da página)"} />
+            <Stat label="Listening" value={fmtDuration(escutaHoje)} hint={`hoje · ${fmtDuration(escutaSemana)} na semana`} />
             <Stat label="Revisões" value={nf.format(revHoje)} hint={`hoje · ${nf.format(revSemana)} na semana`} />
             <Stat label="Cartões criados" value={nf.format(criadosDomingo)} hint={`desde domingo${notasDomingo && notasDomingo !== criadosDomingo ? ` · em ${nf.format(notasDomingo)} notas` : ""}`} />
           </div>
@@ -261,6 +269,7 @@ export default function Idiomas() {
       {conta === null && (
         <div className="mt-6"><Conectar onConectado={async () => { await load(); }} /></div>
       )}
+      {sel && <ListeningPainel idioma={sel.name} />}
       <AnkiNoComputador conectado={noComputador} setConectado={setNoComputador} />
       {conta && (
         <p className="text-xs text-faint mt-6">
