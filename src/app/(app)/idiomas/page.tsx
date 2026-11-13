@@ -276,7 +276,8 @@ export default function Idiomas() {
 
       {(modal === "idioma" || (modal && typeof modal === "object")) && (
         <LanguageModal edit={typeof modal === "object" ? modal.edit : null} existing={(langs ?? []).map((l) => l.name)}
-          baralhos={(baralhos ?? []).filter((b) => !b.nome.includes("::"))}
+          // baralhos vazios (0 cartões) não aparecem para escolher, a não ser que já estejam ligados
+          baralhos={(baralhos ?? []).filter((b) => !b.nome.includes("::") && (b.total > 0 || (langs ?? []).some((l) => l.anki_baralhos.includes(b.nome))))}
           usados={new Map((langs ?? []).flatMap((l) => l.anki_baralhos.map((b) => [b, l.name] as [string, string])))}
           onClose={() => setModal(null)} onSaved={(id) => { setModal(null); if (id) setSelId(id); void load(); }} />
       )}
