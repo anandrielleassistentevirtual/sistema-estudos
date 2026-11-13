@@ -313,7 +313,7 @@ export default function RevisarAnki() {
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 min-h-screen flex flex-col">
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <Link href="/idiomas/anki" className="text-sm text-muted flex items-center gap-1"><ChevronLeft size={15} /> Anki</Link>
+        <Link href="/idiomas" className="text-sm text-muted flex items-center gap-1"><ChevronLeft size={15} /> Idiomas</Link>
         <span className="font-medium truncate">{card?.deckName ?? deck}</span>
         <span className="ml-auto flex items-center gap-3 text-xs text-muted">
           <span className="tabular-nums font-mono">{fmtClock(secs)}</span>
@@ -354,7 +354,7 @@ export default function RevisarAnki() {
               </p>
             </>
           )}
-          <Link href="/idiomas/anki" className="btn btn-primary inline-flex">Voltar aos baralhos</Link>
+          <Link href="/idiomas" className="btn btn-primary inline-flex">Voltar aos idiomas</Link>
         </div>
       )}
 

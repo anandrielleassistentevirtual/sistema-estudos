@@ -5,14 +5,14 @@
  */
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock, Layers, Plus, Settings2, Trash2, X } from "lucide-react";
+import { Clock, Layers, Play, Plus, Settings2, Trash2, X } from "lucide-react";
 import { Empty, Page, Stat } from "@/components/page";
-import { IdiomasTabs } from "@/components/idiomas-tabs";
+import { AnkiNoComputador, AnkiWebBarra, Conectar } from "@/components/anki-conta";
 import { BarChart } from "@/components/bar-chart";
 import { Heatmap } from "@/components/heatmap";
 import { Bandeira, BANDEIRAS, bandeiraDoIdioma } from "@/components/bandeira";
 import { Language, loadLanguages, ONDE, palpiteDeBaralhos, SUGESTOES } from "@/lib/languages";
-import { contaAnki, sincronizarAnkiSeAntigo, type BaralhoAnki } from "@/lib/anki";
+import { ankiOnline, contaAnki, sincronizarAnkiSeAntigo, type BaralhoAnki, type ContaAnki } from "@/lib/anki";
 import { addDays, dayKey, fmtDuration, nf, parseDay, weekStart } from "@/lib/dates";
 import { emptyDay, type DayStats } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
@@ -27,7 +27,10 @@ export default function Idiomas() {
   const [langs, setLangs] = useState<Language[] | null>(null);
   const [sessions, setSessions] = useState<Sess[]>([]);
   const [ankiDias, setAnkiDias] = useState<DiaBaralho[]>([]);
-  const [baralhos, setBaralhos] = useState<BaralhoAnki[] | null>(null); // null = Anki não conectado
+  const [conta, setConta] = useState<ContaAnki | null | undefined>(undefined); // null = AnkiWeb não conectado
+  const baralhos: BaralhoAnki[] | null = conta ? conta.baralhos ?? [] : null;
+  const [noComputador, setNoComputador] = useState(false); // Anki aberto neste computador (AnkiConnect)
+  useEffect(() => { void ankiOnline().then(setNoComputador); }, []);
   const [selId, setSelId] = useState<string | null>(null);
   const [modal, setModal] = useState<null | "idioma" | "tempo" | { edit: Language }>(null);
 
@@ -43,7 +46,7 @@ export default function Idiomas() {
     setSessions(st);
     setLangs(lg);
     setAnkiDias(ad);
-    setBaralhos(conta ? conta.baralhos ?? [] : null);
+    setConta(conta);
     setSelId((cur) => {
       if (cur && lg.some((l) => l.id === cur)) return cur;
       let salvo: string | null = null;
@@ -122,7 +125,6 @@ export default function Idiomas() {
 
   return (
     <Page
-      tabs={<IdiomasTabs />}
       title="Idiomas"
       subtitle="Cada idioma com o seu tempo, as suas revisões e os seus cartões do Anki."
       actions={
@@ -163,10 +165,12 @@ export default function Idiomas() {
             <Stat label="Cartões criados" value={nf.format(criadosDomingo)} hint={`desde domingo${notasDomingo && notasDomingo !== criadosDomingo ? ` · em ${nf.format(notasDomingo)} notas` : ""}`} />
           </div>
 
+          {conta && <div className="mt-3"><AnkiWebBarra conta={conta} onMudou={load} /></div>}
+
           {!sel.anki_baralhos.length && (
             <p className="text-sm text-muted mt-3">
               Nenhum baralho do Anki ligado a {sel.name}. <button className="underline underline-offset-2 hover:text-ink" onClick={() => setModal({ edit: sel })}>Escolher os baralhos</button>
-              {baralhos === null && <> · antes, <Link href="/idiomas/anki" className="underline underline-offset-2 hover:text-ink">conecte o AnkiWeb</Link></>}.
+              {conta === null && <> · antes, conecte o AnkiWeb (abaixo)</>}.
             </p>
           )}
 
@@ -227,6 +231,7 @@ export default function Idiomas() {
                         <th className="p-3 font-medium text-right">Aprendendo</th>
                         <th className="p-3 font-medium text-right">Novos</th>
                         <th className="p-3 font-medium text-right hidden sm:table-cell">Cartões</th>
+                        {noComputador && <th className="p-3" />}
                       </tr>
                     </thead>
                     <tbody>
@@ -237,6 +242,11 @@ export default function Idiomas() {
                           <td className="p-3 text-right tabular-nums">{nf.format(d.aprendendo)}</td>
                           <td className="p-3 text-right tabular-nums text-muted">{nf.format(d.novos)}</td>
                           <td className="p-3 text-right tabular-nums text-muted hidden sm:table-cell">{nf.format(d.total)}</td>
+                          {noComputador && (
+                            <td className="p-3 text-right">
+                              <Link className="btn btn-primary text-xs py-1" href={`/idiomas/anki/revisar?deck=${encodeURIComponent(d.nome)}`}><Play size={12} /> Revisar</Link>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -246,6 +256,22 @@ export default function Idiomas() {
             </>
           )}
         </>
+      )}
+
+      {conta === null && (
+        <div className="mt-6"><Conectar onConectado={async () => { await load(); }} /></div>
+      )}
+      <AnkiNoComputador conectado={noComputador} setConectado={setNoComputador} />
+      {conta && (
+        <p className="text-xs text-faint mt-6">
+          AnkiWeb: {conta.usuario} ·{" "}
+          <button className="underline underline-offset-2 hover:text-ink" onClick={async () => {
+            if (!confirm("Desligar o AnkiWeb deste sistema? O histórico que já está aqui continua.")) return;
+            const { ankiWeb } = await import("@/lib/anki");
+            await ankiWeb("sair").catch(() => {});
+            await load();
+          }}>desligar</button>
+        </p>
       )}
 
       {(modal === "idioma" || (modal && typeof modal === "object")) && (
