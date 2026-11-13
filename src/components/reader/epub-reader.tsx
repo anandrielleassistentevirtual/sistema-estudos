@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { countWords } from "@/lib/text";
+import { repararCapitulo } from "./epub-reparo";
 import { FONTS, HL_COLORS, ReaderHandle, ReaderProps, THEMES, semVariaveis, themeColors } from "./types";
 
 type Pos = { index: number; page: number; total: number };
@@ -32,6 +33,8 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
       book.current = b;
       r = b.renderTo(el.current!, { width: "100%", height: "100%", spread: "none", flow: "paginated", allowScriptedContent: false });
       rendition.current = r;
+      // livro convertido de PDF (uma linha por parágrafo): junta as linhas antes de montar as páginas
+      r.hooks.content.register((contents: any) => { try { repararCapitulo(contents.document); } catch {} });
       for (const [k, t] of Object.entries(THEMES)) {
         r.themes.register(k, {
           body: { background: `${t.bg} !important`, color: `${t.fg} !important` },
@@ -135,6 +138,9 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
     r.themes.select(p.theme);
     r.themes.fontSize(`${p.sizePt}pt`);
     r.themes.default({
+      // margens do próprio livro fora: quem define a coluna é o leitor (centralizada, como no Markdown)
+      body: { margin: "0 !important" },
+      p: { orphans: "2", widows: "2" },
       "body, p, div, li, blockquote, span, td": {
         "font-family": `${semVariaveis(FONTS[p.font].css)} !important`,
         "line-height": `${p.lineHeight} !important`,
@@ -160,7 +166,11 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
       "figcaption, .caption": { "font-size": "0.85em !important", opacity: "0.75", "text-align": "center !important", "text-indent": "0 !important" },
     });
   }
-  useEffect(applyPrefs, [props.prefs]);
+  useEffect(() => {
+    applyPrefs();
+    // a coluna muda de largura com o zoom: o leitor refaz as páginas
+    try { rendition.current?.resize?.(); } catch {}
+  }, [props.prefs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function drawAnnotations() {
     const r = rendition.current;
@@ -191,7 +201,9 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
   const bg = themeColors(props.prefs.theme).bg;
   return (
     <div className="relative w-full h-full" style={{ background: bg }}>
-      <div ref={el} className="absolute inset-0 px-2 md:px-10 py-6" />
+      {/* coluna de leitura centralizada (≈ 68 caracteres por linha, como no leitor de Markdown), acompanhando o zoom */}
+      <div ref={el} className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-full px-3 md:px-6 py-6"
+        style={{ maxWidth: Math.round(720 * (props.prefs.sizePt / 12)) }} />
       <button aria-label="Página anterior" className="absolute left-0 top-0 bottom-0 w-[8%] z-10" onClick={() => rendition.current?.prev()} />
       <button aria-label="Próxima página" className="absolute right-0 top-0 bottom-0 w-[8%] z-10" onClick={() => rendition.current?.next()} />
     </div>
