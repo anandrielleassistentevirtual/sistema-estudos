@@ -58,6 +58,7 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
         cb.current.onView?.(pageWords(next), !!loc.atEnd);
         const label = b.navigation?.get?.(loc.start.href)?.label?.trim?.() ?? "";
         cb.current.onLocation(loc.start.cfi, progressOf(next), label);
+        cb.current.onSecao?.(loc.start.index);
       });
       r.on("selected", async (cfiRange: string) => {
         const range = await Promise.resolve(b.getRange(cfiRange));
@@ -69,10 +70,15 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
 
       try {
         const nav = await b.loaded.navigation;
-        const flat: { label: string; location: string; level: number }[] = [];
+        await b.loaded.spine;
+        // em que capítulo (ordem de leitura) cai cada item do sumário: serve para marcar "onde você está"
+        const ordemDe = (href: string) => {
+          try { const s = b.spine.get(href) ?? b.spine.get(String(href).split("#")[0]); return typeof s?.index === "number" ? s.index : undefined; } catch { return undefined; }
+        };
+        const flat: { label: string; location: string; level: number; ordem?: number }[] = [];
         const walk = (items: any[], level: number) => {
           for (const it of items ?? []) {
-            flat.push({ label: String(it.label ?? "").trim(), location: it.href, level });
+            flat.push({ label: String(it.label ?? "").trim(), location: it.href, level, ordem: ordemDe(it.href) });
             if (it.subitems?.length) walk(it.subitems, Math.min(3, level + 1));
           }
         };

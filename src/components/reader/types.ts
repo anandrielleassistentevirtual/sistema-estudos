@@ -39,6 +39,8 @@ export interface TocItem {
   label: string;
   location: string; // "p:N" (TXT/MD) ou href (EPUB)
   level: number; // 1, 2, 3
+  /** posição para saber "onde você está": página (TXT/MD) ou capítulo do EPUB (ordem de leitura) */
+  ordem?: number;
 }
 
 export interface ReaderHandle {
@@ -60,6 +62,8 @@ export interface ReaderProps {
   onWordCount: (total: number) => void;
   onAnnotationClick: (id: string) => void;
   onToc?: (items: TocItem[]) => void;
+  /** EPUB: o capítulo (na ordem de leitura do livro) que está na tela */
+  onSecao?: (ordem: number) => void;
   /** página na tela: palavras e se é a última */
   onView?: (words: number, last: boolean) => void;
 }

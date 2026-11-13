@@ -65,7 +65,7 @@ export function paginar(text: string, md: boolean): { pages: { text: string; wor
   out.forEach((pg, i) => {
     for (const p of pg.text.split("\n\n")) {
       const h = headingOf(p, md);
-      if (h) toc.push({ ...h, location: `p:${i}` });
+      if (h) toc.push({ ...h, location: `p:${i}`, ordem: i });
     }
   });
   return { pages: out, toc };

@@ -7,9 +7,10 @@ import { loadPrefs, useEffectiveTheme } from "@/components/reader/prefs";
 import { EpubReader } from "@/components/reader/epub-reader";
 import { PrefsPanel } from "@/components/reader/prefs-panel";
 import { TextReader } from "@/components/reader/text-reader";
+import { Sumario } from "@/components/reader/sumario";
 import { DEFAULT_PREFS, HL_COLORS, ReaderHandle, ReaderPrefs, THEMES, TocItem } from "@/components/reader/types";
-import { downloadBook, saveBookFile } from "@/lib/books";
-import { fmtClock, nf } from "@/lib/dates";
+import { downloadBook, ppmDosLivros, saveBookFile } from "@/lib/books";
+import { fmtClock, fmtDuration, nf } from "@/lib/dates";
 import { addBasicNote } from "@/lib/anki";
 import { ReadingTracker } from "@/lib/reading-tracker";
 import { supabase, fire } from "@/lib/supabase/client";
@@ -34,6 +35,9 @@ export default function Ler() {
   const [showToc, setShowToc] = useState(false);
   const [toc, setToc] = useState<TocItem[]>([]);
   const [location, setLocation] = useState("");
+  const [secao, setSecao] = useState<number | null>(null); // EPUB: capítulo na tela (para o sumário)
+  const [ritmo, setRitmo] = useState(0);
+  useEffect(() => { void ppmDosLivros().then((v) => setRitmo(v ?? 0)); }, []);
   const [sel, setSel] = useState<{ location: string; quote: string } | null>(null);
   const [selNote, setSelNote] = useState("");
   const [selColor, setSelColor] = useState("amarelo");
@@ -261,7 +265,7 @@ export default function Ler() {
       <div className="relative flex-1 min-h-0">
         {blob && book && (
           book.format === "epub" ? (
-            <EpubReader ref={reader} data={blob} format="epub" startAt={book.last_location} prefs={view} annotations={anns}
+            <EpubReader ref={reader} data={blob} format="epub" startAt={book.last_location} prefs={view} annotations={anns} onSecao={setSecao}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
               onAnnotationClick={() => setShowAnns(true)} onToc={setToc} onView={(w, last) => tracker.current?.see(w, last)} />
           ) : (
@@ -273,29 +277,11 @@ export default function Ler() {
         {!blob && <div className="p-10 opacity-60 text-sm">Baixando o livro…</div>}
 
         {showToc && (
-          <aside className="absolute left-0 top-0 bottom-0 z-30 w-full sm:w-80 bg-surface text-ink border-r border-line flex flex-col shadow-xl">
-            <div className="flex items-center justify-between px-4 h-12 border-b border-line">
-              <span className="font-medium text-sm">Sumário</span>
-              <button onClick={() => setShowToc(false)}><X size={18} /></button>
-            </div>
-            <nav className="overflow-y-auto flex-1 py-2">
-              {toc.map((item, i) => {
-                const pageOf = (l: string) => (l.startsWith("p:") ? Number(l.slice(2)) : -1);
-                const curPage = pageOf(location);
-                const next = toc[i + 1];
-                const here = curPage >= 0
-                  ? pageOf(item.location) <= curPage && (!next || pageOf(next.location) > curPage)
-                  : false;
-                return (
-                  <button key={i} onClick={() => { reader.current?.goTo(item.location); setShowToc(false); }}
-                    className={`block w-full text-left text-sm py-1.5 pr-3 hover:bg-surface-2 ${here ? "text-accent font-medium" : ""}`}
-                    style={{ paddingLeft: 16 + (item.level - 1) * 16 }}>
-                    {item.label}
-                  </button>
-                );
-              })}
-            </nav>
-          </aside>
+          <Sumario toc={toc} escolha={book?.format === "epub" ? "primeiro" : "ultimo"}
+            atual={book?.format === "epub" ? secao : location.startsWith("p:") ? Number(location.slice(2)) : null}
+            onIr={(l) => reader.current?.goTo(l)} onFechar={() => setShowToc(false)}
+            faltaTexto={book?.status === "lendo" && book.word_count && ritmo
+              ? `≈ ${fmtDuration((book.word_count * (1 - progress)) / ritmo * 60)} de leitura pela frente` : null} />
         )}
 
         {showPrefs && <PrefsPanel prefs={prefs} setPrefs={setPrefs} />}

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { TextReader } from "@/components/reader/text-reader";
 import { TarefasDaAula } from "@/components/tarefas-da-aula";
+import { Sumario } from "@/components/reader/sumario";
 import { PrefsPanel } from "@/components/reader/prefs-panel";
 import { stepZoom, useEffectiveTheme, useReaderPrefs, zoomOf, ZOOM } from "@/components/reader/prefs";
 import { THEMES, type ReaderHandle, type TocItem } from "@/components/reader/types";
@@ -298,27 +299,10 @@ export default function AulaAberta() {
           )}
 
           {painel === "sumario" && (
-            <aside className="absolute left-0 top-0 bottom-0 z-30 w-full sm:w-80 bg-surface text-ink border-r border-line flex flex-col shadow-xl">
-              <div className="flex items-center justify-between px-4 h-12 border-b border-line">
-                <span className="font-medium text-sm">Sumário</span>
-                <button onClick={() => setPainel(null)}><X size={18} /></button>
-              </div>
-              <nav className="overflow-y-auto flex-1 py-2">
-                {toc.map((item, i) => {
-                  const pag = (l: string) => (l.startsWith("p:") ? Number(l.slice(2)) : -1);
-                  const atual = pag(local);
-                  const prox = toc[i + 1];
-                  const aqui = atual >= 0 && pag(item.location) <= atual && (!prox || pag(prox.location) > atual);
-                  return (
-                    <button key={i} onClick={() => { reader.current?.goTo(item.location); setPainel(null); }}
-                      className={`block w-full text-left text-sm py-1.5 pr-3 hover:bg-surface-2 ${aqui ? "font-medium" : "text-ink/85"}`}
-                      style={{ paddingLeft: 16 + (item.level - 1) * 16 }}>
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </nav>
-            </aside>
+            <Sumario toc={toc} escolha="ultimo" atual={local.startsWith("p:") ? Number(local.slice(2)) : null}
+              onIr={(l) => reader.current?.goTo(l)} onFechar={() => setPainel(null)}
+              faltaTexto={aula?.situacao === "lendo" && aula.palavras
+                ? `≈ ${fmtDuration((aula.palavras * (1 - progresso)) / ppmBase * 60)} de leitura pela frente` : null} />
           )}
           {painel === "aa" && <PrefsPanel prefs={prefs} setPrefs={setPrefs} />}
 
