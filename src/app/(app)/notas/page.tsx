@@ -52,7 +52,7 @@ export default function Inbox() {
       subtitle="Notas literárias para tratar. Os destaques do leitor caem aqui sozinhos; ao concluir, a nota vai para as anotações do livro."
       actions={<button className="btn btn-primary" onClick={() => setEditing("nova")}><Plus size={15} /> Nova nota literária</button>}
     >
-      <div className="grid md:grid-cols-3 gap-4 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
         {COLUNAS.map((col) => {
           const list = notes.filter((n) => n.status === col.id);
           return (

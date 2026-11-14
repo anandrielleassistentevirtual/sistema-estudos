@@ -175,12 +175,12 @@ export default function Mesa() {
                 return (
                   <li key={i.id} className="flex items-center gap-3 px-4 py-3">
                     <button onClick={() => marcar(i)} aria-label={feito ? "Desmarcar como lido" : "Marcar como lido"}
-                      className={`w-5 h-5 rounded-md border grid place-items-center shrink-0 transition-colors ${feito ? "bg-chart border-chart text-bg" : "border-faint hover:border-muted"}`}>
+                      className={`relative w-5 h-5 rounded-md border grid place-items-center shrink-0 transition-colors before:absolute before:-inset-2.5 before:content-[''] ${feito ? "bg-chart border-chart text-bg" : "border-faint hover:border-muted"}`}>
                       {feito && <Check size={13} strokeWidth={3} />}
                     </button>
                     <span className="w-6 text-right text-xs text-faint tabular-nums shrink-0">{k + 1}</span>
                     <div className="min-w-0 flex-1">
-                      <div className={`truncate ${feito ? "text-muted line-through decoration-faint" : ""}`}>
+                      <div className={`line-clamp-2 sm:line-clamp-1 break-words leading-snug ${feito ? "text-muted line-through decoration-faint" : ""}`}>
                         {b && b.format !== "fisico"
                           ? <Link href={`/ler/${b.id}`} className="hover:underline">{titulo(i)}</Link>
                           : titulo(i)}
@@ -255,7 +255,7 @@ export default function Mesa() {
 
 function Janela({ titulo, onClose, children }: { titulo: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div className="card w-full max-w-md p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-lg">{titulo}</h2>

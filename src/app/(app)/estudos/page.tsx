@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronRight, CircleCheck, Download, FileText, FolderInput, FolderOpen, FolderPlus, FolderUp,
+  ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronRight, CircleCheck, Download, FileText, Folder, FolderInput, FolderOpen, FolderPlus, FolderUp,
   ListChecks, ListOrdered, NotebookPen, Pencil, Plus, Search, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
@@ -26,7 +26,10 @@ export default function Estudos() {
   /** aula → tarefas por fazer que ela pede feitas antes */
   const [antesDe, setAntesDe] = useState<Map<string, number>>(new Map());
   const [pastas, setPastas] = useState<PastaEstudo[]>([]);
-  const [sel, setSel] = useState<string>("todas"); // "todas" | "sem" (aulas sem pasta) | id da pasta
+  const [sel, setSelBruto] = useState<string>("todas"); // "todas" | "sem" (aulas sem pasta) | id da pasta
+  // celular: as pastas ficam recolhidas atrás de um botão e fecham ao escolher
+  const [pastasNoCelular, setPastasNoCelular] = useState(false);
+  const setSel = (v: string) => { setSelBruto(v); setPastasNoCelular(false); };
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
   const [movendo, setMovendo] = useState<{ pasta?: PastaEstudo; aula?: Aula } | null>(null);
   const [nomeando, setNomeando] = useState<{ pai: string | null; pasta?: PastaEstudo } | null>(null);
@@ -288,11 +291,20 @@ export default function Estudos() {
       <input ref={arquivosRef} type="file" hidden multiple accept=".md,.markdown,.txt" onChange={(e) => escolher(e.target.files)} />
       {msg && <div className="mb-4 rounded-lg bg-surface-2 px-4 py-2 text-sm">{msg}</div>}
 
-      <div className="grid lg:grid-cols-[320px_1fr] gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 lg:gap-5 items-start">
+        <button type="button" className="lg:hidden card flex items-center gap-2 px-3 py-2.5 text-sm text-left"
+          aria-expanded={pastasNoCelular} onClick={() => setPastasNoCelular((v) => !v)}>
+          {pastasNoCelular ? <FolderOpen size={16} className="text-icon shrink-0" /> : <Folder size={16} className="text-muted shrink-0" />}
+          <span className="text-muted shrink-0">Pasta:</span>
+          <span className="font-medium truncate flex-1">
+            {sel === "todas" ? "Todas as aulas" : sel === SEM_PASTA ? "Sem pasta" : pastas.find((x) => x.id === sel)?.nome ?? "—"}
+          </span>
+          <ChevronDown size={16} className={`text-faint shrink-0 transition-transform ${pastasNoCelular ? "rotate-180" : ""}`} />
+        </button>
         {/* pastas: autor › curso › módulo… */}
-        <aside className="card p-2 text-sm lg:sticky lg:top-4">
+        <aside className={`card p-2 text-sm lg:sticky lg:top-4 ${pastasNoCelular ? "" : "hidden lg:block"}`}>
           <button onClick={() => setSel("todas")}
-            className={`w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 ${sel === "todas" ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel/60 hover:text-ink"}`}>
+            className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2.5 lg:py-1.5 ${sel === "todas" ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel/60 hover:text-ink"}`}>
             <span>Todas as aulas</span><span className="text-xs text-faint tabular-nums">{total}</span>
           </button>
           <div className="my-1.5 border-t border-line" />
@@ -303,11 +315,11 @@ export default function Estudos() {
             const k = lista.findIndex((x) => x.id === p.id);
             return (
               <div key={p.id} className={`group/p flex items-start rounded-lg ${sel === p.id ? "bg-sel" : "hover:bg-sel/60"}`} style={{ paddingLeft: nivel * 14 }}>
-                <button className="p-1.5 text-faint hover:text-ink disabled:opacity-0" disabled={!temFilhos} onClick={() => alterna(p.id)} aria-label={abertos.has(p.id) ? "Fechar" : "Abrir"}>
+                <button className="p-2.5 lg:p-1.5 text-faint hover:text-ink disabled:opacity-0" disabled={!temFilhos} onClick={() => alterna(p.id)} aria-label={abertos.has(p.id) ? "Fechar" : "Abrir"}>
                   {abertos.has(p.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </button>
                 <button onClick={() => setSel(p.id)} title={c?.faltam ? `≈ ${tempo(c.faltam)} de leitura pela frente` : undefined}
-                  className={`flex-1 min-w-0 flex items-start gap-2 py-1.5 text-left ${sel === p.id ? "text-ink font-medium" : "text-ink/90"}`}>
+                  className={`flex-1 min-w-0 flex items-start gap-2 py-2.5 lg:py-1.5 text-left ${sel === p.id ? "text-ink font-medium" : "text-ink/90"}`}>
                   <FolderOpen size={14} className="text-icon shrink-0 mt-[3px]" />
                   {/* nome inteiro: quebra em mais linhas em vez de cortar com "…" */}
                   <span className="flex-1 min-w-0 break-words leading-snug" title={p.nome}>{p.nome}</span>
@@ -328,11 +340,11 @@ export default function Estudos() {
           })}
           {semPasta.length > 0 && (
             <button onClick={() => setSel(SEM_PASTA)}
-              className={`w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 ${sel === SEM_PASTA ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel/60 hover:text-ink"}`}>
+              className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2.5 lg:py-1.5 ${sel === SEM_PASTA ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel/60 hover:text-ink"}`}>
               <span>Sem pasta</span><span className="text-xs text-faint tabular-nums">{semPasta.length}</span>
             </button>
           )}
-          <button onClick={() => setNomeando({ pai: null })} className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 mt-1 text-muted hover:bg-sel/60 hover:text-ink">
+          <button onClick={() => setNomeando({ pai: null })} className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2.5 lg:py-1.5 mt-1 text-muted hover:bg-sel/60 hover:text-ink">
             <FolderPlus size={14} /> Nova pasta
           </button>
           {aulas && !pastas.length && !total && <p className="px-2.5 py-2 text-xs text-muted">Crie uma pasta (ex.: o nome do professor) ou importe a pasta de um curso.</p>}
@@ -341,14 +353,14 @@ export default function Estudos() {
         {/* aulas */}
         <section className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-4">
-            <label className="input flex items-center gap-2 py-1.5 flex-1 min-w-[220px]">
+            <label className="input flex items-center gap-2 py-1.5 w-full sm:w-auto sm:flex-1 sm:min-w-[220px]">
               <Search size={15} className="text-faint shrink-0" />
               <input className="bg-transparent outline-none flex-1 min-w-0" placeholder="Buscar no título, no texto das aulas ou nas anotações" value={q} onChange={(e) => setQ(e.target.value)} />
               {q && <button onClick={() => setQ("")} className="text-faint hover:text-ink"><X size={14} /></button>}
             </label>
-            <div className="inline-flex rounded-lg bg-surface-2 p-1 text-sm">
+            <div className="flex w-full sm:w-auto sm:inline-flex rounded-lg bg-surface-2 p-1 text-sm">
               {([["todas", "Todas"], ["pendente", "Pendentes"], ["lendo", "Lendo"], ["concluida", "Concluídas"]] as const).map(([k, l]) => (
-                <button key={k} onClick={() => setFiltro(k)} className={`px-3 py-1 rounded-md ${filtro === k ? "bg-seg shadow-sm" : "text-muted"}`}>{l}</button>
+                <button key={k} onClick={() => setFiltro(k)} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-1 rounded-md ${filtro === k ? "bg-seg shadow-sm" : "text-muted"}`}>{l}</button>
               ))}
             </div>
           </div>
@@ -368,8 +380,8 @@ export default function Estudos() {
                 {lendo.map((a) => (
                   <button key={a.id} onClick={() => router.push(`/estudos/${a.id}`)} className="w-full flex items-center gap-3 p-3 text-left hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{a.title}</span>
-                      <span className="block truncate text-xs text-muted">{a.course}</span>
+                      <span className="line-clamp-2 sm:line-clamp-1 break-words leading-snug font-medium">{a.title}</span>
+                      <span className="block truncate text-xs text-muted mt-0.5">{a.course}</span>
                       <span className="block h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
                         <span className="block h-full bg-chart rounded-full" style={{ width: `${Math.round((a.progresso ?? 0) * 100)}%` }} />
                       </span>
@@ -387,9 +399,9 @@ export default function Estudos() {
           <div className="space-y-6">
             {grupos.map(([g, lista]) => (
               <div key={g}>
-                <div className="flex items-baseline justify-between mb-2 px-1">
-                  <h2 className="text-sm text-muted truncate">{g}</h2>
-                  <span className="text-xs text-faint tabular-nums">
+                <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-x-3 mb-2 px-1">
+                  <h2 className="text-sm text-muted break-words sm:truncate min-w-0">{g}</h2>
+                  <span className="text-xs text-faint tabular-nums sm:shrink-0">
                     {lista.filter((a) => a.situacao === "concluida").length}/{lista.length}
                     {lista.some((a) => a.situacao !== "concluida") && ` · ≈ ${tempo(lista.reduce((n, a) => n + faltam(a), 0))} pela frente`}
                   </span>
@@ -399,13 +411,13 @@ export default function Estudos() {
                     const n = numeroDaAula(a.title);
                     const feita = a.situacao === "concluida";
                     return (
-                      <div key={a.id} className="group flex items-center gap-2 pr-2 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
-                        <button onClick={() => router.push(`/estudos/${a.id}`)} className="flex items-center gap-3 min-w-0 flex-1 p-3 text-left" title="Abrir a aula">
+                      <div key={a.id} className="group relative flex items-center gap-1 sm:gap-2 pr-1.5 sm:pr-2 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
+                        <button onClick={() => router.push(`/estudos/${a.id}`)} className="flex items-start sm:items-center gap-3 min-w-0 flex-1 p-3 text-left" title="Abrir a aula">
                           <span className={`w-10 h-10 shrink-0 grid place-items-center rounded-lg text-[13px] font-medium tabular-nums ${feita ? "bg-good/15 text-good" : "bg-surface-2 text-ink/80"}`}>
                             {feita ? <CircleCheck size={17} /> : n ?? <FileText size={16} className="text-icon" />}
                           </span>
                           <span className="min-w-0">
-                            <span className="block truncate font-medium">{a.title}</span>
+                            <span className="line-clamp-2 sm:line-clamp-1 break-words leading-snug font-medium">{a.title}</span>
                             <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted mt-0.5">
                               {[
                                 a.professor || null,
@@ -425,9 +437,13 @@ export default function Estudos() {
                                 </span>
                               )}
                             </span>
+                            {/* espaço para o status, que no celular fica embaixo do texto */}
+                            <span className="block h-8 sm:hidden" aria-hidden />
                           </span>
                         </button>
-                        <StatusPill label="Status da aula" value={a.situacao ?? "pendente"} options={SITUACOES_AULA} onChange={(v) => mudarSituacao(a, v)} />
+                        <span className="absolute left-16 bottom-3 sm:static">
+                          <StatusPill label="Status da aula" value={a.situacao ?? "pendente"} options={SITUACOES_AULA} onChange={(v) => mudarSituacao(a, v)} />
+                        </span>
                         <RowMenu items={[
                           { label: "Abrir a aula", icon: BookOpen, onClick: () => router.push(`/estudos/${a.id}`) },
                           { label: "Editar nome e professor", icon: Pencil, onClick: () => setEditando(a) },
@@ -451,7 +467,7 @@ export default function Estudos() {
       </div>
 
       {preview && (
-        <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={fecharPreview}>
+        <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={fecharPreview}>
           <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-center">
               <h2 className="text-lg">Importar {preview.files.length} {preview.files.length === 1 ? "aula" : "aulas"}</h2>
@@ -532,7 +548,7 @@ function EditarAula({ aula, onClose, onSalvo }: { aula: Aula; onClose: () => voi
     onSalvo({ ...aula, title, professor: patch.professor });
   }
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <form onSubmit={salvar} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-6 space-y-3 shadow-2xl">
         <div className="flex justify-between items-center">
           <h2 className="text-lg">Editar aula</h2>
@@ -554,7 +570,7 @@ function EditarAula({ aula, onClose, onSalvo }: { aula: Aula; onClose: () => voi
 function NomeDaPasta({ titulo, inicial, onClose, onSalvar }: { titulo: string; inicial: string; onClose: () => void; onSalvar: (nome: string) => void }) {
   const [nome, setNome] = useState(inicial);
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <form onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); if (nome.trim()) onSalvar(nome.trim()); }}
         className="card w-full max-w-sm p-6 space-y-3 shadow-2xl">
         <h2 className="text-lg">{titulo}</h2>
@@ -573,7 +589,7 @@ function MoverPara({ titulo, ordem, proibidas, atual, raiz, onClose, onEscolher 
   onClose: () => void; onEscolher: (para: string | null) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-sm p-5 space-y-3 shadow-2xl max-h-[85vh] flex flex-col">
         <div className="flex justify-between items-center">
           <h2 className="text-lg truncate">{titulo}</h2>
@@ -616,7 +632,7 @@ function NovaAula({ ordem, inicial, onClose, onImportar, onEmBranco }: {
 }) {
   const [destino, setDestino] = useState<string | null>(inicial);
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-6 space-y-4 shadow-2xl">
         <div className="flex justify-between items-center">
           <h2 className="text-lg">Nova aula</h2>
@@ -650,7 +666,7 @@ function PosicaoDaAula({ aula, atual, total, pasta, onClose, onMover }: {
   const num = Math.round(Number(n));
   const ok = Number.isFinite(num) && num >= 1 && num <= total && num !== atual;
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <form onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); if (ok) onMover(num); }}
         className="card w-full max-w-sm p-6 space-y-4 shadow-2xl">
         <div>

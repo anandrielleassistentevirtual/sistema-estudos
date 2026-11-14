@@ -23,29 +23,25 @@ export function CalendarPanel({ compacto = false }: { compacto?: boolean }) {
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
-    <section id="calendario" className={compacto ? "card p-4 scroll-mt-4 min-w-0" : "mt-4 scroll-mt-4"}>
+    // tudo num cartão só (título, filtros e calendário); o calendário sempre cabe na largura, sem rolar
+    <section id="calendario" className={`card scroll-mt-4 min-w-0 ${compacto ? "p-4" : "mt-4 p-4 md:p-5"}`}>
       <div className={`flex flex-wrap items-center gap-2 ${compacto ? "mb-2" : "mb-3"}`}>
         <h2 className="font-medium mr-auto">Calendário</h2>
-        <div className={`inline-flex rounded-lg bg-surface-2 p-1 ${compacto ? "text-xs" : "text-sm"}`}>
+        {/* celular: as métricas ganham a linha toda, embaixo do título */}
+        <div className={`order-last sm:order-none w-full sm:w-auto flex sm:inline-flex rounded-lg bg-surface-2 p-0.5 sm:p-1 ${compacto ? "text-xs" : "text-[13px] sm:text-sm"}`}>
           {METRICS.map((m) => (
             <button key={m.id} onClick={() => setMetric(m.id)}
-              className={`${compacto ? "px-2.5 py-1" : "px-3 py-1.5"} rounded-md ${metric === m.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
+              className={`flex-1 sm:flex-none ${compacto ? "px-2.5 py-1" : "px-3 py-1 sm:py-1.5"} rounded-md ${metric === m.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
               {m.label}
             </button>
           ))}
         </div>
-        <select className={`input w-auto ${compacto ? "py-1 text-xs" : ""}`} value={year} onChange={(e) => setYear(e.target.value === "12m" ? "12m" : Number(e.target.value))}>
+        <select className={`input w-auto py-1 pr-7 ${compacto ? "text-xs" : ""}`} value={year} onChange={(e) => setYear(e.target.value === "12m" ? "12m" : Number(e.target.value))}>
           <option value="12m">Últimos 12 meses</option>
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
       </div>
-      {compacto ? (
-        <Heatmap data={daily} metric={metric} weeks={weeks} end={end} encaixar />
-      ) : (
-        <div className="card p-5">
-          <Heatmap data={daily} metric={metric} weeks={weeks} end={end} />
-        </div>
-      )}
+      <Heatmap data={daily} metric={metric} weeks={weeks} end={end} />
     </section>
   );
 }

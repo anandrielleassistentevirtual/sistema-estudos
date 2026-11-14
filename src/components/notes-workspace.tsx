@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { ChevronDown, ChevronRight, Download, Eye, FileText, Folder, FolderUp, Link as LinkIcon, Pencil, Plus, Search, Trash2, Upload, X, ZoomIn, ZoomOut, PanelLeftClose, PanelLeftOpen, CircleCheck, Circle } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Download, Eye, FileText, Folder, FolderUp, Link as LinkIcon, Pencil, Plus, Search, Trash2, Upload, X, ZoomIn, ZoomOut, PanelLeftClose, PanelLeftOpen, CircleCheck, Circle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import { countWords, slug, wikilinks } from "@/lib/text";
@@ -28,6 +28,8 @@ type View = "editar" | "ler" | "dividir";
 export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactNode }) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [current, setCurrent] = useState<Note | null>(null);
+  // celular: uma tela de cada vez — a lista ou a nota aberta (com botão de voltar)
+  const [naNota, setNaNota] = useState(false);
   const [q, setQ] = useState("");
   const [view, setView] = useState<View>("dividir");
   const [saving, setSaving] = useState<"salvo" | "salvando" | "pendente">("salvo");
@@ -109,6 +111,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
       isAtomic ? (b.zid ?? "").localeCompare(a.zid ?? "") : a.title.localeCompare(b.title, "pt-BR", { numeric: true }));
     setNotes(list);
     const want = new URLSearchParams(window.location.search).get("id");
+    if (want) setNaNota(true);
     setCurrent((c) => list.find((n) => n.id === (c?.id ?? want)) ?? c ?? list[0] ?? null);
   }, [kind]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { void load(); }, [load]);
@@ -131,7 +134,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
         content: atomicTemplate({ zid, reference, quote: lit.quote || undefined }),
       }).select().single();
       window.history.replaceState(null, "", window.location.pathname);
-      if (data) { await load(); setCurrent(data as Note); setView("editar"); }
+      if (data) { await load(); setCurrent(data as Note); setNaNota(true); setView("editar"); }
     })();
   }, [isAtomic]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -240,6 +243,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
       if (lazy) setCarregados((s) => new Set(s).add((data as Note).id));
       setNotes((all) => [...all, data as Note].sort((a, b) => a.title.localeCompare(b.title, "pt-BR")));
       setCurrent(data as Note);
+      setNaNota(true);
       setView(title ? "dividir" : "editar");
     }
   }
@@ -249,11 +253,12 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     await supabase().from("notes").delete().eq("id", n.id);
     setNotes((all) => all.filter((x) => x.id !== n.id));
     setCurrent(notes.find((x) => x.id !== n.id) ?? null);
+    setNaNota(false);
   }
 
   function openLink(title: string) {
     const n = byTitle.get(title.toLowerCase());
-    if (n) setCurrent(n);
+    if (n) { setCurrent(n); setNaNota(true); }
     else if (confirm(`A nota “${title}” não existe. Criar agora?`)) void create(title);
   }
 
@@ -352,14 +357,14 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)] md:h-screen">
+    <div className="flex flex-col h-[calc(100dvh-3rem-env(safe-area-inset-top))] md:h-screen">
     {tabs && <div className="px-4 md:px-6 pt-3 shrink-0">{tabs}</div>}
-    <div className={`grid flex-1 min-h-0 ${listHidden ? "" : "md:grid-cols-[280px_1fr]"}`}>
-      <aside className={`border-r border-line flex-col min-h-0 bg-bg ${listHidden ? "hidden" : "flex"}`}>
+    <div className={`grid grid-cols-1 flex-1 min-h-0 ${listHidden ? "" : "md:grid-cols-[280px_1fr]"}`}>
+      <aside className={`md:border-r border-line flex-col min-h-0 bg-bg ${naNota ? "hidden" : "flex"} ${listHidden ? "md:hidden" : "md:flex"}`}>
         <div className="p-3 space-y-2 border-b border-line">
           <div className="flex items-center justify-between">
             <h1 className="font-medium flex items-center gap-1">
-              <button className="p-1 -ml-1 text-faint hover:text-ink rounded-md hover:bg-surface-2" title="Recolher a lista (Ctrl + \)" onClick={() => setListHidden(true)}>
+              <button className="hidden md:block p-1 -ml-1 text-faint hover:text-ink rounded-md hover:bg-surface-2" title="Recolher a lista (Ctrl + \)" onClick={() => setListHidden(true)}>
                 <PanelLeftClose size={16} />
               </button>
               {isStudy ? "Estudos" : isAtomic ? "Notas atômicas" : "Notas"}
@@ -414,8 +419,8 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                     </form>
                   ) : (
                     <div key={n.id} className={`group/item flex items-center rounded-md ${current?.id === n.id ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
-                      <button onClick={() => setCurrent(n)} onDoubleClick={() => setRenaming({ id: n.id, value: n.title })}
-                        className={`flex items-center gap-2 flex-1 min-w-0 text-left px-2 py-1.5 text-sm ${g ? "pl-5" : ""}`} title="Dois cliques para renomear">
+                      <button onClick={() => { setCurrent(n); setNaNota(true); }} onDoubleClick={() => setRenaming({ id: n.id, value: n.title })}
+                        className={`flex items-center gap-2 flex-1 min-w-0 text-left px-2 py-2.5 md:py-1.5 text-[15px] md:text-sm ${g ? "pl-5" : ""}`} title="Dois cliques para renomear">
                         {isStudy && n.completed_at
                           ? <CircleCheck size={14} className="text-good shrink-0" />
                           : <FileText size={14} className="text-faint shrink-0" />}
@@ -433,15 +438,18 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
         </div>
       </aside>
 
-      <section className="flex flex-col min-h-0 min-w-0">
+      <section className={`${naNota ? "flex" : "hidden"} md:flex flex-col min-h-0 min-w-0`}>
         {!current ? (
           <div className="p-10 text-sm text-muted">Nada selecionado.</div>
         ) : (
           <>
             <div className="border-b border-line px-4 md:px-6 py-3 space-y-2">
               <div className="flex items-center gap-2">
+                <button className="md:hidden btn btn-ghost px-1.5 -ml-1.5 shrink-0" aria-label="Voltar para a lista" onClick={() => setNaNota(false)}>
+                  <ChevronLeft size={20} />
+                </button>
                 {listHidden && (
-                  <button className="btn btn-ghost px-2 shrink-0" title="Mostrar a lista (Ctrl + \)" onClick={() => setListHidden(false)}>
+                  <button className="hidden md:inline-flex btn btn-ghost px-2 shrink-0" title="Mostrar a lista (Ctrl + \)" onClick={() => setListHidden(false)}>
                     <PanelLeftOpen size={16} />
                   </button>
                 )}
@@ -561,7 +569,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
       </section>
     </div>
     {preview && (
-      <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={() => setPreview(null)}>
+      <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={() => setPreview(null)}>
         <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-center">
             <h2 className="font-medium">Importar {preview.files.length} aulas</h2>

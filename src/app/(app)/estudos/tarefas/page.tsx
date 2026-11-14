@@ -107,7 +107,7 @@ export default function Tarefas() {
     const secs = tempo.get(t.id) ?? 0;
     const faltam = b?.word_count && b.status === "lendo" ? b.word_count * (1 - progressoDoLivro(b)) : 0;
     return (
-      <li key={t.id} className="flex items-start gap-3 px-4 py-3">
+      <li key={t.id} className="flex items-start gap-2.5 sm:gap-3 pl-3.5 pr-2 sm:px-4 py-3">
         <Icone size={16} className="text-icon mt-1 shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="leading-snug">
@@ -149,10 +149,15 @@ export default function Tarefas() {
             )}
             {secs >= 60 && <span title="Tempo de foco dedicado no Timer">⏱ {fmtDuration(secs)}</span>}
           </div>
+          {/* celular: as ações principais com nome, embaixo do texto (o texto fica com a largura toda) */}
+          <div className="flex gap-2 mt-2.5 sm:hidden">
+            <button className="btn py-1.5 px-3 text-[13px]" onClick={() => fazerAgora(t)}><Play size={14} /> Fazer agora</button>
+            <button className="btn py-1.5 px-3 text-[13px]" onClick={() => setConcluindo(t)}><Check size={15} /> Feita</button>
+          </div>
         </div>
-        <div className="flex items-center gap-0.5 shrink-0">
-          <button className="btn btn-ghost px-2 py-1" title="Fazer agora: liga o Timer nesta tarefa" onClick={() => fazerAgora(t)}><Play size={15} /></button>
-          <button className="btn btn-ghost px-2 py-1" title="Feita: riscar" onClick={() => setConcluindo(t)}><Check size={16} /></button>
+        <div className="flex items-center gap-0.5 shrink-0 -mt-1 sm:mt-0">
+          <button className="btn btn-ghost px-2 py-1 hidden sm:inline-flex" title="Fazer agora: liga o Timer nesta tarefa" onClick={() => fazerAgora(t)}><Play size={15} /></button>
+          <button className="btn btn-ghost px-2 py-1 hidden sm:inline-flex" title="Feita: riscar" onClick={() => setConcluindo(t)}><Check size={16} /></button>
           <button className="btn btn-ghost px-2 py-1 hidden sm:inline-flex" title="Fiz uma parte: reescreve no fim da lista" onClick={() => fizUmaParte(t)}><RefreshCw size={14} /></button>
           <RowMenu items={[
             { label: "Fiz uma parte (vai para o fim)", icon: RefreshCw, onClick: () => fizUmaParte(t) },
@@ -308,7 +313,7 @@ export default function Tarefas() {
 
 function Janela({ titulo, onClose, children }: { titulo: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div className="card w-full max-w-md p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-lg">{titulo}</h2>
@@ -400,7 +405,7 @@ function FormTarefa({ ordem, filhos, porId, livros, aulas, inicial, rotulo, onSa
       {!mais ? (
         <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => setMais(true)}>+ descrição, curso, aula, livro, link ou prazo</button>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <label className="block sm:col-span-2"><span className="label">Descrição (opcional)</span>
             <textarea className="input mt-1 min-h-[72px] resize-y leading-relaxed" value={descricao} onChange={(e) => setDescricao(e.target.value)}
               placeholder="Detalhes, passos, o que o professor pediu…" /></label>

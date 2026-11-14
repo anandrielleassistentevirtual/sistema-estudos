@@ -11,7 +11,7 @@ export function FizAConfissao({ total, onClose, onConfirmar }: {
   const [indo, setIndo] = useState(false);
   const [erro, setErro] = useState("");
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center p-4 bg-black/50" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div className="card w-full max-w-md p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg">Fiz a confissão</h2>
         <label className="block"><span className="label">Quando?</span>

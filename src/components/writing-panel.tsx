@@ -64,32 +64,32 @@ export function WritingPanel({ compacto = false }: { compacto?: boolean } = {}) 
         <h2 className="font-medium flex items-center gap-2"><Feather size={16} className="text-icon" /> Escrita</h2>
         <Link href="/escrita" className="text-sm text-accent flex items-center gap-0.5">Abrir <ChevronRight size={15} /></Link>
       </div>
-      <div className={compacto ? "space-y-3" : "grid md:grid-cols-[1fr_1.2fr] gap-6"}>
-        <div className={`grid ${compacto ? "grid-cols-4 gap-x-3" : "grid-cols-2 gap-x-6 gap-y-4"}`}>
+      <div className={compacto ? "space-y-3" : "grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-3 md:gap-6"}>
+        <div className={`grid min-w-0 ${compacto ? "grid-cols-4 gap-x-2 sm:gap-x-3" : "grid-cols-4 md:grid-cols-2 gap-x-2 sm:gap-x-6 gap-y-4"}`}>
           <div>
-            <div className="text-[13px] text-muted">Hoje</div>
-            <div className={`${compacto ? "text-[1.3rem]" : "text-[1.6rem]"} tracking-tight tabular-nums leading-tight`}>{nf.format(hoje)}</div>
+            <div className="text-[11.5px] sm:text-[13px] text-muted truncate">Hoje</div>
+            <div className={`${compacto ? "text-[1.15rem] min-[400px]:text-[1.3rem]" : "text-[1.15rem] min-[400px]:text-[1.3rem] md:text-[1.6rem]"} tracking-tight tabular-nums leading-tight`}>{nf.format(hoje)}</div>
             {metaDia > 0 ? (
               <>
                 <div className="mt-1.5 h-1.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full bg-chart" style={{ width: `${pctDia * 100}%` }} /></div>
-                <div className="text-xs text-faint mt-1">{hoje >= metaDia ? "meta do dia cumprida" : `meta ${nf.format(metaDia)}`}</div>
+                <div className="text-[10.5px] sm:text-xs text-faint mt-1 leading-snug">{hoje >= metaDia ? "meta do dia cumprida" : `meta ${nf.format(metaDia)}`}</div>
               </>
-            ) : <div className="text-xs text-faint">palavras escritas</div>}
+            ) : <div className="text-[10.5px] sm:text-xs text-faint leading-snug">palavras escritas</div>}
           </div>
           <div>
-            <div className="text-[13px] text-muted">Esta semana</div>
-            <div className={`${compacto ? "text-[1.3rem]" : "text-[1.6rem]"} tracking-tight tabular-nums leading-tight`}>{nf.format(semanaPalavras)}</div>
-            <div className="text-xs text-faint">{semanaTempo ? `${fmtDuration(semanaTempo)} escrevendo` : "palavras"}</div>
+            <div className="text-[11.5px] sm:text-[13px] text-muted truncate"><span className="min-[400px]:hidden">Semana</span><span className="hidden min-[400px]:inline">Esta semana</span></div>
+            <div className={`${compacto ? "text-[1.15rem] min-[400px]:text-[1.3rem]" : "text-[1.15rem] min-[400px]:text-[1.3rem] md:text-[1.6rem]"} tracking-tight tabular-nums leading-tight`}>{nf.format(semanaPalavras)}</div>
+            <div className="text-[10.5px] sm:text-xs text-faint leading-snug">{semanaTempo ? `${fmtDuration(semanaTempo)} escrevendo` : "palavras"}</div>
           </div>
           <div>
-            <div className="text-[13px] text-muted">Sequência</div>
-            <div className={`${compacto ? "text-[1.3rem]" : "text-[1.6rem]"} tracking-tight tabular-nums leading-tight`}>{seq} {seq === 1 ? "dia" : "dias"}</div>
-            <div className="text-xs text-faint">escrevendo seguidos</div>
+            <div className="text-[11.5px] sm:text-[13px] text-muted truncate">Sequência</div>
+            <div className={`${compacto ? "text-[1.15rem] min-[400px]:text-[1.3rem]" : "text-[1.15rem] min-[400px]:text-[1.3rem] md:text-[1.6rem]"} tracking-tight tabular-nums leading-tight`}>{seq} {seq === 1 ? "dia" : "dias"}</div>
+            <div className="text-[10.5px] sm:text-xs text-faint leading-snug">escrevendo seguidos</div>
           </div>
           <div>
-            <div className="text-[13px] text-muted">Ritmo</div>
-            <div className={`${compacto ? "text-[1.3rem]" : "text-[1.6rem]"} tracking-tight tabular-nums leading-tight`}>{ritmo ? nf.format(ritmo) : "—"}</div>
-            <div className="text-xs text-faint">palavras por hora</div>
+            <div className="text-[11.5px] sm:text-[13px] text-muted truncate">Ritmo</div>
+            <div className={`${compacto ? "text-[1.15rem] min-[400px]:text-[1.3rem]" : "text-[1.15rem] min-[400px]:text-[1.3rem] md:text-[1.6rem]"} tracking-tight tabular-nums leading-tight`}>{ritmo ? nf.format(ritmo) : "—"}</div>
+            <div className="text-[10.5px] sm:text-xs text-faint leading-snug">palavras por hora</div>
           </div>
         </div>
         <ul className="space-y-1">
@@ -99,10 +99,10 @@ export function WritingPanel({ compacto = false }: { compacto?: boolean } = {}) 
             const h = hojePorProjeto(p.id);
             return (
               <li key={p.id}>
-                <Link href={`/escrita/${p.id}`} className="block rounded-lg px-3 py-2 -mx-1 hover:bg-surface-2">
-                  <div className="flex items-baseline justify-between gap-3">
+                <Link href={`/escrita/${p.id}`} className="block rounded-lg px-3 py-2 -mx-3 sm:-mx-1 hover:bg-surface-2">
+                  <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-x-3 gap-y-0.5">
                     <span className="truncate">{p.titulo} <span className="text-xs text-faint">· {tipoDe(p.tipo).label}</span></span>
-                    <span className="text-xs text-muted tabular-nums shrink-0">
+                    <span className="text-xs text-muted tabular-nums sm:shrink-0">
                       {nf.format(total)}{p.meta_palavras ? ` / ${nf.format(p.meta_palavras)}` : ""} pal.{h > 0 ? ` · hoje +${nf.format(h)}` : ""}
                     </span>
                   </div>

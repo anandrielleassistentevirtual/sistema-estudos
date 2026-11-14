@@ -166,7 +166,7 @@ export default function Dashboard() {
         await supabase().auth.updateUser({ data: { nome: n } });
         setNome(n);
       }}>{nome ? "trocar nome" : "Como quer ser chamado?"}</button>}>
-      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-2 sm:gap-3">
         {/* legendas: uma linha curta, para comparar; a explicação fica no tooltip */}
         <Stat compacto label="Hoje" value={fmtDuration(s.today)} hint={<Variacao atual={s.today} base={s.media30} vs="média" />}
           explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas. Comparado com a sua média por dia nos últimos 30 dias, contando a partir do primeiro registro (${fmtDuration(s.media30)}).`} />
@@ -194,12 +194,12 @@ export default function Dashboard() {
 
       <ConfissaoAviso />
 
-      <div className="grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-4 mt-4">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-3 md:gap-4 mt-3 md:mt-4">
         <CalendarPanel compacto />
         <TimeBreakdown compacto />
       </div>
 
-      <section className="mt-4 grid lg:grid-cols-3 gap-4">
+      <section className="mt-3 md:mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
         <WritingPanel compacto />
         <div className="card p-4 min-w-0">
           <h2 className="font-medium mb-2">Continuar lendo</h2>
@@ -212,7 +212,7 @@ export default function Dashboard() {
               {reading.slice(0, 3).map((b) => (
                 <li key={b.id}>
                   <Link href={`/ler/${b.id}`} className="flex items-center gap-3 rounded-lg p-1.5 -mx-1.5 hover:bg-surface-2">
-                    <Cover book={b} url={covers[b.id]} className="w-7 h-10" />
+                    <Cover book={b} url={covers[b.id]} className="w-7 h-10 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm truncate font-medium" title={`${b.author ? `${b.author} — ` : ""}${b.title}`}>{b.title}</div>
                       <div className="h-1 rounded-full bg-surface-2 mt-1 overflow-hidden">
@@ -233,11 +233,11 @@ export default function Dashboard() {
         </div>
         <div className="card p-4 min-w-0">
           <h2 className="font-medium mb-2">Biblioteca</h2>
-          <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center">
             {(["aguardando", "lendo", "pausado", "lido"] as const).map((st) => (
-              <div key={st} className="rounded-lg bg-surface-2 py-2">
+              <div key={st} className="rounded-lg bg-surface-2 py-2 min-w-0">
                 <div className="text-lg font-medium tabular-nums">{count(st)}</div>
-                <div className="text-[11px] text-muted capitalize">{st}</div>
+                <div className="text-[10.5px] sm:text-[11px] text-muted capitalize truncate px-0.5">{st}</div>
               </div>
             ))}
           </div>

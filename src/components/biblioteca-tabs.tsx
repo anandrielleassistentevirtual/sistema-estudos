@@ -12,7 +12,7 @@ const TABS = [
 export function BibliotecaTabs() {
   const path = usePathname();
   return (
-    <nav className="flex gap-1 border-b border-line mb-6 -mt-2 overflow-x-auto">
+    <nav className="flex gap-1 border-b border-line mb-5 md:mb-6 -mt-2 -mx-4 px-4 md:mx-0 md:px-0 overflow-x-auto no-scrollbar">
       {TABS.map(({ href, label, icon: Icon }) => {
         const ativo = href === "/biblioteca" ? path === "/biblioteca" : path.startsWith(href);
         return (

@@ -336,19 +336,19 @@ export default function SalaDeEscrita() {
     <div ref={raiz} className="fixed inset-0 z-20 bg-bg text-ink flex flex-col pt-safe pb-safe">
       {/* cabeçalho */}
       {!foco && (
-        <header className="h-12 shrink-0 flex items-center gap-2 px-3 border-b border-line">
+        <header className="h-12 shrink-0 flex items-center gap-1 sm:gap-2 px-1.5 sm:px-3 border-b border-line">
           <Link href="/escrita" className="p-1.5 text-muted hover:text-ink" title="Voltar aos projetos"><ChevronLeft size={18} /></Link>
           <button className="p-1.5 text-muted hover:text-ink" title={arvore ? "Esconder o projeto" : "Mostrar o projeto"} onClick={() => setArvore(!arvore)}>
             {arvore ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
           </button>
-          <input className="min-w-0 w-24 sm:w-48 mr-1 sm:mr-2 bg-transparent outline-none text-sm truncate rounded px-1.5 py-1 hover:bg-surface-2 focus:bg-surface-2"
+          <input className="hidden sm:block min-w-0 w-48 mr-2 bg-transparent outline-none text-sm truncate rounded px-1.5 py-1 hover:bg-surface-2 focus:bg-surface-2"
             title="Clique para renomear o projeto" value={projeto.titulo}
             onChange={(e) => setProjeto({ ...projeto, titulo: e.target.value })}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             onBlur={(e) => { const t = e.target.value.trim() || "Sem título"; setProjeto({ ...projeto, titulo: t }); fire(supabase().from("escrita_projetos").update({ titulo: t }).eq("id", id)); }} />
           <nav className="flex items-center gap-0.5 rounded-lg bg-surface-2 p-0.5 text-sm mx-auto">
             {([["escrever", "Escrever", PenLine], ["livro", "Texto inteiro", BookOpenText], ...(E.escaleta ? [["escaleta", "Escaleta", Table2] as const] : []), ...(E.referencias ? [["referencias", "Referências", Library] as const] : []), ["estatisticas", "Estatísticas", BarChart3]] as const).map(([k, l, I]) => (
-              <button key={k} onClick={() => setAba(k)} className={`flex items-center gap-1.5 px-3 py-1 rounded-md ${aba === k ? "bg-seg shadow-sm text-ink" : "text-muted hover:text-ink"}`}>
+              <button key={k} onClick={() => setAba(k)} title={l} aria-label={l} className={`flex items-center gap-1.5 px-2 min-[400px]:px-2.5 sm:px-3 py-1.5 sm:py-1 rounded-md ${aba === k ? "bg-seg shadow-sm text-ink" : "text-muted hover:text-ink"}`}>
                 <I size={14} /> <span className="hidden sm:inline">{l}</span>
               </button>
             ))}
@@ -362,7 +362,7 @@ export default function SalaDeEscrita() {
                 {painel ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
               </button>
             )}
-            <button className="btn ml-1 py-1" title="Modo foco: tela cheia, sem distrações (Ctrl + Shift + F)" onClick={entrarFoco}><Maximize2 size={14} /> <span className="hidden sm:inline">Foco</span></button>
+            <button className="btn ml-1 py-1 px-2 sm:px-[0.85rem]" title="Modo foco: tela cheia, sem distrações (Ctrl + Shift + F)" onClick={entrarFoco}><Maximize2 size={14} /> <span className="hidden sm:inline">Foco</span></button>
           </div>
         </header>
       )}
@@ -806,7 +806,7 @@ function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
   const cenas = ms.flatMap((c) => c.cenas);
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card l="Manuscrito" v={`${nf.format(total)}`} h={projeto.meta_palavras ? `${Math.round(pct * 100)}% de ${nf.format(projeto.meta_palavras)}` : "palavras"} />
           <Card l="Hoje" v={`${hoje.palavras >= 0 ? "+" : ""}${nf.format(hoje.palavras)}`} h={projeto.meta_diaria ? `meta ${nf.format(projeto.meta_diaria)} · ${fmtDuration(hoje.segundos)}` : fmtDuration(hoje.segundos)} />
@@ -816,12 +816,12 @@ function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
         {projeto.meta_palavras > 0 && (
           <div className="h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--chart)" }} /></div>
         )}
-        <div className="card p-5">
-          <div className="flex items-baseline justify-between mb-4"><h3>Palavras por dia</h3><span className="text-xs text-muted">últimas 3 semanas</span></div>
+        <div className="card p-4 md:p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3 md:mb-4"><h3>Palavras por dia</h3><span className="text-xs text-muted">últimas 3 semanas</span></div>
           <BarChart unit="palavras" height={140}
             data={dias.map((d) => ({ label: parseDay(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), value: Math.max(0, porDia.get(d)?.palavras ?? 0), detail: fmtDuration(porDia.get(d)?.segundos ?? 0) }))} />
         </div>
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="card p-5">
             <h3 className="mb-3">Sessões</h3>
             {sessoes.length === 0 && <p className="text-sm text-muted">As sessões aparecem aqui quando você escreve.</p>}
@@ -1042,7 +1042,7 @@ function Referencias({ projetoId, refs, setRefs }: { projetoId: string; refs: Re
                   {livros.map((l) => <option key={l.id} value={l.id}>{l.author ? `${l.author} — ` : ""}{l.title}</option>)}
                 </select></label>
             )}
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {campo("autor", "Autor(es)", "Sobrenome, Nome; Sobrenome, Nome", "sm:col-span-2")}
               {campo("titulo", "Título")}
               {campo("subtitulo", "Subtítulo")}

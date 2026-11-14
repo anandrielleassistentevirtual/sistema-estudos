@@ -282,10 +282,50 @@ body {
 .pt-safe { padding-top: env(safe-area-inset-top); }
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 
+/* Celular: nada pode empurrar a página para os lados (o que é largo rola dentro do próprio quadro) */
+.app-main { overflow-x: clip; }
+
+/* Celular: campos com letra de 16px — abaixo disso o iPhone dá zoom na tela ao tocar no campo.
+   (campos com letra maior, como o título no editor, ficam como estão) */
+@media (max-width: 767.98px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([class*="text-lg"]):not([class*="text-xl"]):not([class*="text-2xl"]),
+  select:not([class*="text-lg"]),
+  textarea:not([class*="text-lg"]) {
+    font-size: 16px;
+  }
+}
+
+/* Celular: janelas (editar livro, nova pasta…) sobem de baixo como "folha", ao alcance do polegar,
+   e ficam acima do botão do Timer */
+@media (max-width: 639.98px) {
+  .modal { place-items: end center; padding: 0; }
+  .modal > .card {
+    max-width: none;
+    max-height: 92dvh;
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    border-width: 1px 0 0;
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    animation: folha-sobe 0.22s ease-out;
+  }
+}
+@keyframes folha-sobe { from { transform: translateY(24px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+
+/* rolagem lateral sem barra (abas e filtros que não cabem na largura do celular) */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* toque: sem o flash cinza do iOS e sem atraso de duplo toque */
+html { -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
 /* menu lateral: recolhível (html[data-menu="oculto"]) */
 @media (min-width: 768px) {
   .app-main { padding-left: 15rem; }
   .app-left { left: 15rem; }
   html[data-menu="oculto"] .app-main { padding-left: 0; }
   html[data-menu="oculto"] .app-left { left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal > .card { animation: none; }
 }

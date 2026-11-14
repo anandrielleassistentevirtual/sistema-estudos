@@ -58,8 +58,8 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
 
   return (
     // na tela do Timer (computador): relógio à esquerda, ajustes à direita — tudo sem precisar rolar
-    <div className={compact ? "flex flex-col items-center w-full" : "w-full grid lg:grid-cols-[auto_minmax(300px,1fr)] gap-6 lg:gap-10 items-center"}>
-    <div className="flex flex-col items-center">
+    <div className={compact ? "flex flex-col items-center w-full" : "w-full grid grid-cols-1 lg:grid-cols-[auto_minmax(300px,1fr)] gap-6 lg:gap-10 items-center"}>
+    <div className="flex flex-col items-center min-w-0">
       <div className={`inline-flex rounded-lg bg-surface-2 p-1 text-sm ${compact ? "mb-3" : "mb-4"}`}>
         {(["pomodoro", "livre"] as const).map((m) => (
           <button key={m} disabled={t.running} onClick={() => t.set({ mode: m, phase: "foco", elapsed: 0 })}
@@ -69,7 +69,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         ))}
       </div>
 
-      <div className="relative" style={{ width: size, height: size }}>
+      <div className="relative aspect-square max-w-full" style={{ width: size }}>
         <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full -rotate-90">
           <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke="var(--surface-2)" strokeWidth={compact ? 7 : 10} />
           <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke={t.phase === "foco" ? "var(--accent)" : "var(--good)"}
@@ -85,14 +85,14 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
 
-      <div className={`flex gap-2 ${compact ? "mt-3" : "mt-4"}`}>
+      <div className={`flex flex-wrap justify-center gap-2 ${compact ? "mt-3" : "mt-4"}`}>
         {t.running ? (
-          <button className="btn btn-primary px-4" onClick={t.pause}><Pause size={16} /> Pausar</button>
+          <button className="btn btn-primary px-4 py-2.5 sm:py-[0.45rem]" onClick={t.pause}><Pause size={16} /> Pausar</button>
         ) : (
-          <button className="btn btn-primary px-4" onClick={t.start}><Play size={16} /> {t.seconds > 0 ? "Continuar" : "Iniciar"}</button>
+          <button className="btn btn-primary px-4 py-2.5 sm:py-[0.45rem]" onClick={t.start}><Play size={16} /> {t.seconds > 0 ? "Continuar" : "Iniciar"}</button>
         )}
-        <button className="btn" onClick={() => void t.stop()} disabled={t.seconds === 0} title="Encerrar e salvar">
-          <Square size={15} /> {compact ? "Encerrar" : "Encerrar e salvar"}
+        <button className="btn py-2.5 sm:py-[0.45rem] whitespace-nowrap" onClick={() => void t.stop()} disabled={t.seconds === 0} title="Encerrar e salvar">
+          <Square size={15} /> {compact ? "Encerrar" : <><span className="sm:hidden">Encerrar</span><span className="hidden sm:inline">Encerrar e salvar</span></>}
         </button>
         <button className="btn btn-ghost px-2" onClick={t.reset} title="Zerar sem salvar"><RotateCcw size={15} /></button>
       </div>
@@ -126,7 +126,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         </div>
       )}
 
-      <div className={`grid gap-3 w-full ${compact ? "mt-4" : "sm:grid-cols-2"}`}>
+      <div className={`grid grid-cols-1 gap-3 w-full ${compact ? "mt-4" : "sm:grid-cols-2"}`}>
         <label className="space-y-1">
           <span className="label">Categoria</span>
           <select className="input" value={t.category} onChange={(e) => t.set({ category: e.target.value, tarefaId: "", tarefaTexto: "" })}>
