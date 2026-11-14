@@ -10,6 +10,7 @@ import { Empty, Page, Stat } from "@/components/page";
 import { AnkiNoComputador, AnkiWebBarra, Conectar } from "@/components/anki-conta";
 import { ListeningPainel } from "@/components/listening-painel";
 import { ROTULO_LISTENING } from "@/lib/listening";
+import { contaComoEstudo } from "@/lib/tempo";
 import { BarChart } from "@/components/bar-chart";
 import { Heatmap } from "@/components/heatmap";
 import { Bandeira, BANDEIRAS, bandeiraDoIdioma } from "@/components/bandeira";
@@ -67,7 +68,7 @@ export default function Idiomas() {
   const decksDoIdioma = useMemo(() => new Set(sel?.anki_baralhos ?? []), [sel]);
   const meusDias = useMemo(() => ankiDias.filter((d) => decksDoIdioma.has(d.baralho)), [ankiDias, decksDoIdioma]);
   // a revisão feita aqui no sistema ("Anki · 12 cartões") já está no histórico do Anki: com baralhos ligados, não conta duas vezes
-  const minhasSessoes = useMemo(() => sessions.filter((s) => s.language === sel?.name && !(sel?.anki_baralhos.length && s.label.startsWith("Anki ·"))), [sessions, sel]);
+  const minhasSessoes = useMemo(() => sessions.filter((s) => s.language === sel?.name && contaComoEstudo(s.label, !!conta)), [sessions, sel, conta]);
 
   // por dia: revisões (azul), criados (amarelo) e segundos no Anki
   const { revisoes, criados } = useMemo(() => {

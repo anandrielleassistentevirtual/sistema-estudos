@@ -63,7 +63,10 @@ export function lerColecao(arquivo: string, opcoes: { tz: string; desde: string;
     const virada = Number(lerConfig(db, "rollover") ?? 4) || 0; // o dia do Anki começa nesta hora (padrão 4h)
     const desloc = offsetMin(opcoes.tz, agora) * 60 - virada * 3600; // segundos somados ao horário UTC para cair no "dia do Anki"
     const crt = Number((db.prepare("select crt from col").get() as { crt: number }).crt);
-    const hoje = Math.floor((agoraS - crt) / 86400); // dias desde a criação da coleção (como o Anki conta os vencimentos)
+    // "hoje" para o Anki: quantos DIAS DE CALENDÁRIO (que começam na hora da virada, 4h por padrão, no fuso local)
+    // se passaram desde o dia da criação da coleção — não blocos de 24 h desde o instante da criação
+    const diaLocal = (seg: number) => Math.floor((seg + desloc) / 86400);
+    const hoje = diaLocal(agoraS) - diaLocal(crt);
 
     // revisões e tempo por dia (sem as mudanças manuais de data, que não são revisões)
     const desdeMs = (Date.parse(`${opcoes.desde}T00:00:00Z`) / 1000 - desloc) * 1000;

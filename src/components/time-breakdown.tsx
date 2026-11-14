@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { addDays, dayKey, fmtDuration, weekStart } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
+import { ankiPorIdioma, contaComoEstudo, type AnkiIdiomaDia } from "@/lib/tempo";
 
 type Period = "semana" | "30d" | "ano";
 const PERIODS: { id: Period; label: string }[] = [
@@ -20,6 +21,7 @@ export function TimeBreakdown({ compacto = false }: { compacto?: boolean } = {})
   const [sessions, setSessions] = useState<Sess[]>([]);
   const [reading, setReading] = useState<Read[]>([]);
   const [courseOf, setCourseOf] = useState<Map<string, string>>(new Map());
+  const [anki, setAnki] = useState<{ dias: AnkiIdiomaDia[]; ankiWeb: boolean }>({ dias: [], ankiWeb: false });
   const [hover, setHover] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,16 +31,18 @@ export function TimeBreakdown({ compacto = false }: { compacto?: boolean } = {})
       todas<Sess>((de, ate) => sb.from("study_sessions").select("day,seconds,category,language,note_id,label").gte("day", from).order("id").range(de, ate)),
       todas<Read>((de, ate) => sb.from("reading_sessions").select("day,seconds,during_timer,note_id").gte("day", from).order("id").range(de, ate)),
       todas<{ id: string; course: string }>((de, ate) => sb.from("notes").select("id,course").eq("kind", "estudo").order("id").range(de, ate)),
-    ]).then(([s, r, n]) => {
+      ankiPorIdioma(from),
+    ]).then(([s, r, n, a]) => {
       setSessions(s);
       setReading(r);
+      setAnki(a);
       // só a pasta do curso: "Paulo Cantarelli › EFESC › Correções" → "EFESC" (o autor e as subpastas ficam de fora)
       const doCurso = (caminho: string) => { const p = caminho.split(" › ").map((x) => x.trim()).filter(Boolean); return p[1] ?? p[0] ?? ""; };
       setCourseOf(new Map(n.map((x) => [x.id, doCurso(x.course)])));
     }).catch(() => {});
   }, []);
 
-  const rows = useMemo(() => {
+  const todasLinhas = useMemo(() => {
     const now = new Date();
     const from = dayKey(period === "semana" ? weekStart(now) : period === "30d" ? addDays(now, -29) : new Date(now.getFullYear(), 0, 1));
     const m = new Map<string, { label: string; kind: string; seconds: number }>();
@@ -48,7 +52,7 @@ export function TimeBreakdown({ compacto = false }: { compacto?: boolean } = {})
       m.set(key, v);
     };
     for (const s of sessions) {
-      if (s.day < from) continue;
+      if (s.day < from || !contaComoEstudo(s.label, anki.ankiWeb)) continue;
       if (s.category === "Idiomas") add(`lang:${s.language ?? ""}`, s.language || "Idiomas (sem idioma)", "Idioma", s.seconds);
       else if (s.category === "Estudos") {
         const course = s.note_id ? courseOf.get(s.note_id) : undefined;
@@ -64,10 +68,14 @@ export function TimeBreakdown({ compacto = false }: { compacto?: boolean } = {})
         add(`curso:${course ?? ""}`, course || "Estudos (sem curso)", "Curso", r.seconds);
       } else add("leitura", "Leitura", "Leitura", r.seconds);
     }
-    return [...m.entries()].map(([key, v]) => ({ key, ...v })).filter((r) => r.seconds >= 60).sort((a, b) => b.seconds - a.seconds);
-  }, [sessions, reading, courseOf, period]);
+    // tempo no Anki: entra no idioma dono do baralho (a mesma regra dos indicadores do Dashboard)
+    for (const a of anki.dias) if (a.day >= from) add(`lang:${a.idioma}`, a.idioma, "Idioma", a.segundos);
+    return [...m.entries()].map(([key, v]) => ({ key, ...v })).sort((a, b) => b.seconds - a.seconds);
+  }, [sessions, reading, courseOf, period, anki]);
+  // o total é o mesmo dos indicadores (tudo); itens com menos de 1 min só não ganham linha própria
+  const total = todasLinhas.reduce((a, r) => a + r.seconds, 0);
+  const rows = todasLinhas.filter((r) => r.seconds >= 60);
 
-  const total = rows.reduce((a, r) => a + r.seconds, 0);
   // compacto: os 5 maiores e o resto somado em "Outros" (cabe na tela do Dashboard)
   const visiveis = compacto && rows.length > 6
     ? [...rows.slice(0, 5), { key: "__outros", label: "Outros", kind: `${rows.length - 5} itens`, seconds: rows.slice(5).reduce((a, r) => a + r.seconds, 0) } as typeof rows[number]]
