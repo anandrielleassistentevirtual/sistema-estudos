@@ -132,8 +132,8 @@ export default function Dashboard() {
         setNome(n);
       }}>{nome ? "trocar nome" : "Como quer ser chamado?"}</button>}>
       <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3">
-        <Stat compacto label="Hoje" value={fmtDuration(s.today)} hint="timer + leitura" />
-        <Stat compacto label="Esta semana" value={fmtDuration(s.week)} />
+        <Stat compacto label="Hoje" value={fmtDuration(s.today)} hint="timer + leitura + Anki" />
+        <Stat compacto label="Esta semana" value={fmtDuration(s.week)} hint="timer + leitura + Anki" />
         <Stat compacto label="Sequência" value={`${s.streak} ${s.streak === 1 ? "dia" : "dias"}`} />
         <Stat compacto label="Velocidade" value={ppmMedia ? `${ppmMedia} ppm` : "—"}
           hint={ppm.leitura && ppm.estudos ? `leitura ${ppm.leitura} · estudos ${ppm.estudos} (média, 30 dias)` : ppm.leitura ? `leitura, últimos 30 dias` : ppm.estudos ? "estudos, últimos 30 dias" : "palavras/min, últimos 30 dias"} />
