@@ -88,7 +88,7 @@ export function ListeningPainel({ idioma }: { idioma: string }) {
       <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-sm">
         <span className="flex items-center gap-2 flex-wrap">
           <Headphones size={16} className="text-icon" />
-          <b className="font-medium">Listening automático do curso do Mairo</b>
+          <b className="font-medium">Listening automático</b>
           <span className="text-muted">
             · {minhas.length ? `${minhas.length} ${minhas.length === 1 ? "aparelho" : "aparelhos"}${ultimo ? ` · último envio ${haQuanto(ultimo)}` : " · esperando o primeiro áudio"}` : "não ligado"}
           </span>

@@ -6,7 +6,7 @@
  */
 import { supabase } from "./supabase/client";
 
-export const ROTULO_LISTENING = "Listening (Mairo)";
+export const ROTULO_LISTENING = "Listening";
 
 export interface ChaveListening { id: string; idioma: string; aparelho: string; created_at: string; ultimo_uso: string | null; revogada: boolean }
 

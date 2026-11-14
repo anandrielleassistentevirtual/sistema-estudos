@@ -15,7 +15,7 @@ import { Heatmap } from "@/components/heatmap";
 import { Bandeira, BANDEIRAS, bandeiraDoIdioma } from "@/components/bandeira";
 import { Language, loadLanguages, ONDE, palpiteDeBaralhos, SUGESTOES } from "@/lib/languages";
 import { ankiOnline, contaAnki, sincronizarAnkiSeAntigo, type BaralhoAnki, type ContaAnki } from "@/lib/anki";
-import { addDays, dayKey, fmtDuration, nf, parseDay, weekStart } from "@/lib/dates";
+import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { emptyDay, type DayStats } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
@@ -119,15 +119,14 @@ export default function Idiomas() {
     const from = dayKey(addDays(new Date(), -29));
     for (const s of minhasSessoes) {
       if (s.day < from) continue;
-      const k = s.label.startsWith("Lição") ? "Lições (este sistema)" : s.label.startsWith("Anki ·") ? "Anki (revisão no sistema)" : s.label || "Timer";
+      const k = s.label.startsWith("Lição") ? "Lições" : s.label.startsWith("Anki") ? "Anki" : s.label.startsWith("Listening") ? "Listening" : s.label || "Timer";
       m.set(k, (m.get(k) ?? 0) + s.seconds);
     }
     const anki = soma(meusDias.filter((d) => d.day >= from), (d) => d.segundos);
-    if (anki) m.set("Anki (revisões)", (m.get("Anki (revisões)") ?? 0) + anki);
+    if (anki) m.set("Anki", (m.get("Anki") ?? 0) + anki);
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [minhasSessoes, meusDias]);
 
-  const recentes = [...minhasSessoes].sort((a, b) => (a.day < b.day ? 1 : -1)).slice(0, 6);
 
   return (
     <Page
@@ -202,19 +201,7 @@ export default function Idiomas() {
                   ))}
                 </ul>
               )}
-              {recentes.length > 0 && (
-                <>
-                  <h4 className="label mt-5 mb-2">Últimos registros</h4>
-                  <ul className="space-y-1 text-xs text-muted">
-                    {recentes.map((s, i) => (
-                      <li key={i} className="flex justify-between gap-2">
-                        <span className="truncate">{parseDay(s.day).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} · {s.label || "Timer"}</span>
-                        <span className="tabular-nums">{fmtDuration(s.seconds)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
+
             </section>
           </div>
 
