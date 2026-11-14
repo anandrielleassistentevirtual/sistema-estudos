@@ -11,7 +11,7 @@ import { nf } from "@/lib/dates";
 export function BarChart({
   data,
   unit,
-  height = 160,
+  height: alturaPedida = 160,
   average,
 }: {
   data: { label: string; value: number; detail?: string }[];
@@ -42,6 +42,8 @@ export function BarChart({
     return () => document.removeEventListener("pointerdown", fora);
   }, [sel]);
 
+  // no celular o gráfico fica mais baixo (a tela é estreita: barras altas só gastam rolagem)
+  const height = largura && largura < 480 ? Math.round(alturaPedida * 0.62) : alturaPedida;
   const max = Math.max(1, ...data.map((d) => d.value), average ?? 0);
   const nice = niceMax(max);
   const n = data.length;

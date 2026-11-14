@@ -33,10 +33,10 @@ export function Page({
 
 export function Stat({ label, value, hint, cor }: { label: string; value: React.ReactNode; hint?: string; cor?: string }) {
   return (
-    <div className="card p-4">
-      <div className="text-[13px] text-muted">{label}</div>
-      <div className="text-[1.75rem] font-normal tracking-tight mt-1 tabular-nums leading-none" style={cor ? { color: cor } : undefined}>{value}</div>
-      {hint && <div className="text-xs text-faint mt-2">{hint}</div>}
+    <div className="card px-3.5 py-3 sm:p-4">
+      <div className="text-[12.5px] sm:text-[13px] text-muted">{label}</div>
+      <div className="text-[1.4rem] sm:text-[1.75rem] font-normal tracking-tight mt-1 tabular-nums leading-none" style={cor ? { color: cor } : undefined}>{value}</div>
+      {hint && <div className="text-[11px] sm:text-xs text-faint mt-1.5 sm:mt-2 leading-snug">{hint}</div>}
     </div>
   );
 }

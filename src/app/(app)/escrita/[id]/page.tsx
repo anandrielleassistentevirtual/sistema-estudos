@@ -816,8 +816,8 @@ function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
         {projeto.meta_palavras > 0 && (
           <div className="h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--chart)" }} /></div>
         )}
-        <div className="card p-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-4"><h3>Palavras por dia</h3><span className="text-xs text-muted">últimas 3 semanas</span></div>
+        <div className="card p-4 md:p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3 md:mb-4"><h3>Palavras por dia</h3><span className="text-xs text-muted">últimas 3 semanas</span></div>
           <BarChart unit="palavras" height={140}
             data={dias.map((d) => ({ label: parseDay(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), value: Math.max(0, porDia.get(d)?.palavras ?? 0), detail: fmtDuration(porDia.get(d)?.segundos ?? 0) }))} />
         </div>

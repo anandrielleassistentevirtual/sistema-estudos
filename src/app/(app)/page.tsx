@@ -130,7 +130,7 @@ export default function Dashboard() {
         await supabase().auth.updateUser({ data: { nome: n } });
         setNome(n);
       }}>{nome ? "trocar nome" : "Como quer ser chamado?"}</button>}>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
         <Stat label="Hoje" value={fmtDuration(s.today)} hint="timer + leitura" />
         <Stat label="Esta semana" value={fmtDuration(s.week)} />
         <Stat label="Sequência" value={`${s.streak} ${s.streak === 1 ? "dia" : "dias"}`} />
@@ -154,9 +154,9 @@ export default function Dashboard() {
 
       <WritingPanel />
 
-      <section className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="card p-5">
-          <h2 className="font-medium mb-3">Continuar lendo</h2>
+      <section className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+        <div className="card p-4 md:p-5">
+          <h2 className="font-medium mb-2 md:mb-3">Continuar lendo</h2>
           {reading.length === 0 ? (
             <p className="text-sm text-muted">
               Nada em andamento. Escolha algo na <Link className="text-accent" href="/biblioteca">fila de leitura</Link>.
@@ -188,13 +188,13 @@ export default function Dashboard() {
             </ul>
           )}
         </div>
-        <div className="card p-5">
-          <h2 className="font-medium mb-3">Biblioteca</h2>
-          <div className="grid grid-cols-2 min-[420px]:grid-cols-4 gap-2 text-center">
+        <div className="card p-4 md:p-5">
+          <h2 className="font-medium mb-2 md:mb-3">Biblioteca</h2>
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center">
             {(["aguardando", "lendo", "pausado", "lido"] as const).map((st) => (
-              <div key={st} className="rounded-lg bg-surface-2 py-3">
-                <div className="text-xl font-medium tabular-nums">{count(st)}</div>
-                <div className="text-xs text-muted capitalize">{st}</div>
+              <div key={st} className="rounded-lg bg-surface-2 py-2 sm:py-3 min-w-0">
+                <div className="text-lg sm:text-xl font-medium tabular-nums">{count(st)}</div>
+                <div className="text-[10.5px] sm:text-xs text-muted capitalize truncate px-0.5">{st}</div>
               </div>
             ))}
           </div>

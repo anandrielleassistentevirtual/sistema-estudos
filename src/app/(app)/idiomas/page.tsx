@@ -34,6 +34,8 @@ export default function Idiomas() {
   const [noComputador, setNoComputador] = useState(false); // Anki aberto neste computador (AnkiConnect)
   useEffect(() => { void ankiOnline().then(setNoComputador); }, []);
   const [selId, setSelId] = useState<string | null>(null);
+  // revisões e cartões criados dividem o mesmo quadro (um calendário de cada vez)
+  const [verAnki, setVerAnki] = useState<"revisoes" | "criados">("revisoes");
   const [modal, setModal] = useState<null | "idioma" | "tempo" | { edit: Language }>(null);
 
   const load = useCallback(async () => {
@@ -183,16 +185,18 @@ export default function Idiomas() {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 mt-4">
-            <section className="card p-5">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-4">
+            <section className="card p-4 md:p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3 md:mb-4">
                 <h3 className="font-medium">Minutos por semana</h3>
                 <span className="text-xs text-muted">últimas {WEEKS} semanas · Timer + Anki</span>
               </div>
               <BarChart data={semanal} unit="min" />
             </section>
-            <section className="card p-5">
-              <h3 className="font-medium mb-3">Onde foi o tempo</h3>
-              <p className="text-xs text-muted -mt-2 mb-3">últimos 30 dias</p>
+            <section className="card p-4 md:p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-2 md:mb-3">
+                <h3 className="font-medium">Onde foi o tempo</h3>
+                <span className="text-xs text-muted">últimos 30 dias</span>
+              </div>
               {ondeFoi.length === 0 ? (
                 <p className="text-sm text-muted">Nada ainda. Use o Timer (categoria Idiomas → {sel.name}) ou “Registrar tempo”.</p>
               ) : (
@@ -204,10 +208,11 @@ export default function Idiomas() {
               )}
               {recentes.length > 0 && (
                 <>
-                  <h4 className="label mt-5 mb-2">Últimos registros</h4>
+                  <h4 className="label mt-4 md:mt-5 mb-1.5 md:mb-2">Últimos registros</h4>
                   <ul className="space-y-1 text-xs text-muted">
                     {recentes.map((s, i) => (
-                      <li key={i} className="flex justify-between gap-2">
+                      // celular: só os 3 mais recentes
+                      <li key={i} className={`${i >= 3 ? "hidden lg:flex" : "flex"} justify-between gap-2`}>
                         <span className="truncate">{parseDay(s.day).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} · {s.label || "Timer"}</span>
                         <span className="tabular-nums">{fmtDuration(s.seconds)}</span>
                       </li>
@@ -220,14 +225,22 @@ export default function Idiomas() {
 
           {sel.anki_baralhos.length > 0 && (
             <>
-              <section className="card p-5 mt-4">
-                <h3 className="font-medium mb-3">Revisões no Anki</h3>
-                <Heatmap data={revisoes} metric="anki" />
-              </section>
-              <section className="card p-5 mt-4">
-                <h3 className="font-medium mb-3">Cartões criados</h3>
-                <Heatmap data={criados} metric="anki" unidade="cartões criados" paleta="ama" />
-                <p className="text-xs text-faint mt-2">Contagem desde 08/11/2026, só nos baralhos de {sel.name}: {sel.anki_baralhos.join(", ")}.</p>
+              <section className="card p-4 md:p-5 mt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <h3 className="font-medium">Anki</h3>
+                  <div className="inline-flex rounded-lg bg-surface-2 p-0.5 sm:p-1 text-[13px] sm:text-sm">
+                    {([["revisoes", "Revisões"], ["criados", "Cartões criados"]] as const).map(([k, l]) => (
+                      <button key={k} onClick={() => setVerAnki(k)}
+                        className={`px-3 py-1 rounded-md ${verAnki === k ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                {verAnki === "revisoes"
+                  ? <Heatmap data={revisoes} metric="anki" />
+                  : <>
+                      <Heatmap data={criados} metric="anki" unidade="cartões criados" paleta="ama" />
+                      <p className="text-xs text-faint mt-2">Contagem desde 08/11/2026, só nos baralhos de {sel.name}: {sel.anki_baralhos.join(", ")}.</p>
+                    </>}
               </section>
               {tabela.length > 0 && (
                 <section className="card mt-4 overflow-x-auto">

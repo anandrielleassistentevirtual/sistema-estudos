@@ -23,25 +23,24 @@ export function CalendarPanel() {
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
-    <section id="calendario" className="mt-4 scroll-mt-4">
+    // tudo num cartão só (título, filtros e calendário): menos espaço vazio entre as partes
+    <section id="calendario" className="card mt-4 p-4 md:p-5 scroll-mt-4">
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <h2 className="font-medium mr-auto">Calendário</h2>
-        <div className="order-last sm:order-none w-full sm:w-auto flex sm:inline-flex rounded-lg bg-surface-2 p-1 text-sm">
+        <div className="order-last sm:order-none w-full sm:w-auto flex sm:inline-flex rounded-lg bg-surface-2 p-0.5 sm:p-1 text-[13px] sm:text-sm">
           {METRICS.map((m) => (
             <button key={m.id} onClick={() => setMetric(m.id)}
-              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md ${metric === m.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
+              className={`flex-1 sm:flex-none px-3 py-1 sm:py-1.5 rounded-md ${metric === m.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
               {m.label}
             </button>
           ))}
         </div>
-        <select className="input w-auto" value={year} onChange={(e) => setYear(e.target.value === "12m" ? "12m" : Number(e.target.value))}>
+        <select className="input w-auto py-1 pr-7" value={year} onChange={(e) => setYear(e.target.value === "12m" ? "12m" : Number(e.target.value))}>
           <option value="12m">Últimos 12 meses</option>
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
       </div>
-      <div className="card p-5">
-        <Heatmap data={daily} metric={metric} weeks={weeks} end={end} />
-      </div>
+      <Heatmap data={daily} metric={metric} weeks={weeks} end={end} />
     </section>
   );
 }

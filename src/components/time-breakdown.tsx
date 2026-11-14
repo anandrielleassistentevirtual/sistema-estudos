@@ -11,6 +11,9 @@ const PERIODS: { id: Period; label: string }[] = [
   { id: "ano", label: "Este ano" },
 ];
 
+/** atividades mostradas antes do "Ver todas" */
+const MOSTRAR = 5;
+
 interface Sess { day: string; seconds: number; category: string; language: string | null; note_id: string | null; label: string }
 interface Read { day: string; seconds: number; during_timer: boolean; note_id: string | null }
 
@@ -21,6 +24,8 @@ export function TimeBreakdown() {
   const [reading, setReading] = useState<Read[]>([]);
   const [courseOf, setCourseOf] = useState<Map<string, string>>(new Map());
   const [hover, setHover] = useState<string | null>(null);
+  // muitas atividades (cada curso e idioma é uma linha): mostra as maiores e guarda o resto atrás de um botão
+  const [verTodas, setVerTodas] = useState(false);
 
   useEffect(() => {
     const from = dayKey(new Date(new Date().getFullYear(), 0, 1) < addDays(new Date(), -31) ? new Date(new Date().getFullYear(), 0, 1) : addDays(new Date(), -31));
@@ -71,33 +76,35 @@ export function TimeBreakdown() {
   const max = Math.max(1, ...rows.map((r) => r.seconds));
 
   return (
-    <section className="card p-5 mt-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+    <section className="card p-4 md:p-5 mt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 md:mb-4">
         <div>
           <h2 className="font-medium">Onde está indo seu tempo</h2>
           <p className="text-xs text-muted mt-0.5">{total ? `${fmtDuration(total)} no total` : "Nenhum tempo registrado no período"}</p>
         </div>
-        <div className="flex w-full sm:w-auto sm:inline-flex rounded-lg bg-surface-2 p-1 text-xs">
+        <div className="flex w-full sm:w-auto sm:inline-flex rounded-lg bg-surface-2 p-0.5 sm:p-1 text-xs">
           {PERIODS.map((p) => (
             <button key={p.id} onClick={() => setPeriod(p.id)}
-              className={`flex-auto sm:flex-none whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-md ${period === p.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>{p.label}</button>
+              className={`flex-auto sm:flex-none whitespace-nowrap px-2.5 py-1 rounded-md ${period === p.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>{p.label}</button>
           ))}
         </div>
       </div>
       {rows.length === 0 ? (
         <p className="text-sm text-muted py-6 text-center">Use o Timer (ou leia no leitor, faça lições e revisões) para ver aqui como seu tempo se divide.</p>
       ) : (
-        <ul className="space-y-3.5 sm:space-y-2.5">
-          {rows.map((r) => {
+        <>
+        <ul className="space-y-2.5">
+          {(verTodas ? rows : rows.slice(0, MOSTRAR)).map((r) => {
             const pct = r.seconds / total;
             return (
-              <li key={r.key} className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(110px,180px)_1fr_auto] items-center gap-x-3 gap-y-1.5 text-sm"
+              <li key={r.key} className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(110px,180px)_1fr_auto] items-center gap-x-3 gap-y-1 text-sm"
                 onMouseEnter={() => setHover(r.key)} onMouseLeave={() => setHover(null)}>
                 <span className="truncate min-w-0" title={r.label}>
                   {r.label}
-                  {r.kind !== r.label && <span className="block text-[11px] text-faint">{r.kind}</span>}
+                  {/* celular: o tipo vai na mesma linha do nome (uma linha a menos por item) */}
+                  {r.kind !== r.label && <span className="sm:block text-[11px] text-faint"><span className="sm:hidden"> · </span>{r.kind}</span>}
                 </span>
-                <span className="order-last col-span-2 sm:order-none sm:col-span-1 h-2 sm:h-2.5 rounded-full bg-surface-2 overflow-hidden" title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round(pct * 100)}%)`}>
+                <span className="order-last col-span-2 sm:order-none sm:col-span-1 h-1.5 sm:h-2.5 rounded-full bg-surface-2 overflow-hidden" title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round(pct * 100)}%)`}>
                   <span className="block h-full rounded-full transition-opacity"
                     style={{ width: `${(r.seconds / max) * 100}%`, background: "var(--chart)", opacity: hover && hover !== r.key ? 0.55 : 1 }} />
                 </span>
@@ -109,6 +116,12 @@ export function TimeBreakdown() {
             );
           })}
         </ul>
+        {rows.length > MOSTRAR && (
+          <button className="mt-3 text-xs text-muted hover:text-ink" onClick={() => setVerTodas(!verTodas)}>
+            {verTodas ? "Mostrar menos" : `Ver todas (${rows.length})`}
+          </button>
+        )}
+        </>
       )}
     </section>
   );
