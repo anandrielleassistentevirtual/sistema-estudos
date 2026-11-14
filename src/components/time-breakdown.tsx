@@ -77,27 +77,27 @@ export function TimeBreakdown() {
           <h2 className="font-medium">Onde está indo seu tempo</h2>
           <p className="text-xs text-muted mt-0.5">{total ? `${fmtDuration(total)} no total` : "Nenhum tempo registrado no período"}</p>
         </div>
-        <div className="inline-flex rounded-lg bg-surface-2 p-1 text-xs">
+        <div className="flex w-full sm:w-auto sm:inline-flex rounded-lg bg-surface-2 p-1 text-xs">
           {PERIODS.map((p) => (
             <button key={p.id} onClick={() => setPeriod(p.id)}
-              className={`px-2.5 py-1 rounded-md ${period === p.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>{p.label}</button>
+              className={`flex-auto sm:flex-none whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-md ${period === p.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>{p.label}</button>
           ))}
         </div>
       </div>
       {rows.length === 0 ? (
         <p className="text-sm text-muted py-6 text-center">Use o Timer (ou leia no leitor, faça lições e revisões) para ver aqui como seu tempo se divide.</p>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="space-y-3.5 sm:space-y-2.5">
           {rows.map((r) => {
             const pct = r.seconds / total;
             return (
-              <li key={r.key} className="grid grid-cols-[minmax(110px,180px)_1fr_auto] items-center gap-3 text-sm"
+              <li key={r.key} className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(110px,180px)_1fr_auto] items-center gap-x-3 gap-y-1.5 text-sm"
                 onMouseEnter={() => setHover(r.key)} onMouseLeave={() => setHover(null)}>
-                <span className="truncate" title={r.label}>
+                <span className="truncate min-w-0" title={r.label}>
                   {r.label}
                   {r.kind !== r.label && <span className="block text-[11px] text-faint">{r.kind}</span>}
                 </span>
-                <span className="h-2.5 rounded-full bg-surface-2 overflow-hidden" title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round(pct * 100)}%)`}>
+                <span className="order-last col-span-2 sm:order-none sm:col-span-1 h-2 sm:h-2.5 rounded-full bg-surface-2 overflow-hidden" title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round(pct * 100)}%)`}>
                   <span className="block h-full rounded-full transition-opacity"
                     style={{ width: `${(r.seconds / max) * 100}%`, background: "var(--chart)", opacity: hover && hover !== r.key ? 0.55 : 1 }} />
                 </span>

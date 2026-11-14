@@ -161,7 +161,7 @@ export default function Idiomas() {
             <button className="btn btn-ghost text-xs" onClick={() => setModal({ edit: sel })}><Settings2 size={14} /> Configurar</button>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 [&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1">
             <Stat label="Tempo esta semana" value={fmtDuration(timerSemana + ankiSemana)}
               hint={[meta ? `meta ${fmtDuration(meta)} · ${Math.round(Math.min(1, (timerSemana + ankiSemana) / meta) * 100)}%` : null,
                 escutaSemana ? `Listening ${fmtDuration(escutaSemana)}` : null, ankiSemana ? `Anki ${fmtDuration(ankiSemana)}` : null,
@@ -184,7 +184,7 @@ export default function Idiomas() {
 
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 mt-4">
             <section className="card p-5">
-              <div className="flex items-baseline justify-between mb-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-4">
                 <h3 className="font-medium">Minutos por semana</h3>
                 <span className="text-xs text-muted">últimas {WEEKS} semanas · Timer + Anki</span>
               </div>

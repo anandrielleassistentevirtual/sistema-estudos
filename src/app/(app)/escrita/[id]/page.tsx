@@ -806,7 +806,7 @@ function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
   const cenas = ms.flatMap((c) => c.cenas);
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card l="Manuscrito" v={`${nf.format(total)}`} h={projeto.meta_palavras ? `${Math.round(pct * 100)}% de ${nf.format(projeto.meta_palavras)}` : "palavras"} />
           <Card l="Hoje" v={`${hoje.palavras >= 0 ? "+" : ""}${nf.format(hoje.palavras)}`} h={projeto.meta_diaria ? `meta ${nf.format(projeto.meta_diaria)} · ${fmtDuration(hoje.segundos)}` : fmtDuration(hoje.segundos)} />
@@ -817,7 +817,7 @@ function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
           <div className="h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--chart)" }} /></div>
         )}
         <div className="card p-5">
-          <div className="flex items-baseline justify-between mb-4"><h3>Palavras por dia</h3><span className="text-xs text-muted">últimas 3 semanas</span></div>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-4"><h3>Palavras por dia</h3><span className="text-xs text-muted">últimas 3 semanas</span></div>
           <BarChart unit="palavras" height={140}
             data={dias.map((d) => ({ label: parseDay(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), value: Math.max(0, porDia.get(d)?.palavras ?? 0), detail: fmtDuration(porDia.get(d)?.segundos ?? 0) }))} />
         </div>
