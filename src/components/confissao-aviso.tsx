@@ -31,7 +31,7 @@ export function ConfissaoAviso() {
   const dias = ultima ? diasDesde(ultima) : null;
   const atrasada = dias !== null && dias > PRAZO_CONFISSAO;
   return (
-    <section className={`card mt-4 px-5 py-4 flex flex-wrap items-center gap-x-4 gap-y-2 ${atrasada ? "border-[color-mix(in_srgb,#c98a1a_55%,transparent)]" : ""}`}
+    <section className={`card mt-3 px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 ${atrasada ? "border-[color-mix(in_srgb,#c98a1a_55%,transparent)]" : ""}`}
       style={atrasada ? { background: "color-mix(in srgb, #c98a1a 9%, var(--surface))" } : undefined}>
       <div className="flex items-center gap-2 min-w-0 flex-1">
         {atrasada ? <BellRing size={17} className="shrink-0" style={{ color: "#c98a1a" }} /> : <ListChecks size={17} className="text-icon shrink-0" />}

@@ -123,23 +123,25 @@ export default function Dashboard() {
   const ppmLivros = ritmoLivros || ppm.leitura || ppmMedia;
 
   return (
-    <Page title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+    // tudo numa tela: indicadores no topo; calendário e tempo lado a lado; escrita, leitura e biblioteca embaixo
+    <Page denso title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
       actions={<button className="text-xs text-faint hover:text-ink" title="Como você quer ser chamado" onClick={async () => {
         const n = prompt("Seu nome:", nome)?.trim();
         if (n === undefined || n === null) return;
         await supabase().auth.updateUser({ data: { nome: n } });
         setNome(n);
       }}>{nome ? "trocar nome" : "Como quer ser chamado?"}</button>}>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label="Hoje" value={fmtDuration(s.today)} hint="timer + leitura" />
-        <Stat label="Esta semana" value={fmtDuration(s.week)} />
-        <Stat label="Sequência" value={`${s.streak} ${s.streak === 1 ? "dia" : "dias"}`} />
-        <Stat label="Velocidade" value={ppmMedia ? `${ppmMedia} ppm` : "—"}
+      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3">
+        <Stat compacto label="Hoje" value={fmtDuration(s.today)} hint="timer + leitura" />
+        <Stat compacto label="Esta semana" value={fmtDuration(s.week)} />
+        <Stat compacto label="Sequência" value={`${s.streak} ${s.streak === 1 ? "dia" : "dias"}`} />
+        <Stat compacto label="Velocidade" value={ppmMedia ? `${ppmMedia} ppm` : "—"}
           hint={ppm.leitura && ppm.estudos ? `leitura ${ppm.leitura} · estudos ${ppm.estudos} (média, 30 dias)` : ppm.leitura ? `leitura, últimos 30 dias` : ppm.estudos ? "estudos, últimos 30 dias" : "palavras/min, últimos 30 dias"} />
-        <Stat label="Palavras na semana" value={nf.format(s.weekWords)} hint={`média semanal: ${nf.format(Math.round(s.avgWeek))}`} />
-        <Stat label="Palavras escritas" value={nf.format(s.weekWritten)} hint="esta semana" />
-        <Stat label="Revisões Anki" value={nf.format(s.weekAnki)} hint="esta semana (sincronizado)" />
+        <Stat compacto label="Palavras na semana" value={nf.format(s.weekWords)} hint={`média semanal: ${nf.format(Math.round(s.avgWeek))}`} />
+        <Stat compacto label="Palavras escritas" value={nf.format(s.weekWritten)} hint="esta semana" />
+        <Stat compacto label="Revisões Anki" value={nf.format(s.weekAnki)} hint="esta semana (sincronizado)" />
         <Stat
+          compacto
           label="Biblioteca"
           value={`${count("aguardando")} livros`}
           hint={ppmLivros && remainingWords ? `≈ ${fmtDuration((remainingWords / ppmLivros) * 60)} de leitura pela frente` : "aguardando leitura"}
@@ -148,61 +150,58 @@ export default function Dashboard() {
 
       <ConfissaoAviso />
 
-      <CalendarPanel />
+      <div className="grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-4 mt-4">
+        <CalendarPanel compacto />
+        <TimeBreakdown compacto />
+      </div>
 
-      <TimeBreakdown />
-
-      <WritingPanel />
-
-      <section className="mt-4 grid md:grid-cols-2 gap-4">
-        <div className="card p-5">
-          <h2 className="font-medium mb-3">Continuar lendo</h2>
+      <section className="mt-4 grid lg:grid-cols-3 gap-4">
+        <WritingPanel compacto />
+        <div className="card p-4 min-w-0">
+          <h2 className="font-medium mb-2">Continuar lendo</h2>
           {reading.length === 0 ? (
             <p className="text-sm text-muted">
               Nada em andamento. Escolha algo na <Link className="text-accent" href="/biblioteca">fila de leitura</Link>.
             </p>
           ) : (
-            <ul className="space-y-2">
-              {reading.map((b) => (
+            <ul className="space-y-1">
+              {reading.slice(0, 3).map((b) => (
                 <li key={b.id}>
-                  <Link href={`/ler/${b.id}`} className="flex items-center gap-3 rounded-lg p-2 -mx-2 hover:bg-surface-2">
-                    <Cover book={b} url={covers[b.id]} className="w-9 h-12" />
+                  <Link href={`/ler/${b.id}`} className="flex items-center gap-3 rounded-lg p-1.5 -mx-1.5 hover:bg-surface-2">
+                    <Cover book={b} url={covers[b.id]} className="w-7 h-10" />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm truncate">
-                        {b.author && <><span className="font-medium">{b.author}</span><span className="text-faint"> — </span></>}
-                        <span className="font-medium">{b.title}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
+                      <div className="text-sm truncate font-medium" title={`${b.author ? `${b.author} — ` : ""}${b.title}`}>{b.title}</div>
+                      <div className="h-1 rounded-full bg-surface-2 mt-1 overflow-hidden">
                         <div className="h-full bg-chart rounded-full" style={{ width: `${Math.round(progressoDoLivro(b) * 100)}%` }} />
                       </div>
                       {b.word_count && ppmLivros ? (
-                        <div className="text-[11px] text-muted mt-1 tabular-nums">
-                          faltam {nf.format(Math.round(b.word_count * (1 - progressoDoLivro(b))))} palavras · ≈ {fmtDuration((b.word_count * (1 - progressoDoLivro(b)) / ppmLivros) * 60)}
+                        <div className="text-[11px] text-muted mt-0.5 tabular-nums truncate">
+                          {Math.round(progressoDoLivro(b) * 100)}% · faltam ≈ {fmtDuration((b.word_count * (1 - progressoDoLivro(b)) / ppmLivros) * 60)}
                         </div>
                       ) : null}
                     </div>
-                    <span className="text-xs text-muted tabular-nums">{Math.round(progressoDoLivro(b) * 100)}%</span>
                   </Link>
                 </li>
               ))}
+              {reading.length > 3 && <li className="text-xs text-muted pt-1"><Link href="/biblioteca" className="hover:text-ink">+ {reading.length - 3} em leitura →</Link></li>}
             </ul>
           )}
         </div>
-        <div className="card p-5">
-          <h2 className="font-medium mb-3">Biblioteca</h2>
+        <div className="card p-4 min-w-0">
+          <h2 className="font-medium mb-2">Biblioteca</h2>
           <div className="grid grid-cols-4 gap-2 text-center">
             {(["aguardando", "lendo", "pausado", "lido"] as const).map((st) => (
-              <div key={st} className="rounded-lg bg-surface-2 py-3">
-                <div className="text-xl font-medium tabular-nums">{count(st)}</div>
-                <div className="text-xs text-muted capitalize">{st}</div>
+              <div key={st} className="rounded-lg bg-surface-2 py-2">
+                <div className="text-lg font-medium tabular-nums">{count(st)}</div>
+                <div className="text-[11px] text-muted capitalize">{st}</div>
               </div>
             ))}
           </div>
           {count("consulta") > 0 && (
-            <p className="text-xs text-muted mt-3">+ {count("consulta")} {count("consulta") === 1 ? "obra" : "obras"} de consulta (fora dos indicadores)</p>
+            <p className="text-xs text-muted mt-2">+ {count("consulta")} {count("consulta") === 1 ? "obra" : "obras"} de consulta (fora dos indicadores)</p>
           )}
           {lastDone && (
-            <p className="text-xs text-muted mt-3">
+            <p className="text-xs text-muted mt-2 truncate" title={lastDone.title}>
               Último concluído: {lastDone.title}, em {new Date(lastDone.finished_at!).toLocaleDateString("pt-BR")}
             </p>
           )}

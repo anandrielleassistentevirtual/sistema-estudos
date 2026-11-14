@@ -15,7 +15,7 @@ interface Sess { day: string; seconds: number; category: string; language: strin
 interface Read { day: string; seconds: number; during_timer: boolean; note_id: string | null }
 
 /** "Onde está indo seu tempo": Leitura, cada idioma, cada curso, outras categorias. */
-export function TimeBreakdown() {
+export function TimeBreakdown({ compacto = false }: { compacto?: boolean } = {}) {
   const [period, setPeriod] = useState<Period>("semana");
   const [sessions, setSessions] = useState<Sess[]>([]);
   const [reading, setReading] = useState<Read[]>([]);
@@ -68,11 +68,15 @@ export function TimeBreakdown() {
   }, [sessions, reading, courseOf, period]);
 
   const total = rows.reduce((a, r) => a + r.seconds, 0);
-  const max = Math.max(1, ...rows.map((r) => r.seconds));
+  // compacto: os 5 maiores e o resto somado em "Outros" (cabe na tela do Dashboard)
+  const visiveis = compacto && rows.length > 6
+    ? [...rows.slice(0, 5), { key: "__outros", label: "Outros", kind: `${rows.length - 5} itens`, seconds: rows.slice(5).reduce((a, r) => a + r.seconds, 0) } as typeof rows[number]]
+    : rows;
+  const max = Math.max(1, ...visiveis.map((r) => r.seconds));
 
   return (
-    <section className="card p-5 mt-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+    <section className={compacto ? "card p-4 min-w-0" : "card p-5 mt-4"}>
+      <div className={`flex flex-wrap items-center justify-between gap-2 ${compacto ? "mb-3" : "mb-4"}`}>
         <div>
           <h2 className="font-medium">Onde está indo seu tempo</h2>
           <p className="text-xs text-muted mt-0.5">{total ? `${fmtDuration(total)} no total` : "Nenhum tempo registrado no período"}</p>
@@ -87,15 +91,15 @@ export function TimeBreakdown() {
       {rows.length === 0 ? (
         <p className="text-sm text-muted py-6 text-center">Use o Timer (ou leia no leitor, faça lições e revisões) para ver aqui como seu tempo se divide.</p>
       ) : (
-        <ul className="space-y-2.5">
-          {rows.map((r) => {
+        <ul className={compacto ? "space-y-1.5" : "space-y-2.5"}>
+          {visiveis.map((r) => {
             const pct = r.seconds / total;
             return (
               <li key={r.key} className="grid grid-cols-[minmax(110px,180px)_1fr_auto] items-center gap-3 text-sm"
                 onMouseEnter={() => setHover(r.key)} onMouseLeave={() => setHover(null)}>
                 <span className="truncate" title={r.label}>
                   {r.label}
-                  {r.kind !== r.label && <span className="block text-[11px] text-faint">{r.kind}</span>}
+                  {r.kind !== r.label && <span className={compacto ? "text-[11px] text-faint ml-1.5" : "block text-[11px] text-faint"}>{r.kind}</span>}
                 </span>
                 <span className="h-2.5 rounded-full bg-surface-2 overflow-hidden" title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round(pct * 100)}%)`}>
                   <span className="block h-full rounded-full transition-opacity"

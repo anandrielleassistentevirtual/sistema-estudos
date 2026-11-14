@@ -16,6 +16,7 @@ export function Heatmap({
   selected,
   unidade,
   paleta,
+  encaixar,
 }: {
   data: Map<string, DayStats>;
   metric: Metric;
@@ -27,6 +28,8 @@ export function Heatmap({
   unidade?: string;
   /** escala de cores (padrão: azul; "escritas" usa laranja) */
   paleta?: "heat" | "out" | "ama";
+  /** encolhe para caber na largura disponível (sem barra de rolagem) */
+  encaixar?: boolean;
 }) {
   const [hover, setHover] = useState<{ day: string; x: number; y: number } | null>(null);
   const unit = unidade ?? METRICS.find((m) => m.id === metric)!.unit;
@@ -79,8 +82,9 @@ export function Heatmap({
 
   return (
     <div className="relative">
-      <div className="overflow-x-auto pb-1">
-        <svg width={width} height={height} role="img" aria-label={`Heatmap de ${unit}`} className="block">
+      <div className={encaixar ? "pb-1" : "overflow-x-auto pb-1"}>
+        <svg width={encaixar ? "100%" : width} height={encaixar ? undefined : height} viewBox={`0 0 ${width} ${height}`}
+          style={encaixar ? { maxWidth: width } : undefined} role="img" aria-label={`Heatmap de ${unit}`} className="block">
           {months.map((m) => (
             <text key={`${m.w}-${m.label}`} x={left + m.w * (CELL + GAP)} y={10} fontSize={10} fill="var(--muted)">
               {m.label}
