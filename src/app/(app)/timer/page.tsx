@@ -27,13 +27,13 @@ export default function TimerPage() {
   const byCat = today.reduce<Record<string, number>>((a, s) => ((a[s.category] = (a[s.category] ?? 0) + s.seconds), a), {});
 
   return (
-    <Page title="Timer" subtitle="Cada sessão de foco entra no calendário e no dashboard.">
+    <Page wide title="Timer">
       <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-        <div className="card p-6">
+        <div className="card p-5 lg:p-6">
           <TimerControls />
         </div>
 
-        <div className="card p-5">
+        <div className="card p-5 flex flex-col lg:max-h-[calc(100vh-11rem)]">
           <h2 className="font-medium">Hoje</h2>
           <p className="text-3xl font-medium mt-1 tabular-nums">{fmtDuration(today.reduce((a, s) => a + s.seconds, 0))}</p>
           <div className="mt-3 space-y-1">
@@ -43,7 +43,7 @@ export default function TimerPage() {
           </div>
           <h3 className="label mt-5 mb-2">Sessões</h3>
           {today.length === 0 && <p className="text-sm text-muted">Nenhuma sessão salva hoje.</p>}
-          <ul className="space-y-1.5">
+          <ul className="space-y-1.5 overflow-y-auto min-h-0 -mr-2 pr-2">
             {today.map((s) => (
               <li key={s.id} className="flex items-center justify-between text-sm group">
                 <span>

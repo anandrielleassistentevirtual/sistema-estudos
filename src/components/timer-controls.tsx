@@ -51,14 +51,16 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
   const ciclosHoje = t.ciclosDia === hoje ? t.cycles : 0;
   const foco = t.phase === "foco";
   const pct = t.mode === "pomodoro" ? 1 - t.remaining / total : (t.seconds % 3600) / 3600;
-  const size = compact ? 150 : 260;
-  const R = compact ? 64 : 110;
+  const size = compact ? 150 : 236;
+  const R = compact ? 64 : 100;
   const C = 2 * Math.PI * R;
   const book = books.find((b) => b.id === t.bookId);
 
   return (
-    <div className="flex flex-col items-center w-full">
-      <div className={`inline-flex rounded-lg bg-surface-2 p-1 text-sm ${compact ? "mb-3" : "mb-6"}`}>
+    // na tela do Timer (computador): relógio à esquerda, ajustes à direita — tudo sem precisar rolar
+    <div className={compact ? "flex flex-col items-center w-full" : "w-full grid lg:grid-cols-[auto_minmax(300px,1fr)] gap-6 lg:gap-10 items-center"}>
+    <div className="flex flex-col items-center">
+      <div className={`inline-flex rounded-lg bg-surface-2 p-1 text-sm ${compact ? "mb-3" : "mb-4"}`}>
         {(["pomodoro", "livre"] as const).map((m) => (
           <button key={m} disabled={t.running} onClick={() => t.set({ mode: m, phase: "foco", elapsed: 0 })}
             className={`px-3 py-1 rounded-md ${t.mode === m ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
@@ -83,7 +85,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
 
-      <div className={`flex gap-2 ${compact ? "mt-3" : "mt-6"}`}>
+      <div className={`flex gap-2 ${compact ? "mt-3" : "mt-4"}`}>
         {t.running ? (
           <button className="btn btn-primary px-4" onClick={t.pause}><Pause size={16} /> Pausar</button>
         ) : (
@@ -97,7 +99,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
 
       {t.mode === "pomodoro" && (
         // ajusta só a fase atual (mesmo com o timer rodando) e permite pular para a próxima
-        <div className={`flex flex-wrap items-center justify-center gap-1 ${compact ? "mt-2" : "mt-4"}`}>
+        <div className={`flex flex-wrap items-center justify-center gap-1 ${compact ? "mt-2" : "mt-3"}`}>
           <span className="text-xs text-muted mr-1 tabular-nums">{foco ? "Foco" : t.pausaLonga ? "Pausa longa" : "Pausa"} de {Math.round(t.alvo / 60)} min</span>
           {[-5, -1, 1, 5].map((m) => (
             <button key={m} className="btn btn-ghost px-2 py-0.5 text-xs tabular-nums" disabled={m < 0 && t.alvo + m * 60 < 60}
@@ -112,16 +114,19 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         </div>
       )}
 
+    </div>
+
+    <div className={compact ? "contents" : "flex flex-col w-full"}>
       {t.tarefaId && (
         // o foco está ligado a uma tarefa dos Estudos: o tempo fica somado nela
-        <div className={`flex items-center gap-2 rounded-full bg-surface-2 pl-3 pr-1.5 py-1 text-xs max-w-full ${compact ? "mt-3" : "mt-5"}`}>
+        <div className={`flex items-center gap-2 rounded-full bg-surface-2 pl-3 pr-1.5 py-1 text-xs max-w-full ${compact ? "mt-3" : "mb-4 self-start"}`}>
           <ListChecks size={13} className="text-icon shrink-0" />
           <span className="truncate">Tarefa: {t.tarefaTexto}</span>
           <button className="text-faint hover:text-ink shrink-0" title="Desligar da tarefa" onClick={() => t.set({ tarefaId: "", tarefaTexto: "" })}><X size={13} /></button>
         </div>
       )}
 
-      <div className={`grid gap-3 w-full ${compact ? "mt-4" : "sm:grid-cols-2 max-w-md mt-8"}`}>
+      <div className={`grid gap-3 w-full ${compact ? "mt-4" : "sm:grid-cols-2"}`}>
         <label className="space-y-1">
           <span className="label">Categoria</span>
           <select className="input" value={t.category} onChange={(e) => t.set({ category: e.target.value, tarefaId: "", tarefaTexto: "" })}>
@@ -235,7 +240,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
 
         {t.mode === "pomodoro" && (
           // os tempos padrão podem mudar a qualquer momento (valem também para a fase em andamento)
-          <div className={`grid grid-cols-2 gap-3 ${compact ? "" : "sm:grid-cols-4 sm:col-span-2"}`}>
+          <div className={`grid grid-cols-2 gap-3 ${compact ? "" : "2xl:grid-cols-4 sm:col-span-2"}`}>
             <label className="space-y-1">
               <span className="label">Foco (min)</span>
               <input className="input" type="number" min={1} max={180} value={t.focusMin}
@@ -260,6 +265,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }
