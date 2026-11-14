@@ -97,8 +97,8 @@ export function ListeningPainel({ idioma }: { idioma: string }) {
       </summary>
       <div className="border-t border-line p-5 space-y-5 text-sm">
         <p className="text-muted">
-          Enquanto o player do curso estiver <b className="text-ink">tocando de verdade</b>, os minutos entram aqui em {idioma} como <b className="text-ink">Listening</b>
-          {" "}(pausado, mudo ou arrastando a barra não conta). Ligue cada aparelho uma vez — PC, notebook e celular — cada um com a sua chave, que dá para cancelar.
+          Enquanto o curso estiver <b className="text-ink">tocando de verdade</b>, os minutos entram aqui em {idioma}: os áudios da Playlist como <b className="text-ink">Listening</b> e
+          as aulas em vídeo como <b className="text-ink">Aulas</b> (pausado, mudo ou arrastando a barra não conta). Ligue cada aparelho uma vez — PC, notebook e celular — cada um com a sua chave, que dá para cancelar.
         </p>
 
         {minhas.length > 0 && (

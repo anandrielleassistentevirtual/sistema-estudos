@@ -98,6 +98,8 @@ export default function Idiomas() {
   const escuta = minhasSessoes.filter((s) => s.label === ROTULO_LISTENING);
   const escutaHoje = soma(escuta.filter((s) => s.day === hoje), (s) => s.seconds);
   const escutaSemana = soma(escuta.filter((s) => s.day >= ws), (s) => s.seconds);
+  // aulas em vídeo do curso (medidas pelo mesmo script)
+  const aulasSemana = soma(minhasSessoes.filter((s) => s.label === "Aulas" && s.day >= ws), (s) => s.seconds);
 
   const semanal = useMemo(() => {
     const w0 = weekStart(new Date());
@@ -163,8 +165,9 @@ export default function Idiomas() {
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <Stat label="Tempo esta semana" value={fmtDuration(timerSemana + ankiSemana)}
               hint={[meta ? `meta ${fmtDuration(meta)} · ${Math.round(Math.min(1, (timerSemana + ankiSemana) / meta) * 100)}%` : null,
-                escutaSemana ? `Listening ${fmtDuration(escutaSemana)}` : null, ankiSemana ? `Anki ${fmtDuration(ankiSemana)}` : null,
-                timerSemana - escutaSemana > 0 ? `Timer ${fmtDuration(timerSemana - escutaSemana)}` : null,
+                escutaSemana ? `Listening ${fmtDuration(escutaSemana)}` : null, aulasSemana ? `Aulas ${fmtDuration(aulasSemana)}` : null,
+                ankiSemana ? `Anki ${fmtDuration(ankiSemana)}` : null,
+                timerSemana - escutaSemana - aulasSemana > 0 ? `Timer ${fmtDuration(timerSemana - escutaSemana - aulasSemana)}` : null,
                 `mês ${fmtDuration(totalMes)}`].filter(Boolean).join(" · ")} />
             <Stat label="Para revisar hoje" value={baralhos ? nf.format(paraHoje) : "—"} hint={baralhos ? "nos baralhos deste idioma" : "conecte o AnkiWeb (no fim da página)"} />
             <Stat label="Listening" value={fmtDuration(escutaHoje)} hint={`hoje · ${fmtDuration(escutaSemana)} na semana`} />
