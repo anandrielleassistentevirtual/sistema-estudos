@@ -419,8 +419,9 @@ export default function Estudos() {
                           <span className="min-w-0">
                             <span className="line-clamp-2 sm:line-clamp-1 break-words leading-snug font-medium">{a.title}</span>
                             <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted mt-0.5">
+                              {/* o professor já aparece no nome do grupo: no celular sai daqui para a linha caber */}
+                              {a.professor && <span className="hidden sm:inline">{a.professor}{a.palavras || a.situacao === "lendo" ? " ·" : ""}</span>}
                               {[
-                                a.professor || null,
                                 a.situacao === "lendo" && (a.progresso ?? 0) > 0 ? `${Math.round((a.progresso ?? 0) * 100)}%` : null,
                                 // em leitura: o que falta, no seu ritmo; senão, o total
                                 a.palavras ? (a.situacao === "lendo" ? `faltam ${nf.format(Math.round(faltam(a)))} palavras · ≈ ${tempo(faltam(a))}` : `${nf.format(a.palavras)} palavras · ≈ ${tempo(a.palavras)}`) : null,

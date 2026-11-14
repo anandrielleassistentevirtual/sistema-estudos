@@ -299,7 +299,7 @@ body {
    e ficam acima do botão do Timer */
 @media (max-width: 639.98px) {
   .modal { place-items: end center; padding: 0; }
-  .modal > .card {
+  .modal > .card.card {
     max-width: none;
     max-height: 92dvh;
     overflow-y: auto;
@@ -310,6 +310,12 @@ body {
   }
 }
 @keyframes folha-sobe { from { transform: translateY(24px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+
+/* Celular: um só espaçamento interno para os cartões (16px), em todas as telas */
+@media (max-width: 767.98px) {
+  .card.p-5, .card.p-6, .card.p-8 { padding: 1rem; }
+  .card.px-5, .card.px-6 { padding-left: 1rem; padding-right: 1rem; }
+}
 
 /* rolagem lateral sem barra (abas e filtros que não cabem na largura do celular) */
 .no-scrollbar { scrollbar-width: none; }

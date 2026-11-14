@@ -28,7 +28,7 @@ export function Page({
           <h1 className="text-[1.5rem] md:text-[1.6rem] font-normal tracking-tight leading-tight flex items-center gap-2">{title}{titleExtra}</h1>
           {subtitle && <p className="text-sm text-muted mt-1">{subtitle}</p>}
         </div>
-        {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+        {actions && <div className="flex flex-wrap gap-2 w-full sm:w-auto [&>.btn]:flex-auto [&>.btn]:justify-center sm:[&>.btn]:flex-none">{actions}</div>}
       </div>
       {children}
     </div>

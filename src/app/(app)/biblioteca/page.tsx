@@ -220,7 +220,7 @@ export default function Biblioteca() {
               ) : (
                 <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px]">sem pasta</span>
               )}
-              <span className="truncate">
+              <span className="sm:truncate">
                 {b.status === "lendo" && progressoDoLivro(b) > 0 ? ` · ${Math.round(progressoDoLivro(b) * 100)}%` : ""}
                 {b.status === "consulta" ? " · para consulta (não conta nos indicadores)" : b.word_count
                   ? b.status === "lendo"

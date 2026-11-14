@@ -36,7 +36,7 @@ export function FloatingTimer() {
             </div>
           )}
           <div className={`flex items-center rounded-full shadow-lg border border-line ${active ? "bg-accent text-accent-ink border-accent" : "bg-surface"}`}>
-            <button className="flex items-center gap-2 pl-3.5 pr-2 py-2 text-sm" onClick={() => setOpen(!open)} title="Abrir o timer">
+            <button className={`flex items-center gap-2 py-2 text-sm ${active ? "pl-3.5 pr-2" : "p-3 sm:pl-3.5 sm:pr-2 sm:py-2"}`} onClick={() => setOpen(!open)} title="Abrir o timer" aria-label="Abrir o timer">
               <Timer size={16} />
               {active ? (
                 <>
@@ -44,7 +44,7 @@ export function FloatingTimer() {
                   <span className="hidden sm:inline max-w-[160px] truncate opacity-90">{t.phase === "pausa" ? "Pausa" : t.what || t.category}</span>
                 </>
               ) : (
-                <span>Timer</span>
+                <span className="hidden sm:inline">Timer</span>
               )}
             </button>
             {active && (
@@ -52,7 +52,7 @@ export function FloatingTimer() {
                 {t.running ? <Pause size={15} /> : <Play size={15} />}
               </button>
             )}
-            {!active && <span className="pr-1.5" />}
+            {!active && <span className="hidden sm:inline pr-1.5" />}
           </div>
         </div>
       )}
