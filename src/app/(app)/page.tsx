@@ -18,6 +18,19 @@ import { progressoDoLivro, type Book } from "@/lib/types";
 
 const WEEKS = 12;
 
+/** "▲ 18% vs. anterior" (verde) / "▼ 12% vs. média" (vermelho): curto para caber no quadro; o tooltip explica. */
+function Variacao({ atual, base, vs }: { atual: number; base: number; vs: "média" | "anterior" }) {
+  if (base <= 0) return <>{atual > 0 ? (vs === "média" ? "sem média ainda" : "novo nesta semana") : "—"}</>;
+  const p = Math.round(((atual - base) / base) * 100);
+  const cor = p > 0 ? "var(--good)" : p < 0 ? "var(--critical)" : undefined;
+  return (
+    <>
+      <span className="font-medium tabular-nums" style={{ color: cor }}>{p > 0 ? "▲" : p < 0 ? "▼" : "="} {Math.abs(p)}%</span>
+      <span> vs. {vs}</span>
+    </>
+  );
+}
+
 export default function Dashboard() {
   const [daily, setDaily] = useState<Map<string, DayStats>>(new Map());
   const [books, setBooks] = useState<Book[]>([]);
@@ -98,8 +111,30 @@ export default function Dashboard() {
       else if (dayKey(d) !== today) break;
       if (streak > 400) break;
     }
+    // maior sequência no período carregado (12 meses)
+    let recorde = 0, corrida = 0;
+    for (let d = addDays(now, -370); d <= now; d = addDays(d, 1)) {
+      const v = daily.get(dayKey(d));
+      corrida = v && (v.study + v.reading > 0 || v.anki > 0 || v.written > 0) ? corrida + 1 : 0;
+      recorde = Math.max(recorde, corrida);
+    }
+    // a semana passada só até o mesmo dia da semana de hoje (comparação justa no meio da semana)
+    const sp = (f: (d: DayStats) => number) => sum(addDays(ws, -7), addDays(now, -7), f);
     return {
       today: time(daily.get(today) ?? ({} as DayStats)) || 0,
+      // média por dia desde o primeiro dia com registro (no máximo 30 dias): os dias antes de começar a usar o sistema não contam
+      media30: (() => {
+        let ini = from30;
+        while (ini < now && !time(daily.get(dayKey(ini)) ?? ({} as DayStats))) ini = addDays(ini, 1);
+        const dias = Math.max(1, Math.round((now.getTime() - ini.getTime()) / 864e5) + 1);
+        return sum(ini, now, time) / dias;
+      })(),
+      lastWeek: sp(time),
+      lastWords: sp((d) => d.words),
+      lastWritten: sp((d) => d.written),
+      lastAnki: sp((d) => d.anki),
+      recorde,
+      ankiHoje: daily.get(today)?.anki ?? 0,
       week: sum(ws, now, time),
       weekWords: sum(ws, now, (d) => d.words),
       weekWritten: sum(ws, now, (d) => d.written),
@@ -132,19 +167,28 @@ export default function Dashboard() {
         setNome(n);
       }}>{nome ? "trocar nome" : "Como quer ser chamado?"}</button>}>
       <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3">
-        <Stat compacto label="Hoje" value={fmtDuration(s.today)} hint="timer + leitura + Anki" />
-        <Stat compacto label="Esta semana" value={fmtDuration(s.week)} hint="timer + leitura + Anki" />
-        <Stat compacto label="Sequência" value={`${s.streak} ${s.streak === 1 ? "dia" : "dias"}`} />
-        <Stat compacto label="Velocidade" value={ppmMedia ? `${ppmMedia} ppm` : "—"}
-          hint={ppm.leitura && ppm.estudos ? `leitura ${ppm.leitura} · estudos ${ppm.estudos} (média, 30 dias)` : ppm.leitura ? `leitura, últimos 30 dias` : ppm.estudos ? "estudos, últimos 30 dias" : "palavras/min, últimos 30 dias"} />
-        <Stat compacto label="Palavras na semana" value={nf.format(s.weekWords)} hint={`média semanal: ${nf.format(Math.round(s.avgWeek))}`} />
-        <Stat compacto label="Palavras escritas" value={nf.format(s.weekWritten)} hint="esta semana" />
-        <Stat compacto label="Revisões Anki" value={nf.format(s.weekAnki)} hint="esta semana (sincronizado)" />
+        {/* legendas: uma linha curta, para comparar; a explicação fica no tooltip */}
+        <Stat compacto label="Hoje" value={fmtDuration(s.today)} hint={<Variacao atual={s.today} base={s.media30} vs="média" />}
+          explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas. Comparado com a sua média por dia nos últimos 30 dias, contando a partir do primeiro registro (${fmtDuration(s.media30)}).`} />
+        <Stat compacto label="Esta semana" value={fmtDuration(s.week)} hint={<Variacao atual={s.week} base={s.lastWeek} vs="anterior" />}
+          explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas, de segunda até hoje. Comparado com os mesmos dias da semana passada (${fmtDuration(s.lastWeek)}).`} />
+        <Stat compacto label="Sequência" value={`${s.streak} ${s.streak === 1 ? "dia" : "dias"}`}
+          hint={s.recorde > s.streak ? `recorde: ${s.recorde} dias` : "seu recorde"}
+          explica="Dias seguidos com algum estudo, leitura, revisão ou escrita." />
+        <Stat compacto label="Velocidade" value={ppmMedia ? `${ppmMedia} ppm` : "—"} hint="palavras por minuto"
+          explica={ppm.leitura && ppm.estudos ? `Média dos últimos 30 dias: leitura ${ppm.leitura} ppm, estudos ${ppm.estudos} ppm.` : "Média dos últimos 30 dias."} />
+        <Stat compacto label="Palavras lidas" value={nf.format(s.weekWords)} hint={<Variacao atual={s.weekWords} base={s.lastWords} vs="anterior" />}
+          explica={`Palavras lidas no leitor nesta semana. Mesmos dias da semana passada: ${nf.format(s.lastWords)}. Média semanal: ${nf.format(Math.round(s.avgWeek))}.`} />
+        <Stat compacto label="Palavras escritas" value={nf.format(s.weekWritten)} hint={<Variacao atual={s.weekWritten} base={s.lastWritten} vs="anterior" />}
+          explica={`Palavras escritas na sala de escrita nesta semana. Mesmos dias da semana passada: ${nf.format(s.lastWritten)}.`} />
+        <Stat compacto label="Revisões Anki" value={nf.format(s.weekAnki)} hint={<Variacao atual={s.weekAnki} base={s.lastAnki} vs="anterior" />}
+          explica={`Revisões nos baralhos dos seus idiomas nesta semana (${nf.format(s.ankiHoje)} hoje). Mesmos dias da semana passada: ${nf.format(s.lastAnki)}.`} />
         <Stat
           compacto
           label="Biblioteca"
-          value={`${count("aguardando")} livros`}
-          hint={ppmLivros && remainingWords ? `≈ ${fmtDuration((remainingWords / ppmLivros) * 60)} de leitura pela frente` : "aguardando leitura"}
+          value={`${count("aguardando")} ${count("aguardando") === 1 ? "livro" : "livros"}`}
+          hint={ppmLivros && remainingWords ? `≈ ${remainingWords / ppmLivros / 60 >= 10 ? `${Math.round(remainingWords / ppmLivros / 60)} h` : fmtDuration((remainingWords / ppmLivros) * 60)} de leitura` : "na fila"}
+          explica="Livros aguardando leitura e o tempo que falta, no seu ritmo, para ler o que não está concluído."
         />
       </div>
 

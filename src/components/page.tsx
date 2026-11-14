@@ -34,12 +34,16 @@ export function Page({
   );
 }
 
-export function Stat({ label, value, hint, cor, compacto }: { label: string; value: React.ReactNode; hint?: string; cor?: string; compacto?: boolean }) {
+export function Stat({ label, value, hint, cor, compacto, explica }: {
+  label: string; value: React.ReactNode; hint?: React.ReactNode; cor?: string; compacto?: boolean;
+  /** explicação mais longa, mostrada ao passar o mouse */
+  explica?: string;
+}) {
   return (
-    <div className={`card ${compacto ? "px-3.5 py-3" : "p-4"}`}>
+    <div className={`card ${compacto ? "px-3.5 py-3" : "p-4"}`} title={explica}>
       <div className={`${compacto ? "text-xs" : "text-[13px]"} text-muted truncate`}>{label}</div>
       <div className={`${compacto ? "text-[1.35rem]" : "text-[1.75rem]"} font-normal tracking-tight mt-1 tabular-nums leading-none`} style={cor ? { color: cor } : undefined}>{value}</div>
-      {hint && <div className={`text-xs text-faint ${compacto ? "mt-1.5 line-clamp-2 leading-snug" : "mt-2"}`} title={hint}>{hint}</div>}
+      {hint && <div className={`text-xs text-faint ${compacto ? "mt-1.5 truncate" : "mt-2"}`} title={explica || typeof hint !== "string" ? undefined : hint}>{hint}</div>}
     </div>
   );
 }
