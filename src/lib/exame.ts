@@ -254,9 +254,6 @@ export const ANTES_DO_EXAME = {
   ] as [string, string][],
 };
 
-/** Fórmula costumeira no confessionário, depois de dizer os pecados. */
-export const FORMULA_FIM = "Destes e de todos os pecados da minha vida passada, peço perdão a Deus.";
-
 export const ATO_DE_CONTRICAO =
   "Meu Pai e meu Deus, reconheço com muita dor que pequei! Eu vos ofendi, ó meu Redentor, e mereci os vossos castigos. Por Maria, minha e vossa Mãe, declaro que não quero pecar mais. Por Ela, eu Vos peço perdão.";
 

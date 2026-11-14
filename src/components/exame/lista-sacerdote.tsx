@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
-import { ATO_DE_CONTRICAO, FORMULA_FIM, diasDesde, listaParaConfissao, tempoDesde, type ExameDados } from "@/lib/exame";
+import { ATO_DE_CONTRICAO, diasDesde, listaParaConfissao, tempoDesde, type ExameDados } from "@/lib/exame";
 
 const ZOOM_MIN = 0.8;
 const ZOOM_MAX = 1.6;
@@ -92,8 +92,6 @@ export function ListaParaSacerdote({ dados, ultima, onClose, onConfessei }: {
             </section>
           ))}
         </div>
-
-        {total > 0 && <p className="text-[1.15em] mt-8">{FORMULA_FIM}</p>}
 
         <div id="ato-de-contricao" className="mt-8 rounded-xl bg-surface-2 p-5 scroll-mt-20">
           <div className="label mb-2">Ato de Contrição</div>
