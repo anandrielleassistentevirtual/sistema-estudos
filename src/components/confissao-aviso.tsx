@@ -33,7 +33,7 @@ export function ConfissaoAviso() {
   return (
     <section className={`card mt-4 px-5 py-4 flex flex-wrap items-center gap-x-4 gap-y-2 ${atrasada ? "border-[color-mix(in_srgb,#c98a1a_55%,transparent)]" : ""}`}
       style={atrasada ? { background: "color-mix(in srgb, #c98a1a 9%, var(--surface))" } : undefined}>
-      <div className="flex items-center gap-2 min-w-0 flex-1">
+      <div className="flex items-center gap-2 min-w-0 basis-full sm:basis-0 flex-1">
         {atrasada ? <BellRing size={17} className="shrink-0" style={{ color: "#c98a1a" }} /> : <ListChecks size={17} className="text-icon shrink-0" />}
         <div className="min-w-0">
           <div className="text-sm font-medium">
@@ -48,13 +48,13 @@ export function ConfissaoAviso() {
         </div>
       </div>
       {marcando || ultima === null ? (
-        <div className="flex items-center gap-2">
-          <input type="date" className="input py-1 w-auto text-sm" max={hojeIso()} value={d} onChange={(e) => setD(e.target.value)} />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <input type="date" className="input py-1 flex-1 sm:flex-none sm:w-auto text-sm" max={hojeIso()} value={d} onChange={(e) => setD(e.target.value)} />
           <button className="btn" disabled={!d} onClick={salvar}>Salvar</button>
           {ultima !== null && <button className="btn btn-ghost" onClick={() => setMarcando(false)}>Cancelar</button>}
         </div>
       ) : (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-auto">
           <Link href="/oracao/exame" className="btn btn-ghost text-sm">{emAndamento ? "Abrir o exame" : "Exame de consciência"}</Link>
           <button className="btn text-sm" onClick={() => { setD(hojeIso()); setMarcando(true); }}>Me confessei</button>
         </div>

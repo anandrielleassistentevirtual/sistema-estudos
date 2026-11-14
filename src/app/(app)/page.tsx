@@ -154,7 +154,7 @@ export default function Dashboard() {
 
       <WritingPanel />
 
-      <section className="mt-4 grid md:grid-cols-2 gap-4">
+      <section className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card p-5">
           <h2 className="font-medium mb-3">Continuar lendo</h2>
           {reading.length === 0 ? (
@@ -166,9 +166,9 @@ export default function Dashboard() {
               {reading.map((b) => (
                 <li key={b.id}>
                   <Link href={`/ler/${b.id}`} className="flex items-center gap-3 rounded-lg p-2 -mx-2 hover:bg-surface-2">
-                    <Cover book={b} url={covers[b.id]} className="w-9 h-12" />
+                    <Cover book={b} url={covers[b.id]} className="w-9 h-12 shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm truncate">
+                      <div className="text-sm line-clamp-2 sm:line-clamp-1 break-words leading-snug">
                         {b.author && <><span className="font-medium">{b.author}</span><span className="text-faint"> — </span></>}
                         <span className="font-medium">{b.title}</span>
                       </div>
@@ -181,7 +181,7 @@ export default function Dashboard() {
                         </div>
                       ) : null}
                     </div>
-                    <span className="text-xs text-muted tabular-nums">{Math.round(progressoDoLivro(b) * 100)}%</span>
+                    <span className="text-xs text-muted tabular-nums shrink-0">{Math.round(progressoDoLivro(b) * 100)}%</span>
                   </Link>
                 </li>
               ))}
@@ -190,7 +190,7 @@ export default function Dashboard() {
         </div>
         <div className="card p-5">
           <h2 className="font-medium mb-3">Biblioteca</h2>
-          <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="grid grid-cols-2 min-[420px]:grid-cols-4 gap-2 text-center">
             {(["aguardando", "lendo", "pausado", "lido"] as const).map((st) => (
               <div key={st} className="rounded-lg bg-surface-2 py-3">
                 <div className="text-xl font-medium tabular-nums">{count(st)}</div>

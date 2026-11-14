@@ -12,7 +12,7 @@ const TABS = [
 export function OracaoTabs({ className = "mb-6" }: { className?: string }) {
   const path = usePathname();
   return (
-    <nav className={`flex gap-1 border-b border-line overflow-x-auto ${className}`}>
+    <nav className={`flex gap-1 border-b border-line overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 ${className}`}>
       {TABS.map(({ href, label, icon: Icon }) => {
         const ativo = path.startsWith(href);
         return (

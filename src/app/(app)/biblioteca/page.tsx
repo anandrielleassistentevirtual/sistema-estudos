@@ -29,7 +29,10 @@ export default function Biblioteca() {
   const [folders, setFolders] = useState<F[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
   const [covers, setCovers] = useState<Record<string, string>>({});
-  const [sel, setSel] = useState<Sel>("todos");
+  const [sel, setSelBruto] = useState<Sel>("todos");
+  // celular: a árvore de pastas fica recolhida atrás de um botão e fecha ao escolher
+  const [pastasNoCelular, setPastasNoCelular] = useState(false);
+  const setSel = (v: Sel) => { setSelBruto(v); setPastasNoCelular(false); };
   const [status, setStatus] = useState<BookStatus | "todos">("todos");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -190,13 +193,14 @@ export default function Biblioteca() {
     const naFila = queueNo.has(b.id);
     const pasta = b.folder_id ? folderById.get(b.folder_id) : undefined;
     return (
-      <div key={b.id} className="group flex items-center gap-2 pr-2 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
+      <div key={b.id} className="group relative flex items-center gap-1 sm:gap-2 pr-1.5 sm:pr-2 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
         <Link href={b.format === "fisico" ? "#" : `/ler/${b.id}`} onClick={(e) => { if (b.format === "fisico") { e.preventDefault(); readPhysical(b); } }}
           title={b.format === "fisico" ? "Ler (liga o timer)" : "Abrir no leitor"}
-          className="flex items-center gap-3 min-w-0 flex-1 p-3">
-          <Cover book={b} url={covers[b.id]} className="w-10 h-14" />
+          className="flex items-start sm:items-center gap-3 min-w-0 flex-1 p-3">
+          <Cover book={b} url={covers[b.id]} className="w-10 h-14 shrink-0" />
           <span className="min-w-0">
-            <span className="block truncate" title={`${b.author ?? "Autor desconhecido"} — ${b.title}`}>
+            {/* no celular o título usa até três linhas (cortar em uma esconde quase tudo) */}
+            <span className="line-clamp-3 sm:line-clamp-1 break-words leading-snug" title={`${b.author ?? "Autor desconhecido"} — ${b.title}`}>
               {b.author ? <span className="font-medium">{b.author}</span> : <span className="text-faint">Autor desconhecido</span>}
               <span className="text-faint"> — </span>
               <span className="font-medium">{b.title}</span>
@@ -227,6 +231,8 @@ export default function Biblioteca() {
                 {b.format === "fisico" ? ` · físico${b.total_pages ? ` · p. ${b.current_page ?? 0}/${b.total_pages}` : ""}` : ""}
               </span>
             </span>
+            {/* espaço para o status, que no celular fica embaixo do texto */}
+            <span className="block h-8 sm:hidden" aria-hidden />
           </span>
         </Link>
         {naFila && (
@@ -235,7 +241,9 @@ export default function Biblioteca() {
             <button className="p-0.5 text-faint hover:text-ink disabled:opacity-30" title="Descer na fila" disabled={queueNo.get(b.id) === queueNo.size} onClick={() => moveQueue(b, 1)}><ChevronDown size={15} /></button>
           </span>
         )}
-        <StatusPill label="Status do livro" value={b.status} options={OPCOES_LIVRO} onChange={(st) => update(b, { status: st })} />
+        <span className="absolute left-16 bottom-3 sm:static">
+          <StatusPill label="Status do livro" value={b.status} options={OPCOES_LIVRO} onChange={(st) => update(b, { status: st })} />
+        </span>
         <RowMenu items={[
           // livro físico de consulta: sem "ler com timer" (consulta não conta nos indicadores)
           ...(b.format === "fisico"
@@ -280,16 +288,19 @@ export default function Biblioteca() {
               <div
                 className={`group flex items-center gap-1 rounded-md pr-1 text-sm cursor-pointer ${sel === f.id ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}
                 style={{ paddingLeft: 4 + depth * 14 }}
-                onClick={() => { setSel(f.id); if (kids) setOpen((o) => new Set(o).add(f.id)); }}
+                onClick={() => {
+                  // com subpastas, o painel continua aberto no celular para descer na árvore
+                  if (kids) { setSelBruto(f.id); setOpen((o) => new Set(o).add(f.id)); } else setSel(f.id);
+                }}
               >
                 <button
-                  className={`p-0.5 text-faint ${kids ? "" : "invisible"}`}
+                  className={`p-1.5 -m-1 md:p-0.5 md:m-0 text-faint ${kids ? "" : "invisible"}`}
                   onClick={(e) => { e.stopPropagation(); setOpen((o) => { const x = new Set(o); if (x.has(f.id)) x.delete(f.id); else x.add(f.id); return x; }); }}
                 >
                   {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
                 {sel === f.id ? <FolderOpen size={15} className="text-icon" /> : <Folder size={15} className="text-muted" />}
-                <span className="truncate flex-1 py-1.5" title={folderLabel(f)}>
+                <span className="truncate flex-1 py-2.5 md:py-1.5" title={folderLabel(f)}>
                   {f.code && <span className={`font-mono text-xs mr-1 ${depth === 0 ? "font-medium text-ink" : "text-muted"}`}>{f.code} –</span>}
                   <span className={depth === 0 ? "font-medium" : ""}>{f.name}</span>
                 </span>
@@ -327,11 +338,20 @@ export default function Biblioteca() {
         </>
       }
     >
-      <div className="grid md:grid-cols-[300px_1fr] gap-4">
-        <aside className="card p-2 h-fit md:sticky md:top-4">
+      <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4">
+        <button type="button" className="md:hidden card flex items-center gap-2 px-3 py-2.5 text-sm text-left"
+          aria-expanded={pastasNoCelular} onClick={() => setPastasNoCelular((v) => !v)}>
+          {pastasNoCelular ? <FolderOpen size={16} className="text-icon shrink-0" /> : <Folder size={16} className="text-muted shrink-0" />}
+          <span className="text-muted shrink-0">Pasta:</span>
+          <span className="font-medium truncate flex-1">
+            {sel === "todos" ? "Toda a biblioteca" : sel === "sem-pasta" ? "Sem pasta" : (() => { const f = folders.find((x) => x.id === sel); return f ? folderLabel(f) : "—"; })()}
+          </span>
+          <ChevronDown size={16} className={`text-faint shrink-0 transition-transform ${pastasNoCelular ? "rotate-180" : ""}`} />
+        </button>
+        <aside className={`card p-2 h-fit md:sticky md:top-4 ${pastasNoCelular ? "" : "hidden md:block"}`}>
           {(["todos", "sem-pasta"] as const).map((k) => (
             <div key={k} onClick={() => setSel(k)}
-              className={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm cursor-pointer ${sel === k ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
+              className={`flex items-center justify-between rounded-md px-2 py-2.5 md:py-1.5 text-sm cursor-pointer ${sel === k ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
               <span>{k === "todos" ? "Toda a biblioteca" : "Sem pasta"}</span>
               <span className="text-xs text-faint">{k === "todos" ? books.length : books.filter((b) => !b.folder_id).length}</span>
             </div>
@@ -367,14 +387,14 @@ export default function Biblioteca() {
           </div>
 
           <div className="flex flex-wrap gap-2 items-center mb-3">
-            <div className="relative flex-1 min-w-[180px]">
+            <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[180px]">
               <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
               <input className="input pl-8" placeholder="Buscar título ou autor" value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
-            <div className="inline-flex rounded-lg bg-surface-2 p-1 text-xs">
+            <div className="flex max-w-full overflow-x-auto no-scrollbar rounded-lg bg-surface-2 p-1 text-xs">
               {(["todos", ...STATUS] as const).map((s) => (
                 <button key={s} onClick={() => setStatus(s)}
-                  className={`px-2.5 py-1 rounded-md ${status === s ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
+                  className={`shrink-0 px-2.5 py-1.5 sm:py-1 rounded-md ${status === s ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
                   {s === "todos" ? "Todos" : STATUS_LABEL[s]}
                 </button>
               ))}
@@ -465,7 +485,7 @@ function PhysicalModal({ folders, folderId, onClose, onSaved }: { folders: F[]; 
     } catch (x) { setErr((x as Error).message); setBusy(false); }
   }
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3">
         <div className="flex justify-between items-center">
           <h2 className="font-medium">Livro físico</h2>
@@ -593,7 +613,7 @@ function EditBookModal({ book, folders, coverUrl, onClose, onSaved, onCover }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <form onSubmit={save} onPaste={onPaste} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3 max-h-[92vh] overflow-y-auto">
         <div className="flex justify-between items-center">
           <h2 className="font-medium">Editar livro</h2>
@@ -703,7 +723,7 @@ function FolderModal({ folders, edit, parentId, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3">
         <div className="flex justify-between items-center">
           <h2 className="font-medium">{edit ? "Editar pasta" : parentFolder ? "Nova subpasta" : "Nova pasta"}</h2>

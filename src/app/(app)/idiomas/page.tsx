@@ -182,7 +182,7 @@ export default function Idiomas() {
             </p>
           )}
 
-          <div className="grid lg:grid-cols-[1fr_300px] gap-4 mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 mt-4">
             <section className="card p-5">
               <div className="flex items-baseline justify-between mb-3">
                 <h3 className="font-medium">Minutos por semana</h3>
@@ -300,7 +300,7 @@ export default function Idiomas() {
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-3">
         <div className="flex justify-between items-center">
           <h2 className="font-medium">{title}</h2>

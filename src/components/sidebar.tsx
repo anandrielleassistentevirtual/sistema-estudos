@@ -49,6 +49,13 @@ export function Sidebar() {
   const timer = useTimer();
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [path]);
+  // com o menu aberto no celular, a página de trás não rola junto
+  useEffect(() => {
+    if (!open) return;
+    const antes = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    return () => { document.documentElement.style.overflow = antes; };
+  }, [open]);
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
     try { setHidden(localStorage.getItem("menu-oculto") === "1"); } catch {}
@@ -75,6 +82,11 @@ export function Sidebar() {
     return () => { document.removeEventListener("keydown", k); window.removeEventListener("modo-foco", f); };
   }, []);
 
+  const secao = (() => {
+    if (path.startsWith("/armazenamento")) return "Armazenamento";
+    const it = NAV.find((i) => "href" in i && i.href !== "/" && (path.startsWith(i.href) || (i.href === "/lectio" && path.startsWith("/oracao"))));
+    return it && "label" in it ? it.label : path === "/" ? "Dashboard" : "Sistema de Estudos";
+  })();
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href) || (href === "/lectio" && path.startsWith("/oracao")));
   const showTimer = timer.running || timer.seconds > 0;
   // leitor e sala de escrita ocupam a tela toda e têm o próprio cabeçalho
@@ -106,11 +118,11 @@ export function Sidebar() {
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-sm border transition-colors ${
+            className={`flex items-center gap-3 md:gap-2.5 rounded-lg px-3 md:px-2.5 py-2.5 md:py-[7px] text-[15px] md:text-sm border transition-colors ${
               active(item.href) ? "bg-sel border-transparent text-ink font-medium" : "border-transparent text-ink/80 hover:bg-sel"
             }`}
           >
-            <item.icon size={16} strokeWidth={1.8} className="text-icon" />
+            <item.icon size={17} strokeWidth={1.8} className="text-icon shrink-0" />
             {item.label}
           </Link>
         ),
@@ -136,12 +148,13 @@ export function Sidebar() {
   return (
     <>
       {!telaCheia && <header className="md:hidden sticky top-0 z-30 pt-safe border-b border-line bg-bg/85 backdrop-blur-xl">
-        <div className="flex items-center justify-between px-4 h-12">
-        <button className="btn btn-ghost px-2" onClick={() => setOpen(true)} aria-label="Abrir menu">
-          <Menu size={18} />
+        <div className="grid grid-cols-[3.5rem_1fr_3.5rem] items-center px-2 h-12">
+        <button className="btn btn-ghost p-2.5 justify-self-start" onClick={() => setOpen(true)} aria-label="Abrir menu">
+          <Menu size={20} />
         </button>
-        <span className="font-medium text-sm">Sistema de Estudos</span>
-        <span className="w-8 text-xs font-mono tabular-nums text-muted">
+        {/* no celular, o nome da seção em que você está (o nome do sistema fica no menu) */}
+        <span className="font-semibold text-[15px] text-center truncate">{secao}</span>
+        <span className="justify-self-end pr-2 text-xs font-mono tabular-nums text-muted">
           {showTimer ? fmtClock(timer.mode === "pomodoro" ? timer.remaining : timer.seconds) : ""}
         </span>
         </div>
@@ -155,10 +168,10 @@ export function Sidebar() {
         </button>
       )}
       {open && (
-        <div className="md:hidden fixed inset-0 z-40">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-64 bg-surface border-r border-line pt-safe pb-safe">
-            <button className="btn btn-ghost absolute right-2 top-2 px-2" onClick={() => setOpen(false)} aria-label="Fechar">
+        <div className="md:hidden fixed inset-0 z-[65]">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 w-[min(18rem,85vw)] overflow-y-auto bg-surface border-r border-line pt-safe pb-safe">
+            <button className="btn btn-ghost absolute right-2 top-[calc(env(safe-area-inset-top)+0.5rem)] p-2" onClick={() => setOpen(false)} aria-label="Fechar">
               <X size={18} />
             </button>
             {nav}

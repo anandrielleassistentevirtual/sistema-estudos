@@ -54,8 +54,9 @@ export function BarChart({
       </div>
       <div className="absolute left-0 right-9 bottom-0 flex text-[10px] text-faint">
         {data.map((d, i) => (
-          <div key={i} className="text-center truncate" style={{ width: `${W}%` }}>
-            {i % Math.ceil(data.length / 8) === 0 ? d.label : ""}
+          <div key={i} className="text-center whitespace-nowrap flex justify-center" style={{ width: `${W}%` }}>
+            {/* rótulos espaçados para caber: no celular cada barra é estreita demais para um rótulo próprio */}
+            <span>{i % Math.ceil(data.length / 6) === 0 ? d.label : ""}</span>
           </div>
         ))}
       </div>

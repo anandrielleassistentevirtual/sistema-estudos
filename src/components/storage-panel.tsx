@@ -45,7 +45,7 @@ export function StoragePanel() {
 
   return (
     <section className="card p-5">
-      <div className="grid md:grid-cols-[1fr_1fr_1.2fr] gap-6 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.2fr] gap-6 items-start">
         <div>
           <div className="text-[13px] text-muted">Seus dados</div>
           <div className="text-sm mt-0.5 tabular-nums">{uso ? `${mb(uso.dados ?? uso.banco)} de 500 MB` : "…"}</div>

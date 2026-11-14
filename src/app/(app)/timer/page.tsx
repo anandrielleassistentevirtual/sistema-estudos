@@ -28,8 +28,8 @@ export default function TimerPage() {
 
   return (
     <Page title="Timer" subtitle="Cada sessão de foco entra no calendário e no dashboard.">
-      <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-        <div className="card p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+        <div className="card p-4 sm:p-6">
           <TimerControls />
         </div>
 
@@ -45,16 +45,16 @@ export default function TimerPage() {
           {today.length === 0 && <p className="text-sm text-muted">Nenhuma sessão salva hoje.</p>}
           <ul className="space-y-1.5">
             {today.map((s) => (
-              <li key={s.id} className="flex items-center justify-between text-sm group">
-                <span>
+              <li key={s.id} className="flex items-center justify-between gap-3 text-sm group">
+                <span className="min-w-0 truncate">
                   <span className="text-faint tabular-nums mr-2">
                     {new Date(s.started_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                   </span>
                   {s.label || s.category}
                 </span>
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 shrink-0">
                   <span className="tabular-nums text-muted">{fmtDuration(s.seconds)}</span>
-                  <button className="opacity-0 group-hover:opacity-100 text-faint hover:text-critical" title="Apagar"
+                  <button className="p-1 -m-1 sm:opacity-0 sm:group-hover:opacity-100 text-faint hover:text-critical" title="Apagar"
                     onClick={async () => { await supabase().from("study_sessions").delete().eq("id", s.id); void load(); }}>
                     <Trash2 size={14} />
                   </button>

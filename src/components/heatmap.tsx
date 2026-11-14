@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { addDays, dayKey, DIAS, fmtDayLong, MESES, nf, weekStart } from "@/lib/dates";
 import { DayStats, Metric, METRICS, metricValue } from "@/lib/stats";
 
@@ -29,6 +29,13 @@ export function Heatmap({
   paleta?: "heat" | "out" | "ama";
 }) {
   const [hover, setHover] = useState<{ day: string; x: number; y: number } | null>(null);
+  // quando o ano não cabe na largura (celular), começa mostrando as semanas mais recentes, à direita
+  const rolagem = useRef<HTMLDivElement>(null);
+  const fimKey = dayKey(end);
+  useLayoutEffect(() => {
+    const el = rolagem.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [weeks, fimKey]);
   const unit = unidade ?? METRICS.find((m) => m.id === metric)!.unit;
   const today = dayKey();
 
@@ -79,7 +86,7 @@ export function Heatmap({
 
   return (
     <div className="relative">
-      <div className="overflow-x-auto pb-1">
+      <div ref={rolagem} className="overflow-x-auto overscroll-x-contain pb-1">
         <svg width={width} height={height} role="img" aria-label={`Heatmap de ${unit}`} className="block">
           {months.map((m) => (
             <text key={`${m.w}-${m.label}`} x={left + m.w * (CELL + GAP)} y={10} fontSize={10} fill="var(--muted)">

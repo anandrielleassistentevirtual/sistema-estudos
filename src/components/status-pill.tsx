@@ -8,14 +8,18 @@ export function StatusPill<T extends string>({ value, options, onChange, label =
   value: T; options: OpcaoStatus<T>[]; onChange: (v: T) => void; label?: string;
 }) {
   const cor = options.find((o) => o.value === value)?.cor ?? "var(--muted)";
+  const texto = options.find((o) => o.value === value)?.label ?? value;
+  // a etiqueta é desenhada por cima; o <select> invisível (com letra de 16px, para o iPhone não dar zoom)
+  // cobre a etiqueta inteira e abre a lista do próprio aparelho
   return (
-    <span className="relative shrink-0">
+    <span className="relative shrink-0 inline-flex items-center rounded-full pl-5 pr-2.5 py-1 text-xs font-medium focus-within:ring-2 focus-within:ring-accent/40"
+      style={{ color: cor, background: `color-mix(in srgb, ${cor} 14%, transparent)` }}>
+      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: cor }} />
+      <span className="pointer-events-none whitespace-nowrap">{texto}</span>
       <select aria-label={label} title="Mudar o status" value={value} onChange={(e) => onChange(e.target.value as T)}
-        className="appearance-none cursor-pointer rounded-full pl-5 pr-2.5 py-1 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-        style={{ color: cor, background: `color-mix(in srgb, ${cor} 14%, transparent)` }}>
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none text-base">
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
-      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: cor }} />
     </span>
   );
 }

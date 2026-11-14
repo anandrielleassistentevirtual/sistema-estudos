@@ -99,7 +99,7 @@ export function AnkiNoComputador({ conectado, setConectado }: { conectado: boole
         </span>
         <ChevronDown size={15} className="text-muted group-open:rotate-180 transition-transform" />
       </summary>
-      <div className="border-t border-line p-5 grid md:grid-cols-2 gap-5 text-sm">
+      <div className="border-t border-line p-5 grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
         <div className="space-y-3">
           <p className="text-muted">Com o Anki aberto neste computador (complemento AnkiConnect), aparece o botão <b className="text-ink">Revisar</b> em cada baralho, e os destaques de leitura podem virar cartões.</p>
           <label className="block space-y-1">

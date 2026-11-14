@@ -111,7 +111,7 @@ export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
   return (
     <>
       {mostrarAviso && (
-        <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/45">
+        <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/45">
           <div className="card w-full max-w-md p-5 space-y-3 shadow-2xl text-ink max-h-[90vh] overflow-y-auto">
             <div className="flex items-start gap-3">
               <ListChecks size={20} className="text-icon mt-0.5 shrink-0" />

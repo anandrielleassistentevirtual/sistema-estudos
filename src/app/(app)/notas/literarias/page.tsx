@@ -152,7 +152,7 @@ export default function Literarias() {
   return (
     <Page wide tabs={<NotasTabs />} title="Notas literárias"
       subtitle="Organizadas nas mesmas pastas da Biblioteca. Cada livro reúne todas as suas anotações concluídas.">
-      <div className="grid md:grid-cols-[300px_1fr] gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4">
         <aside className="card p-2 h-fit md:sticky md:top-4">
           {(["todos", "sem-pasta"] as const).map((k) => (
             <div key={k} onClick={() => { setSel(k); setBookId(null); }}
@@ -180,14 +180,14 @@ export default function Literarias() {
                     <button key={b.id} onClick={() => setBookId(b.id)}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2 ${n ? "" : "opacity-60"}`}>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate">
+                        <span className="line-clamp-2 sm:line-clamp-1 break-words leading-snug">
                           {b.author && <><span className="font-medium">{b.author}</span><span className="text-faint"> — </span></>}
                           <span className="font-medium">{b.title}</span>
                         </span>
                         {f && <span className="text-xs text-muted"><span className="font-mono">{f.code}</span> {f.name}</span>}
                       </span>
                       {p > 0 && <span className="inline-flex items-center gap-1 text-[11px] text-muted"><Inbox size={12} /> {p}</span>}
-                      <span className={`text-xs tabular-nums ${n ? "font-medium text-accent" : "text-faint"}`}>{n ? `${n} ${n === 1 ? "anotação" : "anotações"}` : "sem anotações"}</span>
+                      <span className={`text-xs tabular-nums shrink-0 text-right ${n ? "font-medium text-accent" : "text-faint"}`}>{n ? `${n} ${n === 1 ? "anotação" : "anotações"}` : <>sem<br className="sm:hidden" /> anotações</>}</span>
                     </button>
                   );
                 })}

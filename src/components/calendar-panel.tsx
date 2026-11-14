@@ -26,10 +26,10 @@ export function CalendarPanel() {
     <section id="calendario" className="mt-4 scroll-mt-4">
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <h2 className="font-medium mr-auto">Calendário</h2>
-        <div className="inline-flex rounded-lg bg-surface-2 p-1 text-sm">
+        <div className="order-last sm:order-none w-full sm:w-auto flex sm:inline-flex rounded-lg bg-surface-2 p-1 text-sm">
           {METRICS.map((m) => (
             <button key={m.id} onClick={() => setMetric(m.id)}
-              className={`px-3 py-1.5 rounded-md ${metric === m.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md ${metric === m.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
               {m.label}
             </button>
           ))}

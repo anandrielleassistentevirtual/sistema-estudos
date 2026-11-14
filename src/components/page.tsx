@@ -17,11 +17,11 @@ export function Page({
   wide?: boolean;
 }) {
   return (
-    <div className={`mx-auto px-4 md:px-8 py-6 md:py-8 ${wide ? "max-w-7xl" : "max-w-5xl"}`}>
+    <div className={`mx-auto px-4 md:px-8 pt-5 pb-24 md:py-8 ${wide ? "max-w-7xl" : "max-w-5xl"}`}>
       {tabs}
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-7">
-        <div>
-          <h1 className="text-[1.6rem] font-normal tracking-tight leading-tight flex items-center gap-2">{title}{titleExtra}</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-5 md:mb-7">
+        <div className="min-w-0">
+          <h1 className="text-[1.5rem] md:text-[1.6rem] font-normal tracking-tight leading-tight flex items-center gap-2">{title}{titleExtra}</h1>
           {subtitle && <p className="text-sm text-muted mt-1">{subtitle}</p>}
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}

@@ -215,17 +215,17 @@ export default function Lectio() {
         )}
 
         {/* etapas */}
-        <div className="grid grid-cols-4 gap-1.5 mt-6">
+        <div className="grid grid-cols-2 min-[400px]:grid-cols-4 gap-1.5 mt-6">
           {ETAPAS.map((e, i) => (
             <button key={e.id} disabled={rodando} onClick={() => { setEtapa(i); setRestante(minutos * 60); setFim(false); }}
-              className={`rounded-lg py-2 text-xs sm:text-sm transition-colors ${i === etapa && !fim ? "bg-accent text-accent-ink font-medium" : i < etapa || fim ? "bg-accent-soft text-ink" : "bg-surface-2 text-muted"}`}>
+              className={`rounded-lg px-1 py-2.5 sm:py-2 text-[13px] min-[400px]:text-xs sm:text-sm truncate transition-colors ${i === etapa && !fim ? "bg-accent text-accent-ink font-medium" : i < etapa || fim ? "bg-accent-soft text-ink" : "bg-surface-2 text-muted"}`}>
               {e.nome}
             </button>
           ))}
         </div>
 
         {/* relógio */}
-        <div className="card p-4 mt-3 flex items-center gap-4">
+        <div className="card p-4 mt-3 flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-3">
           <div className="relative w-16 h-16 shrink-0">
             <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
               <circle cx="32" cy="32" r="28" fill="none" stroke="var(--surface-2)" strokeWidth="5" />
@@ -238,10 +238,11 @@ export default function Lectio() {
             <div className="font-medium">{fim ? "Lectio concluída" : `${atual.nome} — ${atual.pergunta}`}</div>
             <div className="text-xs text-muted">{fim ? `Tempo total: ${fmtDuration(total)}` : atual.guia}</div>
           </div>
-          <div className="flex gap-1 shrink-0">
+          {/* celular: os botões ganham uma linha própria (o texto da etapa fica com a largura toda) */}
+          <div className="flex gap-1 shrink-0 w-full sm:w-auto justify-end border-t border-line pt-3 sm:border-0 sm:pt-0">
             {!fim && (rodando
               ? <button className="btn" onClick={() => setRodando(false)} title="Pausar"><Pause size={15} /></button>
-              : <button className="btn btn-primary" onClick={iniciar} title="Iniciar"><Play size={15} /> <span className="hidden sm:inline">{total ? "Continuar" : "Iniciar"}</span></button>)}
+              : <button className="btn btn-primary" onClick={iniciar} title="Iniciar"><Play size={15} /> <span>{total ? "Continuar" : "Iniciar"}</span></button>)}
             {!fim && <button className="btn btn-ghost px-2" onClick={avancar} title="Próxima etapa"><SkipForward size={15} /></button>}
             <button className="btn btn-ghost px-2" onClick={recomecar} title="Recomeçar"><RotateCcw size={15} /></button>
           </div>

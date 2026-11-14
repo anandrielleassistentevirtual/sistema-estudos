@@ -49,7 +49,7 @@ export default function Escrita() {
       {projetos && projetos.length === 0 && (
         <Empty>Nenhum projeto ainda. Crie um conto, novela, romance ou ensaio para começar a escrever.</Empty>
       )}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {projetos?.map((p) => {
           const r = resumo[p.id] ?? { palavras: 0, hoje: 0 };
           const pct = p.meta_palavras ? Math.min(1, r.palavras / p.meta_palavras) : 0;
@@ -105,7 +105,7 @@ function SeletorTipo({ valor, onChange }: { valor: TipoProjeto; onChange: (t: Ti
 
 function Modal({ titulo, onClose, children }: { titulo: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div className="card p-6 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-lg">{titulo}</h2>

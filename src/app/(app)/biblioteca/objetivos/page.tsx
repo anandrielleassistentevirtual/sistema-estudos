@@ -71,7 +71,7 @@ export default function Mesas() {
           Nenhuma mesa ainda. Crie uma (por exemplo “Aprender a estudar”) ou cole uma lista com os seus blocos e livros.
         </Empty>
       )}
-      <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {mesas?.map((m, k) => {
           const r = resumo(m);
           return (
@@ -123,7 +123,7 @@ export default function Mesas() {
 
 function Janela({ titulo, onClose, children, larga }: { titulo: string; onClose: () => void; children: React.ReactNode; larga?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div className={`card w-full ${larga ? "max-w-2xl" : "max-w-md"} p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-lg">{titulo}</h2>

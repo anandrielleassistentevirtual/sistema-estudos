@@ -29,12 +29,12 @@ export function WritingPanel() {
   if (!dados) return null;
   if (!dados.projetos.length) {
     return (
-      <section className="card p-5 mt-4 flex items-center justify-between gap-4">
+      <section className="card p-5 mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="font-medium flex items-center gap-2"><Feather size={16} className="text-icon" /> Escrita</h2>
           <p className="text-sm text-muted mt-1">Nenhum projeto ainda. As palavras escritas por dia, a sequência e o ritmo aparecem aqui.</p>
         </div>
-        <Link href="/escrita" className="btn shrink-0">Criar projeto</Link>
+        <Link href="/escrita" className="btn shrink-0 self-start sm:self-auto">Criar projeto</Link>
       </section>
     );
   }
@@ -64,8 +64,8 @@ export function WritingPanel() {
         <h2 className="font-medium flex items-center gap-2"><Feather size={16} className="text-icon" /> Escrita</h2>
         <Link href="/escrita" className="text-sm text-accent flex items-center gap-0.5">Abrir <ChevronRight size={15} /></Link>
       </div>
-      <div className="grid md:grid-cols-[1fr_1.2fr] gap-6">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-6">
+        <div className="grid grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-4 min-w-0">
           <div>
             <div className="text-[13px] text-muted">Hoje</div>
             <div className="text-[1.6rem] tracking-tight tabular-nums leading-tight">{nf.format(hoje)}</div>
@@ -92,17 +92,17 @@ export function WritingPanel() {
             <div className="text-xs text-faint">palavras por hora</div>
           </div>
         </div>
-        <ul className="space-y-1">
+        <ul className="space-y-1 min-w-0">
           {projetos.slice(0, 3).map((p) => {
             const total = totais[p.id] ?? 0;
             const pct = p.meta_palavras ? Math.min(1, total / p.meta_palavras) : 0;
             const h = hojePorProjeto(p.id);
             return (
               <li key={p.id}>
-                <Link href={`/escrita/${p.id}`} className="block rounded-lg px-3 py-2 -mx-1 hover:bg-surface-2">
-                  <div className="flex items-baseline justify-between gap-3">
+                <Link href={`/escrita/${p.id}`} className="block rounded-lg px-3 py-2 -mx-3 sm:-mx-1 hover:bg-surface-2">
+                  <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-x-3 gap-y-0.5">
                     <span className="truncate">{p.titulo} <span className="text-xs text-faint">· {tipoDe(p.tipo).label}</span></span>
-                    <span className="text-xs text-muted tabular-nums shrink-0">
+                    <span className="text-xs text-muted tabular-nums sm:shrink-0">
                       {nf.format(total)}{p.meta_palavras ? ` / ${nf.format(p.meta_palavras)}` : ""} pal.{h > 0 ? ` · hoje +${nf.format(h)}` : ""}
                     </span>
                   </div>
