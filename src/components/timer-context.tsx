@@ -37,7 +37,15 @@ interface TimerState {
   tarefaId: string;
   tarefaTexto: string;
   cycles: number;
+  /** segundos desta fase que já foram salvos (ao continuar um foco que tinha terminado) */
+  salvo: number;
+  /** o último foco que terminou: dá para voltar a ele e acrescentar minutos */
+  anterior: FocoAnterior | null;
+  /** este foco é a continuação de um que já contou como ciclo (ao terminar, não conta de novo) */
+  jaContou: boolean;
 }
+
+export interface FocoAnterior { feito: number; contouCiclo: boolean; pausaLonga: boolean }
 
 /** Sessão de livro físico esperando a página onde você parou. */
 export interface PendingPages {
@@ -55,6 +63,8 @@ interface TimerApi extends TimerState {
   ajustar: (minutos: number) => void;
   /** vai já para a próxima fase (o foco feito até aqui é salvo) */
   pular: () => void;
+  /** volta ao foco que terminou e continua por mais `minutos` (o que já foi salvo não conta de novo) */
+  continuarFoco: (minutos: number) => void;
   start: () => void;
   pause: () => void;
   stop: () => Promise<void>;
@@ -93,6 +103,9 @@ const initial: TimerState = {
   tarefaId: "",
   tarefaTexto: "",
   cycles: 0,
+  salvo: 0,
+  anterior: null,
+  jaContou: false,
 };
 
 const Ctx = createContext<TimerApi | null>(null);
@@ -213,16 +226,23 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   }, [pending, insert]);
 
   // passagem de fase: foco → pausa (longa depois do 4º foco) → foco
-  const paraPausa = useCallback((agora: number) => setS((p) => {
+  const paraPausa = useCallback((agora: number, feito: number) => setS((p) => {
+    if (p.jaContou) {
+      // continuação de um foco que já contou: volta à mesma pausa, sem somar outro ciclo
+      const longa = p.anterior?.pausaLonga ?? false;
+      return { ...p, phase: "pausa", elapsed: 0, startedAt: agora, running: true, ajuste: 0, pausaLonga: longa, salvo: 0, jaContou: false,
+        anterior: { feito, contouCiclo: true, pausaLonga: longa } };
+    }
     const hoje = dayKey();
     const serie = (p.ciclosDia === hoje ? p.serie : 0) + 1;
     const longa = serie >= Math.max(1, p.ciclosAteLonga);
     return {
-      ...p, phase: "pausa", elapsed: 0, startedAt: agora, running: true, ajuste: 0, pausaLonga: longa,
+      ...p, phase: "pausa", elapsed: 0, startedAt: agora, running: true, ajuste: 0, pausaLonga: longa, salvo: 0,
+      anterior: { feito, contouCiclo: true, pausaLonga: longa },
       serie: longa ? 0 : serie, cycles: (p.ciclosDia === hoje ? p.cycles : 0) + 1, ciclosDia: hoje,
     };
   }), []);
-  const paraFoco = useCallback(() => setS((p) => ({ ...p, phase: "foco", elapsed: 0, startedAt: null, running: false, ajuste: 0, pausaLonga: false })), []);
+  const paraFoco = useCallback(() => setS((p) => ({ ...p, phase: "foco", elapsed: 0, startedAt: null, running: false, ajuste: 0, pausaLonga: false, salvo: 0, jaContou: false })), []);
 
   // fim de fase do pomodoro
   useEffect(() => {
@@ -230,7 +250,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     beep();
     const eraFoco = s.phase === "foco";
     const vaiSerLonga = eraFoco && (s.ciclosDia === dayKey() ? s.serie : 0) + 1 >= Math.max(1, s.ciclosAteLonga);
-    if (eraFoco) { void save(target, s); paraPausa(Date.now()); } else paraFoco();
+    if (eraFoco) { void save(target - s.salvo, s); paraPausa(Date.now(), target); } else paraFoco();
     if ("Notification" in window && Notification.permission === "granted") {
       new Notification(eraFoco ? (vaiSerLonga ? "Foco concluído — hora da pausa longa" : "Foco concluído — hora da pausa") : "Pausa terminada — de volta ao foco");
     }
@@ -239,7 +259,11 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const start = useCallback(() => {
     if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
     setNow(Date.now());
-    setS((p) => (p.running ? p : { ...p, running: true, startedAt: Date.now() }));
+    setS((p) => (p.running ? p : {
+      ...p, running: true, startedAt: Date.now(),
+      // começar um foco novo (do zero) esquece o anterior
+      ...(p.phase === "foco" && p.elapsed === 0 ? { anterior: null, salvo: 0, jaContou: false } : {}),
+    }));
   }, []);
   const set = useCallback((patch: Partial<TimerState>) => setS((p) => ({ ...p, ...patch })), []);
   // estado sem o relógio: só muda quando o timer liga, pausa ou troca de fase
@@ -261,10 +285,15 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     stop: async () => {
       const secs = seconds;
       const snapshot = s;
-      setS((p) => ({ ...p, running: false, startedAt: null, elapsed: 0, phase: "foco", ajuste: 0, pausaLonga: false }));
-      if (snapshot.phase === "foco") await save(secs, snapshot);
+      setS((p) => ({
+        ...p, running: false, startedAt: null, elapsed: 0, phase: "foco", ajuste: 0, pausaLonga: false, salvo: 0,
+        // encerrou um foco: ainda dá para voltar a ele e continuar
+        jaContou: false,
+        anterior: p.phase === "foco" && secs >= 30 ? { feito: secs, contouCiclo: p.jaContou, pausaLonga: p.anterior?.pausaLonga ?? false } : p.anterior,
+      }));
+      if (snapshot.phase === "foco") await save(secs - snapshot.salvo, snapshot);
     },
-    reset: () => setS((p) => ({ ...p, running: false, startedAt: null, elapsed: 0, phase: "foco", ajuste: 0, pausaLonga: false })),
+    reset: () => setS((p) => ({ ...p, running: false, startedAt: null, elapsed: 0, phase: "foco", ajuste: 0, pausaLonga: false, salvo: 0 })),
     set,
     alvo: target,
     ajustar: (minutos: number) => setS((p) => {
@@ -274,9 +303,21 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     }),
     pular: () => {
       if (s.phase === "foco") {
-        if (s.mode === "pomodoro") { void save(seconds, s); paraPausa(Date.now()); }
+        if (s.mode === "pomodoro") { void save(seconds - s.salvo, s); paraPausa(Date.now(), seconds); }
       } else paraFoco();
     },
+    continuarFoco: (minutos: number) => { const agora = Date.now(); setNow(agora); setS((p) => {
+      const a = p.anterior;
+      if (!a) return p;
+      return {
+        ...p, phase: "foco", running: true, startedAt: agora, elapsed: a.feito, salvo: a.feito, pausaLonga: false,
+        // o alvo passa a ser o que já foi feito + os minutos pedidos
+        ajuste: a.feito + minutos * 60 - p.focusMin * 60,
+        // aquele foco já contou como ciclo: ao terminar de novo, não conta outra vez
+        jaContou: a.contouCiclo,
+        anterior: { ...a },
+      };
+    }); },
   };
 
   return (

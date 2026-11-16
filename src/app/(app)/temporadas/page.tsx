@@ -10,15 +10,24 @@ import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import { addDays, dayKey, fmtDuration, nf, parseDay } from "@/lib/dates";
 import { ppmDosLivros } from "@/lib/books";
-import { faltam, ppmMedio, subarvore, arvoreDePastas, type PastaEstudo } from "@/lib/estudos";
+import { faltam, ppmMedio, porOrdem, subarvore, arvoreDePastas, type PastaEstudo } from "@/lib/estudos";
 import { progressoDoLivro } from "@/lib/types";
+import { contaAnki } from "@/lib/anki";
 import {
-  AREAS, ESTACOES, carregarTemporadas, diasEntre, enfase, estacaoDe, execucaoDaSemana, limites, nomeDaTemporada, ritmoPorArea,
-  salvarTemporada, semanasDa, somaArea, tempoPorArea, vizinha, type Area, type Estacao, type Meta, type Temporada,
+  AREAS, ESTACOES, NOME_UNIDADE, UNIDADES, carregarTemporadas, diasEntre, enfase, estacaoDe, execucaoDaSemana, feitoEm, limites, nomeDaTemporada,
+  rendimento, ritmoPorArea, salvarTemporada, semanasDa, tempoPorArea, unidadeDe, vizinha,
+  type Area, type Estacao, type Meta, type Registros, type Temporada, type Unidade,
 } from "@/lib/temporadas";
-import { NovaMeta, type Livro, type AulaT } from "./nova-meta";
+import { NovaMeta, type Livro, type AulaT, type BaralhoT } from "./nova-meta";
 
 const fmtData = (k: string) => parseDay(k).toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
+/** Arredonda um plano para um número redondo na unidade. */
+const redondo = (v: number, u: Unidade) =>
+  u === "min" ? Math.round(v / 5) * 5 : u === "cartoes" ? Math.round(v / 5) * 5 : v >= 2000 ? Math.round(v / 500) * 500 : Math.round(v / 100) * 100;
+/** "11.200 palavras", "60 cartões", "1 h 20" */
+const fmtQ = (v: number, u: Unidade, curto = false) =>
+  u === "min" ? (curto ? `${Math.round(v)} min` : fmtDuration(v * 60)) : `${nf.format(Math.round(v))} ${u === "palavras" ? (curto ? "pal." : "palavras") : "cartões"}`;
+interface AnkiDia { day: string; baralho: string; reviews: number; criados: number }
 const corExecucao = (v: number) => (v >= 0.85 ? "var(--good)" : v >= 0.6 ? "#c98a1a" : "var(--critical)");
 
 export default function Temporadas() {
@@ -26,11 +35,12 @@ export default function Temporadas() {
   const [sel, setSel] = useState<{ estacao: Estacao; ano: number }>({ estacao: atual.estacao, ano: atual.ano });
   const [temporadas, setTemporadas] = useState<Temporada[]>([]);
   const [metas, setMetas] = useState<Meta[]>([]);
-  const [mapa, setMapa] = useState<Map<string, Record<Area, number>>>(new Map());
+  const [reg, setReg] = useState<Registros>({ seg: new Map(), qtd: new Map(), segQ: new Map() });
+  const [baralhos, setBaralhos] = useState<BaralhoT[]>([]);
+  const [ankiDias, setAnkiDias] = useState<AnkiDia[]>([]);
   const [livros, setLivros] = useState<Livro[]>([]);
   const [aulas, setAulas] = useState<AulaT[]>([]);
   const [pastas, setPastas] = useState<PastaEstudo[]>([]);
-  const [escrita, setEscrita] = useState<{ dia: string; palavras: number; segundos: number }[]>([]);
   const [ppm, setPpm] = useState({ livros: 220, estudos: 220 });
   const [novaMeta, setNovaMeta] = useState(false);
   const [editando, setEditando] = useState<Meta | null>(null);
@@ -39,23 +49,25 @@ export default function Temporadas() {
   const carregar = useCallback(async () => {
     const sb = supabase();
     const desde = dayKey(addDays(new Date(), -400));
-    const [t, m, b, a, p, e, pl, pe] = await Promise.all([
+    const [t, m, b, a, p, ak, conta, pl, pe] = await Promise.all([
       carregarTemporadas(),
       tempoPorArea(desde),
       todas<Livro>((de, ate) => sb.from("books").select("id,title,author,word_count,progress,status,format").order("title").order("id").range(de, ate)),
-      todas<AulaT>((de, ate) => sb.from("notes").select("id,title,pasta_id,palavras,progresso,situacao").eq("kind", "estudo").order("id").range(de, ate)),
+      todas<AulaT>((de, ate) => sb.from("notes").select("id,title,pasta_id,palavras,progresso,situacao,ordem").eq("kind", "estudo").order("id").range(de, ate)),
       sb.from("estudo_pastas").select("id,parent_id,nome,posicao"),
-      sb.from("escrita_sessoes").select("dia,palavras,segundos").gte("dia", desde),
+      todas<AnkiDia>((de, ate) => sb.from("anki_baralho_dia").select("day,baralho,reviews,criados").gte("day", desde).order("day").order("baralho").range(de, ate)).catch(() => []),
+      contaAnki().catch(() => null),
       ppmDosLivros(),
       ppmMedio(),
     ]);
     setTemporadas(t.temporadas);
     setMetas(t.metas);
-    setMapa(m);
+    setReg(m);
     setLivros(b);
-    setAulas(a);
+    setAulas(a.sort(porOrdem));
     setPastas((p.data as PastaEstudo[]) ?? []);
-    setEscrita((e.data as { dia: string; palavras: number; segundos: number }[]) ?? []);
+    setAnkiDias(ak);
+    setBaralhos((conta?.baralhos ?? []).filter((x) => !x.nome.includes("::")).map((x) => ({ nome: x.nome, total: x.total })));
     setPpm({ livros: pl || 220, estudos: pe.ppm || 220 });
     setCarregando(false);
   }, []);
@@ -68,82 +80,122 @@ export default function Temporadas() {
   const futura = lim.inicio > hoje;
   const passada = lim.fim < hoje;
   // ainda não planejada: mostra como seria, com o seu ritmo atual (a partir desta semana, se for a atual)
-  const ritmo = useMemo(() => ritmoPorArea(mapa), [mapa]);
   const t: Temporada = registro ?? {
     ano: sel.ano, estacao: sel.estacao, inicio: lim.inicio, fim: lim.fim,
     comeca_em: ehAtual ? dayKey(addDays(new Date(), -((new Date().getDay() + 6) % 7))) : lim.inicio, plano: {},
   };
-  const plano = (a: Area) => t.plano[a] ?? Math.round(ritmo[a] / 5) * 5;
+  const u = (a: Area) => unidadeDe(t, a);
+  const unidadesCompletas = Object.fromEntries(AREAS.map((a) => [a.id, u(a.id)])) as Record<Area, Unidade>;
+  const ritmo = useMemo(() => ritmoPorArea(reg, (a) => unidadesCompletas[a]), [reg, JSON.stringify(unidadesCompletas)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ritmoMin = useMemo(() => ritmoPorArea(reg), [reg]);
+  const rend = useMemo(() => rendimento(reg), [reg]);
+  const plano = (a: Area) => t.plano[a] ?? redondo(ritmo[a], u(a));
   const planoCompleto = Object.fromEntries(AREAS.map((a) => [a.id, plano(a.id)])) as Record<Area, number>;
+  /** o plano em minutos por dia (para a ênfase e para metas de horas) */
+  const planoMin = (a: Area) => (u(a) === "min" ? plano(a) : plano(a) / (rend[a] || 1));
+  /** o plano em palavras (ou cartões) por dia; em minutos, convertido pelo seu ritmo de leitura */
+  const planoQtd = (a: Area) => (u(a) !== "min" ? plano(a) : plano(a) * (a === "leitura" ? ppm.livros : a === "estudos" ? ppm.estudos : rend[a]));
   const { execucao, revisao } = semanasDa(t);
   const fimExecucao = execucao[execucao.length - 1]?.ate ?? t.fim;
   const desdeHoje = hoje > t.comeca_em ? hoje : t.comeca_em;
   const diasRestantes = passada ? 0 : diasEntre(desdeHoje > hoje ? desdeHoje : hoje, fimExecucao);
   const semanaAtual = execucao.findIndex((w) => hoje >= w.de && hoje <= w.ate);
-  const notas = execucao.map((w) => (w.de > hoje ? null : execucaoDaSemana(mapa, planoCompleto, w.de, w.ate > hoje ? hoje : w.ate)));
+  const notas = execucao.map((w) => (w.de > hoje ? null : execucaoDaSemana(reg, t, planoCompleto, w.de, w.ate > hoje ? hoje : w.ate, rend)));
   const feitas = notas.filter((n): n is number => n !== null);
   const mediaExec = feitas.length ? feitas.reduce((a, b) => a + b, 0) / feitas.length : null;
 
   async function mudar(campos: Partial<Temporada>) {
-    const novo = await salvarTemporada({ ...t, ...campos, plano: { ...planoCompleto, ...(campos.plano ?? {}) } });
+    const novo = await salvarTemporada({
+      ...t, ...campos, plano: { ...planoCompleto, ...(campos.plano ?? {}) }, unidades: { ...unidadesCompletas, ...(campos.unidades ?? {}) },
+    });
     setTemporadas((l) => [...l.filter((x) => x.id !== novo.id), novo]);
   }
 
   // ---- previsão de cada meta ----
-  const minutosAte = (a: Area) => plano(a) * diasRestantes; // o que ainda cabe, no plano
-  const feitoNaTemporada = (a: Area) => somaArea(mapa, a, t.comeca_em, hoje < t.fim ? hoje : t.fim);
-  function previsao(m: Meta): { linhas: { texto: string; ok: boolean; quando?: string }[]; resumo: string; ok: boolean; pct: number } {
-    const porDia = plano(m.area);
-    const quando = (min: number) => (porDia > 0 ? dayKey(addDays(parseDay(desdeHoje), Math.ceil(min / porDia) - 1)) : null);
+  const ateHoje = hoje < t.fim ? hoje : t.fim;
+  const feitoNaTemporada = (a: Area, un: Unidade = u(a)) => feitoEm(reg, a, un, t.comeca_em, ateHoje);
+  /** "precisa de 9.500 palavras/dia" (ou em minutos, se o plano da área for em minutos) */
+  const precisaPorDia = (a: Area, qtdPorDia: number) => {
+    const nome = AREAS.find((x) => x.id === a)!.nome.toLowerCase();
+    if (u(a) !== "min") return `precisa ${fmtQ(qtdPorDia, u(a), true)}/dia`;
+    const ppmA = a === "leitura" ? ppm.livros : a === "estudos" ? ppm.estudos : rend[a] || 1;
+    return `precisa ${Math.ceil(qtdPorDia / ppmA)} min/dia de ${nome}`;
+  };
+  type Linha = { texto: string; ok: boolean; quando?: string };
+  type Previsao = { linhas: Linha[]; resumo: string; ok: boolean; pct: number; mais?: number; falta?: number; precisa?: string };
+  /** itens lidos em sequência (livros ou aulas): quando termina cada um, no plano de palavras por dia */
+  function emSequencia(a: Area, itens: { titulo: string; total: number; falta: number; feito: boolean }[], oQue: string): Previsao {
+    const porDia = planoQtd(a);
+    let acum = 0;
+    const linhas = itens.map((i) => {
+      acum += i.falta;
+      const fim = i.feito ? null : porDia > 0 ? dayKey(addDays(parseDay(desdeHoje), Math.ceil(acum / porDia) - 1)) : null;
+      return { texto: i.titulo, ok: i.feito || (!!fim && fim <= fimExecucao), quando: i.feito ? "✓" : fim ? `termina ${fmtData(fim)}` : "sem plano" };
+    });
+    const ok = linhas.every((l) => l.ok);
+    const total = itens.reduce((n, i) => n + i.total, 0);
+    const pct = total ? 1 - acum / total : 0;
+    const precisa = precisaPorDia(a, diasRestantes ? acum / diasRestantes : acum);
+    const resumo = acum === 0 ? "concluída ✓"
+      : ok ? `cabe no plano: faltam ${nf.format(Math.round(acum))} palavras`
+      : `no plano, ${linhas.filter((l) => l.ok).length} de ${linhas.length} ${oQue}; para todos: ${precisa}`;
+    return { linhas, ok, pct, resumo, falta: acum, precisa };
+  }
+  function previsao(m: Meta): Previsao {
     if (m.tipo === "livros") {
-      let acum = 0;
-      const linhas = m.refs.map((id) => livros.find((b) => b.id === id)).filter(Boolean).map((b) => {
-        const lido = b!.status === "lido";
-        const falta = lido ? 0 : (b!.word_count ?? 0) * (1 - progressoDoLivro(b!));
-        acum += falta / ppm.livros;
-        const fim = lido ? null : quando(acum);
-        return { texto: b!.title, ok: lido || (!!fim && fim <= fimExecucao), quando: lido ? "lido ✓" : fim ? `termina ${fmtData(fim)}` : "sem tempo no plano" };
-      });
-      const ok = linhas.every((l) => l.ok);
-      const precisa = diasRestantes ? Math.ceil(acum / diasRestantes) : 0;
-      // a barra mostra o quanto já foi lido (em palavras) dos livros da meta
-      const sel = m.refs.map((id) => livros.find((b) => b.id === id)).filter(Boolean);
-      const total = sel.reduce((n, b) => n + (b!.word_count ?? 0), 0);
-      const lidas = sel.reduce((n, b) => n + (b!.word_count ?? 0) * progressoDoLivro(b!), 0);
-      return { linhas, ok, pct: total ? lidas / total : 0,
-        resumo: ok ? `cabe no plano: ${fmtDuration(acum * 60)} de leitura` : `no plano, ${linhas.filter((l) => l.ok).length} de ${linhas.length}; para todos: ${precisa} min/dia de leitura` };
+      const sel = m.refs.map((id) => livros.find((b) => b.id === id)).filter((b): b is Livro => !!b);
+      return emSequencia("leitura", sel.map((b) => {
+        const total = b.word_count ?? 0, lido = b.status === "lido";
+        return { titulo: b.title, total, falta: lido ? 0 : total * (1 - progressoDoLivro(b)), feito: lido };
+      }), "livros");
     }
-    if (m.tipo === "curso") {
-      const dentro = subarvore(m.refs[0] ?? "", arvoreDePastas(pastas).filhos);
-      const doCurso = aulas.filter((a) => a.pasta_id && dentro.has(a.pasta_id));
-      const pendentes = doCurso.filter((a) => a.situacao !== "concluida");
-      const min = pendentes.reduce((n, a) => n + faltam(a), 0) / ppm.estudos;
-      const fim = quando(min);
-      const ok = pendentes.length === 0 || (!!fim && fim <= fimExecucao);
-      const precisa = diasRestantes ? Math.ceil(min / diasRestantes) : 0;
-      return { linhas: [], ok, pct: doCurso.length ? 1 - pendentes.length / doCurso.length : 0,
-        resumo: pendentes.length === 0 ? "curso concluído ✓" : `${pendentes.length} aulas · ≈ ${fmtDuration(min * 60)} · ${ok ? `termina ${fmtData(fim!)}` : `precisa ${precisa} min/dia de estudos`}` };
+    if (m.tipo === "aulas" || m.tipo === "curso") {
+      const sel = m.tipo === "aulas"
+        ? m.refs.map((id) => aulas.find((x) => x.id === id)).filter((x): x is AulaT => !!x)
+        : aulas.filter((x) => x.pasta_id && subarvore(m.refs[0] ?? "", arvoreDePastas(pastas).filhos).has(x.pasta_id));
+      const p = emSequencia("estudos", sel.map((x) => ({ titulo: x.title, total: x.palavras || 0, falta: faltam(x), feito: x.situacao === "concluida" })), "aulas");
+      // muitas aulas: mostra as próximas pendentes e quantas faltam depois
+      const pend = p.linhas.filter((l) => l.quando !== "✓");
+      const feitas = p.linhas.length - pend.length;
+      return { ...p, linhas: pend.slice(0, 3), mais: Math.max(0, pend.length - 3),
+        resumo: !p.falta ? `${p.linhas.length} de ${p.linhas.length} aulas feitas ✓`
+          : `${feitas} de ${p.linhas.length} feitas · faltam ${nf.format(Math.round(p.falta))} palavras · ${p.ok ? "cabe no plano" : p.precisa}` };
+    }
+    if (m.tipo === "anki") {
+      const decks = new Set(m.refs);
+      const dias = ankiDias.filter((d) => decks.has(d.baralho));
+      const medida = m.medida ?? "total";
+      const campo = medida === "revisoes" ? "reviews" : "criados";
+      const soma = (de: string, ate: string) => dias.filter((d) => d.day >= de && d.day <= ate).reduce((n, d) => n + d[campo], 0);
+      // ritmo: últimos 28 dias, contando do primeiro registro
+      const ini28 = dayKey(addDays(new Date(), -27));
+      const primeiro = dias.map((d) => d.day).sort()[0] ?? hoje;
+      const de = primeiro > ini28 ? primeiro : ini28;
+      const ritmoDia = soma(de, hoje) / Math.max(1, diasEntre(de, hoje));
+      const naTemporada = soma(t.comeca_em, ateHoje);
+      const atual = medida === "total" ? baralhos.filter((b) => decks.has(b.nome)).reduce((n, b) => n + b.total, 0) : naTemporada;
+      const previsto = atual + ritmoDia * diasRestantes;
+      const ok = previsto >= m.alvo;
+      const falta = Math.max(0, m.alvo - atual);
+      const nomeM = medida === "revisoes" ? "revisões" : medida === "criados" ? "cartões novos" : "cartões no baralho";
+      return { linhas: [], ok, pct: m.alvo ? Math.min(1, atual / m.alvo) : 0,
+        resumo: `${nf.format(atual)} de ${nf.format(m.alvo)} ${nomeM} · no seu ritmo (${nf.format(Math.round(ritmoDia))}/dia) chega a ${nf.format(Math.round(previsto))}${ok || !diasRestantes ? "" : ` · precisa ${nf.format(Math.ceil(falta / diasRestantes))}/dia`}` };
     }
     if (m.tipo === "palavras") {
-      const ate = hoje < t.fim ? hoje : t.fim;
-      const feito = escrita.filter((e) => e.dia >= t.comeca_em && e.dia <= ate).reduce((n, e) => n + e.palavras, 0);
-      const s60 = escrita.filter((e) => e.dia >= dayKey(addDays(new Date(), -60)));
-      const seg = s60.reduce((n, e) => n + e.segundos, 0);
-      const porHora = seg > 600 ? s60.reduce((n, e) => n + e.palavras, 0) / (seg / 3600) : 500;
-      const previsto = feito + (minutosAte("escrita") / 60) * porHora;
+      const feito = feitoNaTemporada("escrita", "palavras");
+      const previsto = feito + planoQtd("escrita") * diasRestantes;
       const ok = previsto >= m.alvo;
       const falta = Math.max(0, m.alvo - feito);
-      const precisa = diasRestantes ? Math.ceil((falta / porHora) * 60 / diasRestantes) : 0;
       return { linhas: [], ok, pct: m.alvo ? Math.min(1, feito / m.alvo) : 0,
-        resumo: `${nf.format(feito)} de ${nf.format(m.alvo)} · no plano chega a ${nf.format(Math.round(previsto))}${ok ? " ✓" : ` · precisa ${precisa} min/dia`}` };
+        resumo: `${nf.format(feito)} de ${nf.format(m.alvo)} · no plano chega a ${nf.format(Math.round(previsto))}${ok || !diasRestantes ? "" : ` · ${precisaPorDia("escrita", falta / diasRestantes)}`}` };
     }
     // horas numa área
-    const feito = feitoNaTemporada(m.area) / 3600;
-    const previsto = feito + minutosAte(m.area) / 60;
+    const feito = feitoNaTemporada(m.area, "min") / 60;
+    const previsto = feito + (planoMin(m.area) * diasRestantes) / 60;
     const ok = previsto >= m.alvo;
     const precisa = diasRestantes ? Math.ceil(((m.alvo - feito) * 60) / diasRestantes) : 0;
     return { linhas: [], ok, pct: m.alvo ? Math.min(1, feito / m.alvo) : 0,
-      resumo: `${fmtDuration(feito * 3600)} de ${m.alvo} h · no plano chega a ${fmtDuration(previsto * 3600)}${ok ? " ✓" : ` · precisa ${Math.max(0, precisa)} min/dia`}` };
+      resumo: `${fmtDuration(feito * 3600)} de ${m.alvo} h · no plano chega a ${fmtDuration(previsto * 3600)}${ok ? "" : ` · precisa ${Math.max(0, precisa)} min/dia`}` };
   }
   const minhasMetas = metas.filter((m) => registro && m.temporada_id === registro.id);
 
@@ -176,7 +228,7 @@ export default function Temporadas() {
         <section className="card p-4 min-w-0">
           <div className="flex items-baseline justify-between mb-2">
             <h2 className="font-medium">Plano da temporada</h2>
-            <span className="text-xs text-muted">minutos por dia · seu ritmo: últimos 28 dias</span>
+            <span className="text-xs text-muted">por dia · seu ritmo: últimos 28 dias</span>
           </div>
           <table className="w-full text-sm">
             <thead>
@@ -192,22 +244,37 @@ export default function Temporadas() {
             <tbody>
               {AREAS.map((a) => {
                 const p = plano(a.id);
-                const e = enfase(p);
+                const un = u(a.id);
+                const e = enfase(planoMin(a.id));
                 const feito = feitoNaTemporada(a.id);
+                const outra = un === "min" ? null : `≈ ${Math.round(ritmoMin[a.id])} min/dia`;
                 return (
                   <tr key={a.id} className="border-t border-line">
                     <td className="py-1.5"><span className="inline-block w-2 h-2 rounded-full mr-2 align-middle" style={{ background: a.cor }} />{a.nome}</td>
-                    <td className="py-1.5 text-right tabular-nums text-muted">{Math.round(ritmo[a.id])} min</td>
-                    <td className="py-1.5 text-right">
-                      <input type="number" min={0} max={600} step={5} aria-label={`Plano de ${a.nome} (min/dia)`}
-                        className="input w-20 py-0.5 text-right tabular-nums text-sm" value={p}
+                    <td className="py-1.5 text-right tabular-nums text-muted" title={outra ?? undefined}>{fmtQ(ritmo[a.id], un, true)}</td>
+                    <td className="py-1.5 text-right whitespace-nowrap">
+                      <input type="number" min={0} step={un === "palavras" ? 500 : 5} aria-label={`Plano de ${a.nome} (${NOME_UNIDADE[un]}/dia)`}
+                        className="input w-[5.5rem] py-0.5 text-right tabular-nums text-sm" value={p}
                         onChange={(ev) => void mudar({ plano: { ...t.plano, [a.id]: Math.max(0, Number(ev.target.value) || 0) } })} />
+                      {UNIDADES[a.id].length > 1 ? (
+                        <select aria-label={`Unidade de ${a.nome}`} className="ml-1 w-[4.4rem] bg-transparent text-xs text-muted hover:text-ink outline-none cursor-pointer" value={un}
+                          title="Mudar a unidade (o plano é convertido pelo seu ritmo)"
+                          onChange={(ev) => {
+                            const nova = ev.target.value as Unidade;
+                            const emMin = un === "min" ? p : p / (rend[a.id] || 1);
+                            const v = nova === "min" ? emMin : emMin * (rend[a.id] || 1);
+                            const valor = nova === "min" ? Math.round(v) : nova === "cartoes" ? Math.round(v) : Math.round(v / 100) * 100;
+                            void mudar({ plano: { ...t.plano, [a.id]: valor }, unidades: { ...unidadesCompletas, [a.id]: nova } });
+                          }}>
+                          {UNIDADES[a.id].map((x) => <option key={x} value={x}>{x === "palavras" ? "pal." : NOME_UNIDADE[x]}</option>)}
+                        </select>
+                      ) : <span className="ml-1 text-xs text-muted inline-block w-[4.4rem] text-left pl-1">min</span>}
                     </td>
                     <td className="py-1.5 text-center">
                       <span className="text-[11px] rounded-full px-2 py-0.5" style={{ background: e.nivel ? `color-mix(in srgb, ${a.cor} ${e.nivel * 14}%, transparent)` : "var(--surface-2)", color: e.nivel ? undefined : "var(--muted)" }}>{e.nome}</span>
                     </td>
-                    <td className="py-1.5 text-right tabular-nums">{feito >= 60 ? fmtDuration(feito) : "—"}</td>
-                    <td className="py-1.5 text-right tabular-nums text-muted">{passada ? "—" : `+${fmtDuration(p * diasRestantes * 60)}`}</td>
+                    <td className="py-1.5 text-right tabular-nums">{feito >= (un === "min" ? 1 : 1) ? fmtQ(feito, un, true) : "—"}</td>
+                    <td className="py-1.5 text-right tabular-nums text-muted">{passada ? "—" : `+${fmtQ(p * diasRestantes, un, true)}`}</td>
                   </tr>
                 );
               })}
@@ -215,7 +282,7 @@ export default function Temporadas() {
           </table>
           <p className="text-xs text-faint mt-2">
             {registro ? "O plano é salvo ao mudar." : "Ainda não planejada: os números são o seu ritmo atual. Mude qualquer valor para guardar o plano."}
-            {" "}Ênfase: leve (&lt; 20 min), média, forte (1 h ou mais). Fazer menos coisas por vez é o que deixa uma temporada render.
+            {" "}Leitura, Estudos e Escrita em palavras, Idiomas em cartões do Anki (dá para trocar para minutos). Ênfase pelo tempo que o plano pede: leve (&lt; 20 min), média, forte (1 h ou mais).
           </p>
         </section>
 
@@ -229,7 +296,7 @@ export default function Temporadas() {
           </div>
           {minhasMetas.length === 0 ? (
             <p className="text-sm text-muted">
-              {carregando ? "…" : "Escolha o que esta temporada precisa entregar: livros para ler, um curso para terminar, palavras para escrever ou horas numa área. O sistema projeta com o seu plano e diz se cabe."}
+              {carregando ? "…" : "Escolha o que esta temporada precisa entregar: livros para ler, aulas para fazer, um baralho do Anki, palavras para escrever ou horas numa área. O sistema projeta com o seu plano e diz se cabe."}
             </p>
           ) : (
             <ul className="space-y-3">
@@ -259,6 +326,7 @@ export default function Temporadas() {
                             <span className="shrink-0 tabular-nums" style={{ color: l.ok ? "var(--muted)" : "#c98a1a" }}>{l.quando}</span>
                           </li>
                         ))}
+                        {!!p.mais && <li className="text-faint">e mais {p.mais} {p.mais === 1 ? "aula" : "aulas"}</li>}
                       </ul>
                     )}
                   </li>
@@ -302,11 +370,11 @@ export default function Temporadas() {
       </section>
 
       {editando && registro && (
-        <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} posicao={editando.posicao ?? 0} editar={editando}
+        <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} aulas={aulas} baralhos={baralhos} posicao={editando.posicao ?? 0} editar={editando}
           onClose={() => setEditando(null)} onSalva={(m) => { setMetas((l) => l.map((x) => (x.id === m.id ? m : x))); setEditando(null); }} />
       )}
       {novaMeta && registro && (
-        <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} posicao={minhasMetas.length}
+        <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} aulas={aulas} baralhos={baralhos} posicao={minhasMetas.length}
           onClose={() => setNovaMeta(false)} onSalva={(m) => { setMetas((l) => [...l, m]); setNovaMeta(false); }} />
       )}
     </Page>

@@ -2,67 +2,110 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
-import { arvoreDePastas, caminhoDaPasta, type PastaEstudo } from "@/lib/estudos";
+import { arvoreDePastas, caminhoDaPasta, faltam, subarvore, type PastaEstudo } from "@/lib/estudos";
+import { nf } from "@/lib/dates";
 import { AREAS, type Area, type Meta } from "@/lib/temporadas";
 import type { BookStatus } from "@/lib/types";
 
 export interface Livro { id: string; title: string; author: string | null; word_count: number | null; progress: number; status: BookStatus; format: string }
-export interface AulaT { id: string; title: string; pasta_id: string | null; palavras: number; progresso: number; situacao: "pendente" | "lendo" | "concluida" }
+export interface AulaT { id: string; title: string; pasta_id: string | null; palavras: number; progresso: number; situacao: "pendente" | "lendo" | "concluida"; ordem?: number | null }
+export interface BaralhoT { nome: string; total: number }
 
-type Tipo = Meta["tipo"];
+type Tipo = "livros" | "aulas" | "anki" | "palavras" | "horas";
+type Medida = NonNullable<Meta["medida"]>;
 const TIPOS: { id: Tipo; nome: string; exemplo: string }[] = [
   { id: "livros", nome: "Livros", exemplo: "ler estes livros" },
-  { id: "curso", nome: "Curso", exemplo: "terminar um curso" },
+  { id: "aulas", nome: "Aulas", exemplo: "fazer estas aulas" },
+  { id: "anki", nome: "Anki", exemplo: "um baralho chegar a N cartões" },
   { id: "palavras", nome: "Escrita", exemplo: "escrever N palavras" },
   { id: "horas", nome: "Horas", exemplo: "N horas numa área" },
 ];
+const MEDIDAS: { id: Medida; nome: string; dica: string }[] = [
+  { id: "total", nome: "Total no baralho", dica: "o baralho chega a N cartões" },
+  { id: "criados", nome: "Cartões novos", dica: "criar N cartões na temporada" },
+  { id: "revisoes", nome: "Revisões", dica: "fazer N revisões na temporada" },
+];
 
-function nomeAutomatico(tipo: Tipo, livros: number, curso: string | undefined, alvo: string, area: Area) {
-  return tipo === "livros" ? `Ler ${livros} ${livros === 1 ? "livro" : "livros"}`
-    : tipo === "curso" ? `Terminar ${curso ?? "o curso"}`
-    : tipo === "palavras" ? `Escrever ${alvo || "N"} palavras`
+function nomeAutomatico(tipo: Tipo, n: number, alvo: string, area: Area, baralho: string, medida: Medida) {
+  const N = alvo ? nf.format(Number(alvo)) : "N";
+  return tipo === "livros" ? `Ler ${n} ${n === 1 ? "livro" : "livros"}`
+    : tipo === "aulas" ? `Fazer ${n} ${n === 1 ? "aula" : "aulas"}`
+    : tipo === "anki" ? (medida === "total" ? `${baralho || "Baralho"} com ${N} cartões` : medida === "criados" ? `${N} cartões novos em ${baralho || "…"}` : `${N} revisões em ${baralho || "…"}`)
+    : tipo === "palavras" ? `Escrever ${N} palavras`
     : `${alvo || "N"} h de ${AREAS.find((a) => a.id === area)?.nome}`;
 }
 
-/** Uma meta da temporada: livros da Biblioteca, um curso dos Estudos, palavras escritas ou horas numa área. */
-export function NovaMeta({ temporadaId, livros, pastas, posicao, onClose, onSalva, editar }: {
-  temporadaId: string; livros: Livro[]; pastas: PastaEstudo[]; posicao: number; onClose: () => void; onSalva: (m: Meta) => void;
+/** Uma meta da temporada: livros da Biblioteca, aulas dos Estudos, um baralho do Anki, palavras escritas ou horas numa área. */
+export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao, onClose, onSalva, editar }: {
+  temporadaId: string; livros: Livro[]; pastas: PastaEstudo[]; aulas: AulaT[]; baralhos: BaralhoT[]; posicao: number;
+  onClose: () => void; onSalva: (m: Meta) => void;
   /** meta existente: o formulário vem preenchido e salva por cima */
   editar?: Meta;
 }) {
-  const [tipo, setTipo] = useState<Tipo>(editar?.tipo ?? "livros");
+  const porId = useMemo(() => new Map(pastas.map((p) => [p.id, p])), [pastas]);
+  const { ordem, filhos } = useMemo(() => arvoreDePastas(pastas), [pastas]);
+  const daPasta = (id: string) => { const d = subarvore(id, filhos); return aulas.filter((a) => a.pasta_id && d.has(a.pasta_id)); };
+
+  // metas antigas de "curso" (a pasta inteira) viram aulas escolhidas: as pendentes daquela pasta
+  const ini = useMemo(() => {
+    if (editar?.tipo === "curso") {
+      const p = editar.refs[0] ?? "";
+      return { tipo: "aulas" as Tipo, pasta: p, aulas: daPasta(p).filter((a) => a.situacao !== "concluida").map((a) => a.id) };
+    }
+    if (editar?.tipo === "aulas") return { tipo: "aulas" as Tipo, pasta: aulas.find((a) => a.id === editar.refs[0])?.pasta_id ?? "", aulas: editar.refs };
+    return { tipo: (editar?.tipo ?? "livros") as Tipo, pasta: "", aulas: [] as string[] };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [tipo, setTipo] = useState<Tipo>(ini.tipo);
   const [escolhidos, setEscolhidos] = useState<string[]>(editar?.tipo === "livros" ? editar.refs : []);
   const [busca, setBusca] = useState("");
-  const [pasta, setPasta] = useState(editar?.tipo === "curso" ? editar.refs[0] ?? "" : "");
-  const [alvo, setAlvo] = useState(editar && (editar.tipo === "palavras" || editar.tipo === "horas") ? String(editar.alvo) : "");
+  const [pasta, setPasta] = useState(ini.pasta);
+  const [aulasSel, setAulasSel] = useState<string[]>(ini.aulas);
+  const [baralho, setBaralho] = useState(editar?.tipo === "anki" ? editar.refs[0] ?? "" : baralhos[0]?.nome ?? "");
+  const [medida, setMedida] = useState<Medida>(editar?.medida ?? "total");
+  const [alvo, setAlvo] = useState(editar && ["palavras", "horas", "anki"].includes(editar.tipo) ? String(editar.alvo) : "");
   const [area, setArea] = useState<Area>(editar?.tipo === "horas" ? editar.area : "idiomas");
   // um nome que era o automático continua automático (acompanha os livros, o alvo…)
   const [titulo, setTitulo] = useState(() => {
-    if (!editar) return "";
-    const auto = nomeAutomatico(editar.tipo, editar.refs.length, editar.tipo === "curso" ? pastas.find((p) => p.id === editar.refs[0])?.nome : undefined, String(editar.alvo), editar.area);
+    if (!editar || editar.tipo === "curso") return "";
+    const auto = nomeAutomatico(editar.tipo as Tipo, editar.refs.length, String(editar.alvo), editar.area, editar.refs[0] ?? "", editar.medida ?? "total");
     return editar.titulo === auto ? "" : editar.titulo;
   });
   const [erro, setErro] = useState<string | null>(null);
-  const porId = useMemo(() => new Map(pastas.map((p) => [p.id, p])), [pastas]);
-  const { ordem } = useMemo(() => arvoreDePastas(pastas), [pastas]);
+
   const dobra = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   const achados = busca.trim().length >= 2
     ? livros.filter((b) => b.status !== "lido" && !escolhidos.includes(b.id) && dobra(busca).split(/\s+/).every((w) => dobra(`${b.title} ${b.author ?? ""}`).includes(w))).slice(0, 6) : [];
+  const listaAulas = pasta ? daPasta(pasta) : [];
+  const palavrasAulas = aulas.filter((a) => aulasSel.includes(a.id)).reduce((n, a) => n + faltam(a), 0);
+  const totalBaralho = baralhos.find((b) => b.nome === baralho)?.total;
 
-  const sugestao = nomeAutomatico(tipo, escolhidos.length, pasta ? porId.get(pasta)?.nome : undefined, alvo, area);
+  const n = tipo === "livros" ? escolhidos.length : aulasSel.length;
+  const sugestao = nomeAutomatico(tipo, n, alvo, area, baralho, medida);
+
+  function escolherPasta(id: string) {
+    setPasta(id);
+    // ao abrir um curso, já vêm marcadas as aulas que faltam (dá para desmarcar)
+    if (id && !daPasta(id).some((a) => aulasSel.includes(a.id))) {
+      setAulasSel((l) => [...l, ...daPasta(id).filter((a) => a.situacao !== "concluida").map((a) => a.id)]);
+    }
+  }
 
   async function salvar() {
     setErro(null);
     const m: Meta = {
       temporada_id: temporadaId, posicao: editar?.posicao ?? posicao, tipo,
-      area: tipo === "livros" ? "leitura" : tipo === "curso" ? "estudos" : tipo === "palavras" ? "escrita" : area,
+      area: tipo === "livros" ? "leitura" : tipo === "aulas" ? "estudos" : tipo === "anki" ? "idiomas" : tipo === "palavras" ? "escrita" : area,
       titulo: titulo.trim() || sugestao,
-      alvo: tipo === "palavras" || tipo === "horas" ? Number(alvo.replace(",", ".")) || 0 : 0,
-      refs: tipo === "livros" ? escolhidos : tipo === "curso" ? [pasta] : [],
+      alvo: ["palavras", "horas", "anki"].includes(tipo) ? Number(alvo.replace(/\./g, "").replace(",", ".")) || 0 : 0,
+      // as aulas ficam na ordem do curso
+      refs: tipo === "livros" ? escolhidos : tipo === "aulas" ? aulas.filter((a) => aulasSel.includes(a.id)).map((a) => a.id) : tipo === "anki" ? [baralho] : [],
+      medida: tipo === "anki" ? medida : null,
     };
     if (tipo === "livros" && !escolhidos.length) return setErro("Escolha pelo menos um livro.");
-    if (tipo === "curso" && !pasta) return setErro("Escolha o curso.");
-    if ((tipo === "palavras" || tipo === "horas") && !m.alvo) return setErro("Diga quanto.");
+    if (tipo === "aulas" && !aulasSel.length) return setErro("Marque pelo menos uma aula.");
+    if (tipo === "anki" && !baralho) return setErro("Escolha o baralho.");
+    if (["palavras", "horas", "anki"].includes(tipo) && !m.alvo) return setErro("Diga quanto.");
     const sb = supabase();
     const { data, error } = editar?.id
       ? await sb.from("temporada_metas").update(m).eq("id", editar.id).select().single()
@@ -126,12 +169,71 @@ export function NovaMeta({ temporadaId, livros, pastas, posicao, onClose, onSalv
           </div>
         )}
 
-        {tipo === "curso" && (
-          <label className="block text-sm"><span className="label">Curso (pasta dos Estudos)</span>
-            <select className="input mt-1" value={pasta} onChange={(e) => setPasta(e.target.value)}>
-              <option value="">Escolha…</option>
-              {ordem.map(({ pasta: p }) => <option key={p.id} value={p.id}>{caminhoDaPasta(p.id, porId)}</option>)}
-            </select></label>
+        {tipo === "aulas" && (
+          <div className="space-y-2 text-sm">
+            <label className="block"><span className="label">Curso (pasta dos Estudos)</span>
+              <select className="input mt-1" value={pasta} onChange={(e) => escolherPasta(e.target.value)}>
+                <option value="">Escolha…</option>
+                {ordem.map(({ pasta: p }) => <option key={p.id} value={p.id}>{caminhoDaPasta(p.id, porId)}</option>)}
+              </select></label>
+            {pasta && (
+              <>
+                <div className="flex items-center justify-between text-xs text-muted">
+                  <span>Marque as aulas que vai fazer nesta temporada</span>
+                  <span className="flex gap-2">
+                    <button className="hover:text-ink" onClick={() => setAulasSel((l) => [...new Set([...l, ...listaAulas.filter((a) => a.situacao !== "concluida").map((a) => a.id)])])}>pendentes</button>
+                    <button className="hover:text-ink" onClick={() => setAulasSel((l) => l.filter((id) => !listaAulas.some((a) => a.id === id)))}>nenhuma</button>
+                  </span>
+                </div>
+                <ul className="max-h-56 overflow-y-auto rounded-md border border-line divide-y divide-line">
+                  {listaAulas.length === 0 && <li className="px-2.5 py-2 text-muted">Nenhuma aula nesta pasta.</li>}
+                  {listaAulas.map((a) => {
+                    const feita = a.situacao === "concluida";
+                    return (
+                      <li key={a.id}>
+                        <label className={`flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-sel ${feita ? "text-faint" : ""}`}>
+                          <input type="checkbox" checked={aulasSel.includes(a.id)}
+                            onChange={(e) => setAulasSel((l) => (e.target.checked ? [...l, a.id] : l.filter((x) => x !== a.id)))} />
+                          <span className="truncate flex-1">{a.title}</span>
+                          <span className="text-xs text-muted shrink-0 tabular-nums">
+                            {feita ? "✓ feita" : a.situacao === "lendo" ? `${Math.round((a.progresso || 0) * 100)}%` : a.palavras ? `${nf.format(a.palavras)} pal.` : ""}
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+            {aulasSel.length > 0 && (
+              <p className="text-xs text-muted">{aulasSel.length} {aulasSel.length === 1 ? "aula escolhida" : "aulas escolhidas"} · faltam {nf.format(palavrasAulas)} palavras</p>
+            )}
+          </div>
+        )}
+
+        {tipo === "anki" && (
+          <div className="space-y-3 text-sm">
+            <label className="block"><span className="label">Baralho</span>
+              {baralhos.length ? (
+                <select className="input mt-1" value={baralho} onChange={(e) => setBaralho(e.target.value)}>
+                  {baralhos.map((b) => <option key={b.nome} value={b.nome}>{b.nome} · {nf.format(b.total)} cartões</option>)}
+                </select>
+              ) : (
+                <input className="input mt-1" value={baralho} onChange={(e) => setBaralho(e.target.value)} placeholder="ex.: English" />
+              )}
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {MEDIDAS.map((x) => (
+                <button key={x.id} onClick={() => setMedida(x.id)} title={x.dica}
+                  className={`text-xs rounded-full px-3 py-1 border ${medida === x.id ? "border-ink text-ink" : "border-line text-muted hover:text-ink"}`}>{x.nome}</button>
+              ))}
+            </div>
+            <label className="block"><span className="label">
+              {medida === "total" ? "O baralho chega a (cartões)" : medida === "criados" ? "Cartões novos na temporada" : "Revisões na temporada"}</span>
+              <input className="input mt-1" inputMode="numeric" value={alvo} onChange={(e) => setAlvo(e.target.value.replace(/\D/g, ""))}
+                placeholder={medida === "total" && totalBaralho ? `hoje: ${nf.format(totalBaralho)}` : "ex.: 500"} /></label>
+            {medida === "total" && totalBaralho !== undefined && <p className="text-xs text-muted">Hoje o baralho tem {nf.format(totalBaralho)} cartões.</p>}
+          </div>
         )}
 
         {tipo === "palavras" && (

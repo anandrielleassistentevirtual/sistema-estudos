@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { dayKey } from "@/lib/dates";
 import {
-  AREAS, ESTACOES, carregarTemporadas, estacaoDe, execucaoDaSemana, nomeDaTemporada, ritmoPorArea, semanasDa, tempoPorArea, type Area,
+  AREAS, ESTACOES, carregarTemporadas, estacaoDe, execucaoDaSemana, nomeDaTemporada, rendimento, ritmoPorArea, semanasDa, tempoPorArea, unidadeDe, type Area,
 } from "@/lib/temporadas";
 import { addDays } from "@/lib/dates";
 
@@ -22,10 +22,10 @@ export function TemporadaLinha() {
       const i = execucao.findIndex((w) => hoje >= w.de && hoje <= w.ate);
       const base = i >= 0 ? `${nome} · semana ${i + 1} de ${execucao.length}` : `${nome} · semana de revisão`;
       if (i < 0) { setTexto({ base, exec: null }); return; }
-      const mapa = await tempoPorArea(dayKey(addDays(new Date(), -28)));
-      const ritmo = ritmoPorArea(mapa);
-      const plano = Object.fromEntries(AREAS.map((a) => [a.id, t.plano[a.id] ?? Math.round(ritmo[a.id] / 5) * 5])) as Record<Area, number>;
-      setTexto({ base, exec: execucaoDaSemana(mapa, plano, execucao[i].de, hoje) });
+      const reg = await tempoPorArea(dayKey(addDays(new Date(), -60)));
+      const ritmo = ritmoPorArea(reg, (a) => unidadeDe(t, a));
+      const plano = Object.fromEntries(AREAS.map((a) => [a.id, t.plano[a.id] ?? ritmo[a.id]])) as Record<Area, number>;
+      setTexto({ base, exec: execucaoDaSemana(reg, t, plano, execucao[i].de, hoje, rendimento(reg)) });
     })().catch(() => {});
   }, []);
   if (!texto) return null;

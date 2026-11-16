@@ -102,15 +102,28 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
         <div className={`flex flex-wrap items-center justify-center gap-1 ${compact ? "mt-2" : "mt-3"}`}>
           <span className="text-xs text-muted mr-1 tabular-nums">{foco ? "Foco" : t.pausaLonga ? "Pausa longa" : "Pausa"} de {Math.round(t.alvo / 60)} min</span>
           {[-5, -1, 1, 5].map((m) => (
-            <button key={m} className="btn btn-ghost px-2 py-0.5 text-xs tabular-nums" disabled={m < 0 && t.alvo + m * 60 < 60}
+            <button key={m} className="btn btn-ghost px-2 py-0.5 text-xs tabular-nums" disabled={m < 0 && (t.alvo + m * 60 < 60 || t.alvo + m * 60 < t.salvo + 60)}
               onClick={() => t.ajustar(m)} title={`${m > 0 ? "Acrescentar" : "Tirar"} ${Math.abs(m)} min ${foco ? "deste foco" : "desta pausa"}`}>
               {m > 0 ? `+${m}` : `−${-m}`}
             </button>
           ))}
           <button className="btn px-2 py-0.5 text-xs" onClick={t.pular} disabled={foco && t.seconds < 1}
-            title={foco ? "Encerra o foco agora (o tempo feito é salvo) e começa a pausa" : "Encerra a pausa"}>
-            {foco ? "Ir para a pausa" : "Voltar ao foco"}
+            title={foco ? "Encerra o foco agora (o tempo feito é salvo) e começa a pausa" : "Encerra a pausa e prepara um foco novo"}>
+            {foco ? "Ir para a pausa" : "Pular a pausa"}
           </button>
+        </div>
+      )}
+
+      {t.anterior && (!foco || (!t.running && t.seconds === 0)) && (
+        // o foco terminou (ou foi encerrado): dá para voltar a ele e acrescentar alguns minutos
+        <div className={`flex flex-wrap items-center justify-center gap-1 ${compact ? "mt-2" : "mt-3"}`}>
+          <span className="text-xs text-muted mr-1">Voltar ao foco anterior ({Math.round(t.anterior.feito / 60)} min) e continuar</span>
+          {t.mode === "livre" ? (
+            <button className="btn btn-ghost px-2 py-0.5 text-xs" onClick={() => t.continuarFoco(0)} title="Continua contando a partir daquele foco">Continuar</button>
+          ) : [5, 10, 15, 25].map((m) => (
+            <button key={m} className="btn btn-ghost px-2 py-0.5 text-xs tabular-nums" onClick={() => t.continuarFoco(m)}
+              title={`Continua aquele foco por mais ${m} min (o que já foi salvo não conta duas vezes)`}>+{m}</button>
+          ))}
         </div>
       )}
 

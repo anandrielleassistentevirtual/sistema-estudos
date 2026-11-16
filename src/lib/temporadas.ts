@@ -2,8 +2,9 @@
 /**
  * Temporadas: o ano de 12 semanas no ritmo das estações (hemisfério sul).
  * Cada estação tem ~13 semanas: 12 de execução + a última de revisão e descanso (sazonalidade, à Cal Newport).
- * O plano diz quantos minutos por dia você quer dar a cada área; a previsão usa esse plano e o seu ritmo real
- * (minutos por dia e palavras por minuto) para dizer o que cabe até o fim da temporada.
+ * O plano diz quanto por dia você quer dar a cada área, na unidade que mede o avanço dela: palavras na Leitura,
+ * nos Estudos e na Escrita, cartões do Anki nos Idiomas, minutos no resto. A previsão usa esse plano e o seu
+ * ritmo real (palavras por minuto, cartões por minuto…) para dizer o que cabe até o fim da temporada.
  */
 import { supabase } from "./supabase/client";
 import { todas } from "./supabase/todas";
@@ -35,6 +36,16 @@ const AREA_DA_CATEGORIA: Record<string, Area> = {
   Leitura: "leitura", Estudos: "estudos", Idiomas: "idiomas", Anki: "idiomas", Escrita: "escrita", Pesquisa: "pesquisa", "Exercício": "exercicio",
 };
 
+/** Unidade do plano de cada área (a primeira é a recomendada). */
+export type Unidade = "min" | "palavras" | "cartoes";
+export const UNIDADES: Record<Area, Unidade[]> = {
+  leitura: ["palavras", "min"], estudos: ["palavras", "min"], escrita: ["palavras", "min"],
+  idiomas: ["cartoes", "min"], pesquisa: ["min"], exercicio: ["min"],
+};
+export const NOME_UNIDADE: Record<Unidade, string> = { min: "min", palavras: "palavras", cartoes: "cartões" };
+/** Unidade de uma área nesta temporada. */
+export const unidadeDe = (t: Pick<Temporada, "unidades">, a: Area): Unidade => t.unidades?.[a] ?? UNIDADES[a][0];
+
 export interface Temporada {
   id?: string;
   ano: number; // ano em que a estação começa (o Verão 2026 vai de dez/2026 a mar/2027)
@@ -42,7 +53,8 @@ export interface Temporada {
   inicio: string; // aaaa-mm-dd
   fim: string;
   comeca_em: string; // quando você começou de fato
-  plano: Partial<Record<Area, number>>; // minutos por dia
+  plano: Partial<Record<Area, number>>; // por dia, na unidade da área
+  unidades?: Partial<Record<Area, Unidade>> | null;
   nota?: string;
 }
 
@@ -50,11 +62,14 @@ export interface Meta {
   id?: string;
   temporada_id?: string;
   area: Area;
-  tipo: "livros" | "curso" | "palavras" | "horas";
+  /** livros; aulas escolhidas; curso (a pasta inteira, metas antigas); palavras escritas; horas numa área; cartões do Anki */
+  tipo: "livros" | "aulas" | "curso" | "palavras" | "horas" | "anki";
   titulo: string;
   alvo: number;
   refs: string[];
   posicao?: number;
+  /** meta do Anki: "total" (o baralho chega a N cartões), "criados" (N cartões novos) ou "revisoes" */
+  medida?: "total" | "criados" | "revisoes" | null;
 }
 
 const inicioDe = (e: Estacao, ano: number) => new Date(ano, ESTACOES[e].mes - 1, ESTACOES[e].dia);
@@ -97,53 +112,83 @@ export function semanasDa(t: Pick<Temporada, "comeca_em" | "fim">) {
   return { semanas, execucao, revisao: semanas.length > 1 ? semanas.slice(execucao.length) : [] };
 }
 
-/** Segundos por área em cada dia (mesma regra do resto do sistema; Exercício e Pesquisa vêm do Timer). */
-export async function tempoPorArea(desde: string): Promise<Map<string, Record<Area, number>>> {
+type PorDia = Map<string, Record<Area, number>>;
+/** O que foi feito por dia: segundos por área e a quantidade (palavras lidas/escritas, cartões revisados). */
+export interface Registros {
+  seg: PorDia;
+  qtd: PorDia;
+  /** os segundos que produziram as quantidades (leitura no leitor, Anki, sala de escrita): dão o rendimento por minuto */
+  segQ: PorDia;
+}
+const zero = (): Record<Area, number> => ({ leitura: 0, estudos: 0, idiomas: 0, escrita: 0, pesquisa: 0, exercicio: 0 });
+
+/** Tempo (mesma regra do resto do sistema; Exercício e Pesquisa vêm do Timer) e quantidades por área e dia. */
+export async function tempoPorArea(desde: string): Promise<Registros> {
   const sb = supabase();
-  const [sess, leit, anki] = await Promise.all([
+  const [sess, leit, anki, esc] = await Promise.all([
     todas<{ day: string; seconds: number; category: string; label: string }>((de, ate) =>
       sb.from("study_sessions").select("day,seconds,category,label").gte("day", desde).order("id").range(de, ate)),
-    todas<{ day: string; seconds: number; book_id: string | null; note_id: string | null; during_timer: boolean }>((de, ate) =>
-      sb.from("reading_sessions").select("day,seconds,book_id,note_id,during_timer").gte("day", desde).order("id").range(de, ate)),
+    todas<{ day: string; seconds: number; words: number | null; book_id: string | null; note_id: string | null; during_timer: boolean }>((de, ate) =>
+      sb.from("reading_sessions").select("day,seconds,words,book_id,note_id,during_timer").gte("day", desde).order("id").range(de, ate)),
     ankiPorIdioma(desde),
+    todas<{ dia: string; palavras: number; segundos: number }>((de, ate) =>
+      sb.from("escrita_sessoes").select("dia,palavras,segundos").gte("dia", desde).order("id").range(de, ate)).catch(() => []),
   ]);
-  const m = new Map<string, Record<Area, number>>();
-  const add = (dia: string, a: Area, s: number) => {
-    const v = m.get(dia) ?? { leitura: 0, estudos: 0, idiomas: 0, escrita: 0, pesquisa: 0, exercicio: 0 };
-    v[a] += s;
-    m.set(dia, v);
+  const seg: PorDia = new Map(), qtd: PorDia = new Map(), segQ: PorDia = new Map();
+  const add = (m: PorDia, dia: string, a: Area, v: number) => {
+    const x = m.get(dia) ?? zero();
+    x[a] += v;
+    m.set(dia, x);
   };
   for (const s of sess) {
     const a = AREA_DA_CATEGORIA[s.category];
     if (!a || (anki.ankiWeb && s.label.startsWith("Anki ·"))) continue;
-    add(s.day, a, s.seconds);
+    add(seg, s.day, a, s.seconds);
   }
-  for (const r of leit) if (!r.during_timer) add(r.day, r.note_id ? "estudos" : "leitura", r.seconds);
-  for (const a of anki.dias) add(a.day, "idiomas", a.segundos);
-  return m;
+  for (const r of leit) {
+    const a: Area = r.note_id ? "estudos" : "leitura";
+    if (!r.during_timer) add(seg, r.day, a, r.seconds);
+    add(qtd, r.day, a, r.words ?? 0);
+    if (r.words) add(segQ, r.day, a, r.seconds);
+  }
+  for (const a of anki.dias) { add(seg, a.day, "idiomas", a.segundos); add(qtd, a.day, "idiomas", a.reviews); add(segQ, a.day, "idiomas", a.segundos); }
+  for (const e of esc) { add(qtd, e.dia, "escrita", Math.max(0, e.palavras)); add(segQ, e.dia, "escrita", e.segundos); }
+  return { seg, qtd, segQ };
 }
 
-/** Minutos por dia em cada área nos últimos `dias` (contando a partir do primeiro registro). */
-export function ritmoPorArea(mapa: Map<string, Record<Area, number>>, dias = 28): Record<Area, number> {
+/** Por dia em cada área nos últimos `dias` (contando a partir do primeiro registro), na unidade de cada área. */
+export function ritmoPorArea(r: Registros, unidade: (a: Area) => Unidade = () => "min", dias = 28): Record<Area, number> {
   const hoje = new Date();
   let ini = dayKey(addDays(hoje, -(dias - 1)));
-  const primeiro = [...mapa.keys()].sort()[0];
+  const primeiro = [...r.seg.keys(), ...r.qtd.keys()].sort()[0];
   if (primeiro && primeiro > ini) ini = primeiro;
   const n = Math.max(1, Math.round((hoje.getTime() - parseDay(ini).getTime()) / 864e5) + 1);
-  const r = { leitura: 0, estudos: 0, idiomas: 0, escrita: 0, pesquisa: 0, exercicio: 0 } as Record<Area, number>;
-  for (const [k, v] of mapa) if (k >= ini) for (const a of AREAS) r[a.id] += v[a.id];
-  for (const a of AREAS) r[a.id] = r[a.id] / 60 / n;
-  return r;
+  const out = zero();
+  for (const a of AREAS) out[a.id] = feitoEm(r, a.id, unidade(a.id), ini, dayKey(hoje)) / n;
+  return out;
 }
 
-/** Soma (segundos) de uma área entre dois dias. */
-export function somaArea(mapa: Map<string, Record<Area, number>>, a: Area, de: string, ate: string) {
+/** Soma de uma área entre dois dias, na unidade pedida (minutos, palavras ou cartões). */
+export function feitoEm(r: Registros, a: Area, u: Unidade, de: string, ate: string) {
+  const m = u === "min" ? r.seg : r.qtd;
   let t = 0;
-  for (const [k, v] of mapa) if (k >= de && k <= ate) t += v[a];
-  return t;
+  for (const [k, v] of m) if (k >= de && k <= ate) t += v[a];
+  return u === "min" ? t / 60 : t;
 }
 
-/** Ênfase pelo plano: o que a temporada privilegia. */
+/** Quanto cada área rende por minuto (palavras/min, cartões/min), para converter o plano entre unidades. */
+export function rendimento(r: Registros, dias = 60): Record<Area, number> {
+  const ate = dayKey(), de = dayKey(addDays(new Date(), -(dias - 1)));
+  const padrao: Record<Area, number> = { leitura: 220, estudos: 220, escrita: 15, idiomas: 3, pesquisa: 0, exercicio: 0 };
+  const out = zero();
+  for (const a of AREAS) {
+    const min = feitoEm({ ...r, seg: r.segQ }, a.id, "min", de, ate), q = feitoEm(r, a.id, "palavras", de, ate);
+    out[a.id] = min >= 20 && q > 0 ? q / min : padrao[a.id];
+  }
+  return out;
+}
+
+/** Ênfase pelo plano (em minutos por dia, convertidos da unidade da área): o que a temporada privilegia. */
 export function enfase(minDia: number): { nome: string; nivel: 0 | 1 | 2 | 3 } {
   if (minDia <= 0) return { nome: "pausa", nivel: 0 };
   if (minDia < 20) return { nome: "leve", nivel: 1 };
@@ -155,14 +200,16 @@ export function enfase(minDia: number): { nome: string; nivel: 0 | 1 | 2 | 3 } {
  * Nota da semana (como no método das 12 semanas): para cada área com plano, o quanto do planejado foi feito
  * (até 100%), com peso pelo tempo planejado. 85% ou mais é uma semana bem executada.
  */
-export function execucaoDaSemana(mapa: Map<string, Record<Area, number>>, plano: Partial<Record<Area, number>>, de: string, ate: string) {
+export function execucaoDaSemana(r: Registros, t: Pick<Temporada, "unidades">, plano: Record<Area, number>, de: string, ate: string, rend: Record<Area, number>) {
   const dias = Math.round((parseDay(ate).getTime() - parseDay(de).getTime()) / 864e5) + 1;
   let peso = 0, feito = 0;
   for (const a of AREAS) {
-    const p = (plano[a.id] ?? 0) * 60 * dias;
+    const u = unidadeDe(t, a.id);
+    const p = (plano[a.id] ?? 0) * dias;
     if (p <= 0) continue;
-    peso += p;
-    feito += Math.min(p, somaArea(mapa, a.id, de, ate));
+    const pesoMin = u === "min" ? p : p / (rend[a.id] || 1); // o peso de cada área é o tempo que ela pede
+    peso += pesoMin;
+    feito += pesoMin * Math.min(1, feitoEm(r, a.id, u, de, ate) / p);
   }
   return peso ? feito / peso : null;
 }
@@ -170,8 +217,8 @@ export function execucaoDaSemana(mapa: Map<string, Record<Area, number>>, plano:
 export async function carregarTemporadas(): Promise<{ temporadas: Temporada[]; metas: Meta[] }> {
   const sb = supabase();
   const [t, m] = await Promise.all([
-    sb.from("temporadas").select("id,ano,estacao,inicio,fim,comeca_em,plano,nota").order("inicio"),
-    sb.from("temporada_metas").select("id,temporada_id,area,tipo,titulo,alvo,refs,posicao").order("posicao").order("created_at"),
+    sb.from("temporadas").select("id,ano,estacao,inicio,fim,comeca_em,plano,unidades,nota").order("inicio"),
+    sb.from("temporada_metas").select("id,temporada_id,area,tipo,titulo,alvo,refs,posicao,medida").order("posicao").order("created_at"),
   ]);
   return { temporadas: (t.data as Temporada[] | null) ?? [], metas: (m.data as Meta[] | null) ?? [] };
 }
