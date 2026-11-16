@@ -10,20 +10,20 @@
 import { supabase } from "./supabase/client";
 import { todas } from "./supabase/todas";
 
-export interface AnkiIdiomaDia { day: string; idioma: string; segundos: number; reviews: number }
+export interface AnkiIdiomaDia { day: string; idioma: string; segundos: number; reviews: number; criados: number }
 
-/** Tempo e revisões do Anki por dia e por idioma (só baralhos ligados a um idioma). */
+/** Tempo, revisões e cartões criados no Anki por dia e por idioma (só baralhos ligados a um idioma). */
 export async function ankiPorIdioma(desde: string): Promise<{ dias: AnkiIdiomaDia[]; ankiWeb: boolean }> {
   const sb = supabase();
   const [langs, linhas, conta] = await Promise.all([
     sb.from("languages").select("name,anki_baralhos"),
-    todas<{ day: string; baralho: string; segundos: number; reviews: number }>((de, ate) =>
-      sb.from("anki_baralho_dia").select("day,baralho,segundos,reviews").gte("day", desde).order("day").order("baralho").range(de, ate)).catch(() => []),
+    todas<{ day: string; baralho: string; segundos: number; reviews: number; criados: number }>((de, ate) =>
+      sb.from("anki_baralho_dia").select("day,baralho,segundos,reviews,criados").gte("day", desde).order("day").order("baralho").range(de, ate)).catch(() => []),
     sb.from("anki_conta").select("user_id").maybeSingle(),
   ]);
   const dono = new Map<string, string>();
   for (const l of (langs.data as { name: string; anki_baralhos: string[] | null }[] | null) ?? []) for (const b of l.anki_baralhos ?? []) dono.set(b, l.name);
-  const dias = linhas.filter((r) => dono.has(r.baralho)).map((r) => ({ day: r.day, idioma: dono.get(r.baralho)!, segundos: r.segundos, reviews: r.reviews }));
+  const dias = linhas.filter((r) => dono.has(r.baralho)).map((r) => ({ day: r.day, idioma: dono.get(r.baralho)!, segundos: r.segundos, reviews: r.reviews, criados: r.criados ?? 0 }));
   return { dias, ankiWeb: !!conta.data };
 }
 

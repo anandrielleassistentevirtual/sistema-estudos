@@ -24,10 +24,11 @@ import { NovaMeta, type Livro, type AulaT, type BaralhoT } from "./nova-meta";
 const fmtData = (k: string) => parseDay(k).toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
 /** Arredonda um plano para um número redondo na unidade. */
 const redondo = (v: number, u: Unidade) =>
-  u === "min" ? Math.round(v / 5) * 5 : u === "cartoes" ? Math.round(v / 5) * 5 : v >= 2000 ? Math.round(v / 500) * 500 : Math.round(v / 100) * 100;
-/** "11.200 palavras", "60 cartões", "1 h 20" */
+  u === "min" ? Math.round(v / 5) * 5 : u === "cartoes" ? Math.max(1, Math.round(v)) : v >= 2000 ? Math.round(v / 500) * 500 : Math.round(v / 100) * 100;
+/** "11.200 palavras", "10 novos" (cartões novos do Anki), "1 h 20" */
 const fmtQ = (v: number, u: Unidade, curto = false) =>
-  u === "min" ? (curto ? `${Math.round(v)} min` : fmtDuration(v * 60)) : `${nf.format(Math.round(v))} ${u === "palavras" ? (curto ? "pal." : "palavras") : "cartões"}`;
+  u === "min" ? (curto ? `${Math.round(v)} min` : fmtDuration(v * 60))
+    : `${nf.format(u === "cartoes" && v < 10 && v % 1 ? Math.round(v * 10) / 10 : Math.round(v))} ${u === "palavras" ? (curto ? "pal." : "palavras") : curto ? "novos" : "cartões novos"}`;
 interface AnkiDia { day: string; baralho: string; reviews: number; criados: number }
 const corExecucao = (v: number) => (v >= 0.85 ? "var(--good)" : v >= 0.6 ? "#c98a1a" : "var(--critical)");
 
@@ -135,10 +136,10 @@ export default function Temporadas() {
   };
   const COR: Record<Estado, string> = { ok: "var(--good)", feita: "var(--good)", risco: "#c98a1a", fora: "var(--critical)" };
   /** compara o que falta com o seu ritmo e com o plano: no ritmo, em risco (só seguindo o plano) ou fora do alcance */
-  function avalia(a: Area, falta: number, un: Unidade, real = ritmoEm(a, un), noPlano = planoEm(a, un)): { estado: Estado; texto: string } {
+  function avalia(a: Area, falta: number, un: Unidade, real = ritmoEm(a, un), noPlano = planoEm(a, un), nome?: string): { estado: Estado; texto: string } {
     if (falta <= 0.5) return { estado: "feita", texto: "concluída" };
     const precisa = diasRestantes ? falta / diasRestantes : Infinity;
-    const q = (v: number) => fmtQ(v, un, true);
+    const q = (v: number) => (nome ? `${nf.format(Math.round(v))} ${nome}` : fmtQ(v, un, un !== "cartoes"));
     if (!isFinite(precisa)) return { estado: "fora", texto: `a temporada acabou; faltaram ${q(falta)}` };
     if (precisa <= real) return { estado: "ok", texto: `no seu ritmo: precisa ${q(precisa)}/dia, você faz ${q(real)}` };
     if (precisa <= noPlano) return { estado: "risco", texto: `em risco: precisa ${q(precisa)}/dia, você faz ${q(real)} (o plano cobre)` };
@@ -193,10 +194,12 @@ export default function Temporadas() {
       const naTemporada = soma(t.comeca_em, ateHoje);
       const atual = medida === "total" ? baralhos.filter((b) => decks.has(b.nome)).reduce((n, b) => n + b.total, 0) : naTemporada;
       const falta = Math.max(0, m.alvo - atual);
-      // o plano de cartões do Idiomas é de revisões: só vale como plano para metas de revisões
-      const av = avalia("idiomas", falta, "cartoes", ritmoDia, medida === "revisoes" ? planoEm("idiomas", "cartoes") : ritmoDia);
+      // o plano do Idiomas é de cartões novos: vale para "total no baralho" e "cartões novos"; revisões seguem o seu ritmo
+      const av = medida === "revisoes"
+        ? avalia("idiomas", falta, "cartoes", ritmoDia, ritmoDia, "revisões")
+        : avalia("idiomas", falta, "cartoes", ritmoDia, planoEm("idiomas", "cartoes"));
       const nomeM = medida === "revisoes" ? "revisões" : medida === "criados" ? "cartões novos" : "cartões no baralho";
-      return { linhas: [], estado: av.estado, pct: m.alvo ? Math.min(1, atual / m.alvo) : 0, falta, un: "cartoes", noTotal: medida === "revisoes",
+      return { linhas: [], estado: av.estado, pct: m.alvo ? Math.min(1, atual / m.alvo) : 0, falta, un: "cartoes", noTotal: medida !== "revisoes",
         resumo: `${nf.format(atual)} de ${nf.format(m.alvo)} ${nomeM} · ${av.texto}` };
     }
     if (m.tipo === "palavras") {
@@ -247,24 +250,33 @@ export default function Temporadas() {
         <button className="btn btn-ghost px-2" title="Próxima temporada" onClick={() => setSel(vizinha(sel.estacao, sel.ano, 1))}><ChevronRight size={16} /></button>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] gap-3 md:gap-4">
-        {/* plano por área, com o ritmo real ao lado */}
-        <section className="card p-4 min-w-0">
-          <div className="flex items-baseline justify-between mb-2">
-            <h2 className="font-medium">Plano da temporada</h2>
-            <span className="text-xs text-muted">por dia · seu ritmo: últimos 28 dias</span>
-          </div>
-          <div className="overflow-x-auto -mx-1 px-1">
-          <table className="w-full text-sm">
+      {/* plano por área: o ritmo real, o que a meta pede por dia, o plano e o que já foi feito */}
+      <section className="card p-4 min-w-0">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-1">
+          <h2 className="font-medium">Plano da temporada</h2>
+          <span className="flex flex-wrap items-center gap-x-3 text-xs text-muted">
+            <span>Ritmo diário:</span>
+            <span className="inline-flex items-center gap-1"><i className="w-2 h-2 rounded-full" style={{ background: "var(--good)" }} />seu ritmo dá conta</span>
+            <span className="inline-flex items-center gap-1"><i className="w-2 h-2 rounded-full" style={{ background: "#c98a1a" }} />só seguindo o plano</span>
+            <span className="inline-flex items-center gap-1"><i className="w-2 h-2 rounded-full" style={{ background: "var(--critical)" }} />nem o plano dá conta</span>
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
             <thead>
-              <tr className="text-left text-xs text-muted">
-                <th className="py-1 font-normal">Área</th>
-                <th className="py-1 font-normal text-right" title="Média por dia nos últimos 28 dias">Seu ritmo</th>
-                <th className="py-1 font-normal text-right" title="Quanto precisa por dia, daqui ao fim da temporada, para chegar à meta total">Ritmo diário</th>
-                <th className="py-1 font-normal text-right pr-[4.7rem]">Plano</th>
-                <th className="py-1 font-normal text-right" title="O que já fez hoje e quanto isso é do plano do dia">Feito hoje</th>
-                <th className="py-1 font-normal text-right">Feito total</th>
-                <th className="py-1 font-normal text-right" title="Das metas: o que já fez + o que falta nos livros, aulas… Sem meta: o plano × os dias da temporada">Meta total</th>
+              <tr className="text-[11px] uppercase tracking-wider text-faint [&>th]:font-normal [&>th]:pt-1 [&>th]:px-3">
+                <th />
+                <th colSpan={4} className="text-center"><span className="block border-b border-line pb-1">por dia</span></th>
+                <th colSpan={2} className="text-center !pr-0"><span className="block border-b border-line pb-1">na temporada</span></th>
+              </tr>
+              <tr className="text-xs text-muted [&>th]:font-normal [&>th]:py-2 [&>th]:px-3 [&>th]:text-right">
+                <th className="!text-left !pl-0">Área</th>
+                <th title="Média por dia nos últimos 28 dias">Seu ritmo</th>
+                <th title="Quanto precisa por dia, daqui ao fim da temporada, para chegar à meta total">Ritmo diário</th>
+                <th className="!text-center">Plano</th>
+                <th title="O que já fez hoje e quanto isso é do plano do dia">Feito hoje</th>
+                <th>Feito</th>
+                <th className="!pr-0" title="Das metas: o que já fez + o que falta nos livros, aulas… Sem meta: o plano × os dias da temporada">Meta</th>
               </tr>
             </thead>
             <tbody>
@@ -277,57 +289,68 @@ export default function Temporadas() {
                 const mt = metaTotal(a.id);
                 const precisa = passada ? 0 : Math.max(0, mt.total - feito) / Math.max(1, diasRestantes);
                 const corPrecisa = precisa <= 0 ? "var(--muted)" : precisa <= ritmo[a.id] ? "var(--good)" : precisa <= p ? "#c98a1a" : "var(--critical)";
-                const outra = un === "min" ? null : `≈ ${Math.round(ritmoMin[a.id])} min/dia`;
                 const vazio = p === 0 && feito < 1 && !mt.daMeta;
+                // por dia: só o número (a unidade está na caixa do plano); totais em minutos viram horas
+                const dia = (v: number) => (v >= 0.5 ? nf.format(un === "cartoes" && v < 10 && v % 1 ? Math.round(v * 10) / 10 : Math.round(v)) : "—");
+                const tot = (v: number) => (v < 1 ? "—" : un === "min" ? fmtDuration(v * 60) : nf.format(Math.round(v)));
                 return (
-                  <tr key={a.id} className={`border-t border-line ${vazio ? "text-muted" : ""}`}>
-                    <td className="py-1.5 whitespace-nowrap"><span className="inline-block w-2 h-2 rounded-full mr-2 align-middle" style={{ background: a.cor }} />{a.nome}</td>
-                    <td className="py-1.5 text-right tabular-nums text-muted whitespace-nowrap" title={outra ?? undefined}>{fmtQ(ritmo[a.id], un, true)}</td>
-                    <td className="py-1.5 text-right tabular-nums whitespace-nowrap font-medium" style={{ color: corPrecisa }}
+                  <tr key={a.id} className={`border-t border-line tabular-nums [&>td]:py-1.5 [&>td]:px-3 [&>td]:text-right [&>td]:whitespace-nowrap ${vazio ? "text-faint" : ""}`}>
+                    <td className="!text-left !pl-0"><span className="inline-block w-2 h-2 rounded-full mr-2 align-middle" style={{ background: a.cor }} /><span className={vazio ? "" : "text-ink"}>{a.nome}</span>
+                      <span className="ml-1.5 text-xs text-faint">{un === "palavras" ? "palavras" : un === "cartoes" ? "cartões novos" : "minutos"}</span></td>
+                    <td className="text-muted" title={un === "min" ? undefined : `≈ ${Math.round(ritmoMin[a.id])} min/dia`}>{dia(ritmo[a.id])}</td>
+                    <td style={{ color: corPrecisa }}
                       title={precisa > 0 ? (precisa <= ritmo[a.id] ? "Seu ritmo dá conta" : precisa <= p ? "Seu ritmo não dá conta; seguindo o plano, dá" : "Nem o plano dá conta: aumente o plano ou reveja a meta") : undefined}>
-                      {precisa > 0 ? fmtQ(precisa, un, true) : "—"}
+                      {precisa > 0 ? dia(precisa) : "—"}
                     </td>
-                    <td className="py-1.5 text-right whitespace-nowrap">
-                      <input type="number" min={0} step={un === "palavras" ? 500 : 5} aria-label={`Plano de ${a.nome} (${NOME_UNIDADE[un]}/dia)`}
-                        className="input w-[5.2rem] py-0.5 text-right tabular-nums text-sm" value={p}
-                        onChange={(ev) => void mudar({ plano: { ...t.plano, [a.id]: Math.max(0, Number(ev.target.value) || 0) } })} />
-                      {UNIDADES[a.id].length > 1 ? (
-                        <select aria-label={`Unidade de ${a.nome}`} className="ml-1 w-[4.2rem] bg-transparent text-xs text-muted hover:text-ink outline-none cursor-pointer" value={un}
-                          title="Mudar a unidade (o plano é convertido pelo seu ritmo)"
-                          onChange={(ev) => {
-                            const nova = ev.target.value as Unidade;
-                            const emMin = un === "min" ? p : p / (rend[a.id] || 1);
-                            const v = nova === "min" ? emMin : emMin * (rend[a.id] || 1);
-                            const valor = nova === "min" ? Math.round(v) : nova === "cartoes" ? Math.round(v) : Math.round(v / 100) * 100;
-                            void mudar({ plano: { ...t.plano, [a.id]: valor }, unidades: { ...unidadesCompletas, [a.id]: nova } });
-                          }}>
-                          {UNIDADES[a.id].map((x) => <option key={x} value={x}>{x === "palavras" ? "pal." : NOME_UNIDADE[x]}</option>)}
-                        </select>
-                      ) : <span className="ml-1 text-xs text-muted inline-block w-[4.2rem] text-left pl-1">min</span>}
+                    <td className="!text-center">
+                      <span className="inline-flex items-center rounded-lg border border-line bg-surface focus-within:border-ink/40">
+                        <input type="number" min={0} step={un === "palavras" ? 500 : un === "cartoes" ? 1 : 5} aria-label={`Plano de ${a.nome} (${NOME_UNIDADE[un]}/dia)`}
+                          className="w-[4.6rem] bg-transparent py-1 pl-2 text-right tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" value={p}
+                          onChange={(ev) => void mudar({ plano: { ...t.plano, [a.id]: Math.max(0, Number(ev.target.value) || 0) } })} />
+                        {UNIDADES[a.id].length > 1 ? (
+                          <select aria-label={`Unidade de ${a.nome}`} className="w-[3.9rem] bg-transparent pl-1.5 pr-1 py-1 text-xs text-muted hover:text-ink outline-none cursor-pointer" value={un}
+                            title="Mudar a unidade (o plano é convertido pelo seu ritmo)"
+                            onChange={(ev) => {
+                              const nova = ev.target.value as Unidade;
+                              const emMin = un === "min" ? p : p / (rend[a.id] || 1);
+                              const v = nova === "min" ? emMin : emMin * (rend[a.id] || 1);
+                              const valor = nova === "min" ? Math.round(v) : nova === "cartoes" ? Math.round(v) : Math.round(v / 100) * 100;
+                              void mudar({ plano: { ...t.plano, [a.id]: valor }, unidades: { ...unidadesCompletas, [a.id]: nova } });
+                            }}>
+                            {UNIDADES[a.id].map((x) => <option key={x} value={x}>{x === "palavras" ? "pal." : x === "cartoes" ? "novos" : "min"}</option>)}
+                          </select>
+                        ) : <span className="w-[3.9rem] pl-2.5 text-left text-xs text-muted">min</span>}
+                      </span>
                     </td>
-                    <td className="py-1.5 text-right tabular-nums whitespace-nowrap">
-                      {hojeFeito >= 1 ? fmtQ(hojeFeito, un, true) : pctHoje === null ? "—" : ""}
-                      {pctHoje !== null && (
-                        <span className="ml-1.5 text-xs" style={{ color: pctHoje >= 1 ? "var(--good)" : "var(--muted)" }}>{Math.round(pctHoje * 100)}%</span>
+                    <td>
+                      {pctHoje === null ? "—" : (
+                        <>
+                          {hojeFeito >= 0.5 && <span className={vazio ? "" : "text-ink"}>{dia(hojeFeito)}</span>}
+                          <span className="ml-2 inline-block min-w-[2.6rem] rounded-full px-1.5 py-px text-[11px] text-center"
+                            style={{ background: pctHoje >= 1 ? "color-mix(in srgb, var(--good) 18%, transparent)" : "var(--surface-2)", color: pctHoje >= 1 ? "var(--good)" : "var(--muted)" }}>
+                            {Math.round(pctHoje * 100)}%
+                          </span>
+                        </>
                       )}
                     </td>
-                    <td className="py-1.5 text-right tabular-nums whitespace-nowrap">{feito >= 1 ? fmtQ(feito, un, true) : "—"}</td>
-                    <td className="py-1.5 text-right tabular-nums whitespace-nowrap" style={{ color: mt.daMeta ? undefined : "var(--muted)" }}
+                    <td className={vazio ? "" : "text-ink"}>{tot(feito)}</td>
+                    <td className="!pr-0" style={{ color: mt.daMeta ? undefined : "var(--muted)" }}
                       title={mt.daMeta ? "Vem das metas desta área" : "Sem meta nesta área: o plano × os dias da temporada"}>
-                      {mt.total >= 1 ? fmtQ(mt.total, un, true) : "—"}
+                      {tot(mt.total)}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          </div>
-          <p className="text-xs text-faint mt-2">
-            {registro ? "O plano é salvo ao mudar." : "Ainda não planejada: os números são o seu ritmo atual. Mude qualquer valor para guardar o plano."}
-            {" "}Ritmo diário: <span style={{ color: "var(--good)" }}>seu ritmo dá conta</span> · <span style={{ color: "#c98a1a" }}>só seguindo o plano</span> · <span style={{ color: "var(--critical)" }}>nem o plano dá conta</span>.
-          </p>
-        </section>
+        </div>
+        <p className="text-xs text-faint mt-2">
+          {registro ? "O plano é salvo ao mudar." : "Ainda não planejada: os números são o seu ritmo atual. Mude qualquer valor para guardar o plano."}
+          {" "}Cada linha está na unidade da área (ao lado do nome); cartões novos são os criados no Anki.
+        </p>
+      </section>
 
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-3 md:gap-4 mt-3 md:mt-4">
         {/* metas com previsão */}
         <section className="card p-4 min-w-0">
           <div className="flex items-center justify-between mb-2">
@@ -377,24 +400,23 @@ export default function Temporadas() {
             </ul>
           )}
         </section>
-      </div>
 
       {/* execução semanal (o placar do método das 12 semanas) */}
-      <section className="card p-4 mt-3 md:mt-4">
+      <section className="card p-4 min-w-0 flex flex-col">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3">
           <h2 className="font-medium">Execução semanal</h2>
           <span className="text-xs text-muted">
-            quanto do plano foi feito em cada semana · 85% ou mais é uma semana bem executada
+            85% ou mais é uma semana bem executada
             {mediaExec !== null && <> · média <b style={{ color: corExecucao(mediaExec) }}>{Math.round(mediaExec * 100)}%</b></>}
           </span>
         </div>
-        <div className="flex items-end gap-1.5 h-24">
+        <div className="flex items-end gap-1.5 flex-1 min-h-24">
           {execucao.map((w, i) => {
             const n = notas[i];
             return (
               <div key={w.de} className="flex-1 min-w-0 flex flex-col items-center gap-1" title={`Semana ${i + 1} (${fmtData(w.de)} a ${fmtData(w.ate)})${n !== null ? `: ${Math.round(n * 100)}%` : ""}`}>
                 <span className="text-[10px] tabular-nums text-muted">{n !== null ? `${Math.round(n * 100)}%` : ""}</span>
-                <div className="w-full rounded-t-md bg-surface-2 relative overflow-hidden" style={{ height: 56 }}>
+                <div className="w-full rounded-t-md bg-surface-2 relative overflow-hidden" style={{ height: 96 }}>
                   {n !== null && <div className="absolute bottom-0 left-0 right-0 rounded-t-md" style={{ height: `${Math.max(4, n * 100)}%`, background: corExecucao(n), opacity: i === semanaAtual ? 0.75 : 1 }} />}
                 </div>
                 <span className={`text-[10px] tabular-nums ${i === semanaAtual ? "text-ink font-medium" : "text-faint"}`}>S{i + 1}</span>
@@ -404,12 +426,13 @@ export default function Temporadas() {
           {revisao.length > 0 && (
             <div className="flex-1 min-w-0 flex flex-col items-center gap-1" title="Semana de revisão e descanso">
               <span className="text-[10px] text-muted"> </span>
-              <div className="w-full rounded-t-md grid place-items-center text-[10px] text-muted" style={{ height: 56, background: "repeating-linear-gradient(135deg, var(--surface-2) 0 6px, transparent 6px 12px)" }}>rev.</div>
+              <div className="w-full rounded-t-md grid place-items-center text-[10px] text-muted" style={{ height: 96, background: "repeating-linear-gradient(135deg, var(--surface-2) 0 6px, transparent 6px 12px)" }}>rev.</div>
               <span className="text-[10px] text-faint">rev.</span>
             </div>
           )}
         </div>
       </section>
+      </div>
 
       {editando && registro && (
         <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} aulas={aulas} baralhos={baralhos} posicao={editando.posicao ?? 0} editar={editando}

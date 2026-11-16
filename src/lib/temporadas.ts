@@ -3,7 +3,7 @@
  * Temporadas: o ano de 12 semanas no ritmo das estações (hemisfério sul).
  * Cada estação tem ~13 semanas: 12 de execução + a última de revisão e descanso (sazonalidade, à Cal Newport).
  * O plano diz quanto por dia você quer dar a cada área, na unidade que mede o avanço dela: palavras na Leitura,
- * nos Estudos e na Escrita, cartões do Anki nos Idiomas, minutos no resto. A previsão usa esse plano e o seu
+ * nos Estudos e na Escrita, cartões novos criados no Anki nos Idiomas, minutos no resto. A previsão usa esse plano e o seu
  * ritmo real (palavras por minuto, cartões por minuto…) para dizer o que cabe até o fim da temporada.
  */
 import { supabase } from "./supabase/client";
@@ -42,7 +42,8 @@ export const UNIDADES: Record<Area, Unidade[]> = {
   leitura: ["palavras", "min"], estudos: ["palavras", "min"], escrita: ["palavras", "min"],
   idiomas: ["cartoes", "min"], pesquisa: ["min"], exercicio: ["min"],
 };
-export const NOME_UNIDADE: Record<Unidade, string> = { min: "min", palavras: "palavras", cartoes: "cartões" };
+/** "cartões" são cartões novos criados no Anki (o que faz o baralho crescer) */
+export const NOME_UNIDADE: Record<Unidade, string> = { min: "min", palavras: "palavras", cartoes: "cartões novos" };
 /** Unidade de uma área nesta temporada. */
 export const unidadeDe = (t: Pick<Temporada, "unidades">, a: Area): Unidade => t.unidades?.[a] ?? UNIDADES[a][0];
 
@@ -113,7 +114,7 @@ export function semanasDa(t: Pick<Temporada, "comeca_em" | "fim">) {
 }
 
 type PorDia = Map<string, Record<Area, number>>;
-/** O que foi feito por dia: segundos por área e a quantidade (palavras lidas/escritas, cartões revisados). */
+/** O que foi feito por dia: segundos por área e a quantidade (palavras lidas/escritas, cartões novos criados no Anki). */
 export interface Registros {
   seg: PorDia;
   qtd: PorDia;
@@ -151,7 +152,7 @@ export async function tempoPorArea(desde: string): Promise<Registros> {
     add(qtd, r.day, a, r.words ?? 0);
     if (r.words) add(segQ, r.day, a, r.seconds);
   }
-  for (const a of anki.dias) { add(seg, a.day, "idiomas", a.segundos); add(qtd, a.day, "idiomas", a.reviews); add(segQ, a.day, "idiomas", a.segundos); }
+  for (const a of anki.dias) { add(seg, a.day, "idiomas", a.segundos); add(qtd, a.day, "idiomas", a.criados); add(segQ, a.day, "idiomas", a.segundos); }
   for (const e of esc) { add(qtd, e.dia, "escrita", Math.max(0, e.palavras)); add(segQ, e.dia, "escrita", e.segundos); }
   return { seg, qtd, segQ };
 }
@@ -179,7 +180,7 @@ export function feitoEm(r: Registros, a: Area, u: Unidade, de: string, ate: stri
 /** Quanto cada área rende por minuto (palavras/min, cartões/min), para converter o plano entre unidades. */
 export function rendimento(r: Registros, dias = 60): Record<Area, number> {
   const ate = dayKey(), de = dayKey(addDays(new Date(), -(dias - 1)));
-  const padrao: Record<Area, number> = { leitura: 220, estudos: 220, escrita: 15, idiomas: 3, pesquisa: 0, exercicio: 0 };
+  const padrao: Record<Area, number> = { leitura: 220, estudos: 220, escrita: 15, idiomas: 0.3, pesquisa: 0, exercicio: 0 };
   const out = zero();
   for (const a of AREAS) {
     const min = feitoEm({ ...r, seg: r.segQ }, a.id, "min", de, ate), q = feitoEm(r, a.id, "palavras", de, ate);
