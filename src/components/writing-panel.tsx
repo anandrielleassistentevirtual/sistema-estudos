@@ -5,26 +5,30 @@ import { ChevronRight, Feather } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
 import { tipoDe, type Projeto } from "@/lib/escrita";
+import type { Periodo } from "@/lib/periodo";
 
 interface S { projeto_id: string; dia: string; palavras: number; segundos: number }
 
 /** Escrita no Dashboard: só os indicadores principais (o resto fica nas Estatísticas de cada projeto). */
-export function WritingPanel({ compacto = false }: { compacto?: boolean } = {}) {
+/** Com `periodo` (filtro do painel), os quatro números são do período: palavras, tempo, dias escrevendo e ritmo. */
+export function WritingPanel({ compacto = false, periodo }: { compacto?: boolean; periodo?: Periodo } = {}) {
   const [dados, setDados] = useState<{ projetos: Projeto[]; sessoes: S[]; totais: Record<string, number> } | null>(null);
 
+  const padrao = dayKey(addDays(new Date(), -60));
+  const desde = periodo && periodo.de < padrao ? periodo.de : padrao;
   useEffect(() => {
     (async () => {
       const sb = supabase();
       const [p, s, d] = await Promise.all([
         sb.from("escrita_projetos").select("*").order("updated_at", { ascending: false }),
-        sb.from("escrita_sessoes").select("projeto_id,dia,palavras,segundos").gte("dia", dayKey(addDays(new Date(), -60))),
+        sb.from("escrita_sessoes").select("projeto_id,dia,palavras,segundos").gte("dia", desde),
         sb.from("escrita_docs").select("projeto_id,palavras").eq("secao", "manuscrito"),
       ]);
       const totais: Record<string, number> = {};
       for (const x of (d.data as { projeto_id: string; palavras: number }[]) ?? []) totais[x.projeto_id] = (totais[x.projeto_id] ?? 0) + x.palavras;
       setDados({ projetos: (p.data as Projeto[]) ?? [], sessoes: (s.data as S[]) ?? [], totais });
     })();
-  }, []);
+  }, [desde]);
 
   if (!dados) return null;
   if (!dados.projetos.length) {
@@ -57,6 +61,12 @@ export function WritingPanel({ compacto = false }: { compacto?: boolean } = {}) 
   const ritmo = seg30 > 600 ? Math.round(t30.reduce((n, s) => n + s.palavras, 0) / (seg30 / 3600)) : 0;
   const hojePorProjeto = (id: string) => sessoes.filter((s) => s.projeto_id === id && s.dia === hojeK).reduce((n, s) => n + s.palavras, 0);
   const pctDia = metaDia ? Math.min(1, hoje / metaDia) : 0;
+  // no período do filtro
+  const doPeriodo = periodo ? sessoes.filter((s) => s.dia >= periodo.de && s.dia <= periodo.ate) : [];
+  const pPalavras = doPeriodo.reduce((n, s) => n + s.palavras, 0);
+  const pTempo = doPeriodo.reduce((n, s) => n + s.segundos, 0);
+  const pDias = new Set(doPeriodo.filter((s) => s.palavras > 0).map((s) => s.dia)).size;
+  const pRitmo = pTempo > 600 ? Math.round(pPalavras / (pTempo / 3600)) : 0;
 
   return (
     <section className={compacto ? "card p-4 min-w-0" : "card p-5 mt-4"}>
@@ -65,6 +75,22 @@ export function WritingPanel({ compacto = false }: { compacto?: boolean } = {}) 
         <Link href="/escrita" className="text-sm text-accent flex items-center gap-0.5">Abrir <ChevronRight size={15} /></Link>
       </div>
       <div className={compacto ? "space-y-3" : "grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-3 md:gap-6"}>
+        {periodo ? (
+          <div className={`grid min-w-0 ${compacto ? "grid-cols-4 gap-x-2 sm:gap-x-3" : "grid-cols-4 md:grid-cols-2 gap-x-2 sm:gap-x-6 gap-y-4"}`}>
+            {([
+              ["Palavras", nf.format(pPalavras), "escritas"],
+              ["Tempo", pTempo ? fmtDuration(pTempo) : "0 min", "escrevendo"],
+              ["Dias", `${pDias}`, pDias === 1 ? "dia escrevendo" : "dias escrevendo"],
+              ["Ritmo", pRitmo ? nf.format(pRitmo) : "—", "palavras por hora"],
+            ] as const).map(([rot, val, dica]) => (
+              <div key={rot}>
+                <div className="text-[11.5px] sm:text-[13px] text-muted truncate">{rot}</div>
+                <div className={`${compacto ? "text-[1.15rem] min-[400px]:text-[1.3rem]" : "text-[1.15rem] min-[400px]:text-[1.3rem] md:text-[1.6rem]"} tracking-tight tabular-nums leading-tight`}>{val}</div>
+                <div className="text-[10.5px] sm:text-xs text-faint leading-snug truncate">{dica}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className={`grid min-w-0 ${compacto ? "grid-cols-4 gap-x-2 sm:gap-x-3" : "grid-cols-4 md:grid-cols-2 gap-x-2 sm:gap-x-6 gap-y-4"}`}>
           <div>
             <div className="text-[11.5px] sm:text-[13px] text-muted truncate">Hoje</div>
@@ -92,6 +118,7 @@ export function WritingPanel({ compacto = false }: { compacto?: boolean } = {}) 
             <div className="text-[10.5px] sm:text-xs text-faint leading-snug">palavras por hora</div>
           </div>
         </div>
+        )}
         <ul className="space-y-1">
           {projetos.slice(0, compacto ? 2 : 3).map((p) => {
             const total = totais[p.id] ?? 0;

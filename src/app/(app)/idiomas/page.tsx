@@ -16,15 +16,17 @@ import { Heatmap } from "@/components/heatmap";
 import { Bandeira, BANDEIRAS, bandeiraDoIdioma } from "@/components/bandeira";
 import { Language, loadLanguages, ONDE, palpiteDeBaralhos, SUGESTOES } from "@/lib/languages";
 import { ankiOnline, contaAnki, sincronizarAnkiSeAntigo, type BaralhoAnki, type ContaAnki } from "@/lib/anki";
-import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
+import { addDays, dayKey, fmtDuration, nf, parseDay, weekStart } from "@/lib/dates";
 import { emptyDay, type DayStats } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
+import { FiltroPeriodo } from "@/components/filtro-periodo";
+import { Variacao } from "@/components/variacao";
+import { semanasDoPeriodo, usePeriodo } from "@/lib/periodo";
 
 interface Sess { day: string; seconds: number; language: string | null; label: string }
 interface DiaBaralho { day: string; baralho: string; reviews: number; segundos: number; criados: number; notas_criadas: number }
 
-const WEEKS = 12;
 
 export default function Idiomas() {
   const [langs, setLangs] = useState<Language[] | null>(null);
@@ -38,10 +40,14 @@ export default function Idiomas() {
   // revisões e cartões criados dividem o mesmo quadro (um calendário de cada vez)
   const [verAnki, setVerAnki] = useState<"revisoes" | "criados">("revisoes");
   const [modal, setModal] = useState<null | "idioma" | "tempo" | { edit: Language }>(null);
+  const [periodo, setPeriodo] = usePeriodo();
+  const padraoDesde = dayKey(addDays(weekStart(new Date()), -52 * 7));
+  // período (ou o anterior, para comparar) mais antigo que um ano: busca o Anki desde ele
+  const ankiDesde = periodo.antDe < padraoDesde ? periodo.antDe : padraoDesde;
 
   const load = useCallback(async () => {
     const sb = supabase();
-    const desde = dayKey(addDays(weekStart(new Date()), -52 * 7));
+    const desde = ankiDesde;
     const [st, lg, ad, conta] = await Promise.all([
       todas<Sess>((de, ate) => sb.from("study_sessions").select("day,seconds,language,label").eq("category", "Idiomas").order("id").range(de, ate)),
       loadLanguages(),
@@ -58,7 +64,7 @@ export default function Idiomas() {
       try { salvo = localStorage.getItem("idioma-atual"); } catch {}
       return lg.find((l) => l.id === salvo)?.id ?? lg[0]?.id ?? null;
     });
-  }, []);
+  }, [ankiDesde]);
   useEffect(() => {
     void load();
     // números do Anki velhos: busca no AnkiWeb em segundo plano e atualiza
@@ -82,63 +88,71 @@ export default function Idiomas() {
     return { revisoes, criados };
   }, [meusDias]);
 
-  const hoje = dayKey();
-  const ws = dayKey(weekStart(new Date()));
-  const domingo = dayKey(addDays(new Date(), -new Date().getDay()));
-  const ms = dayKey(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  // tudo no período do filtro (e no período anterior equivalente, para comparar)
+  const { de, ate, antDe, antAte } = periodo;
   const soma = <T,>(xs: T[], f: (x: T) => number) => xs.reduce((a, x) => a + f(x), 0);
-  const timerSemana = soma(minhasSessoes.filter((s) => s.day >= ws), (s) => s.seconds);
-  const ankiSemana = soma(meusDias.filter((d) => d.day >= ws), (d) => d.segundos);
-  const totalMes = soma(minhasSessoes.filter((s) => s.day >= ms), (s) => s.seconds) + soma(meusDias.filter((d) => d.day >= ms), (d) => d.segundos);
-  const revHoje = soma(meusDias.filter((d) => d.day === hoje), (d) => d.reviews);
-  const revSemana = soma(meusDias.filter((d) => d.day >= ws), (d) => d.reviews);
-  const criadosDomingo = soma(meusDias.filter((d) => d.day >= domingo), (d) => d.criados);
-  const notasDomingo = soma(meusDias.filter((d) => d.day >= domingo), (d) => d.notas_criadas);
+  const noP = <T extends { day: string }>(xs: T[], a = de, z = ate) => xs.filter((x) => x.day >= a && x.day <= z);
+  const timerP = soma(noP(minhasSessoes), (s) => s.seconds), timerA = soma(noP(minhasSessoes, antDe, antAte), (s) => s.seconds);
+  const ankiP = soma(noP(meusDias), (d) => d.segundos), ankiA = soma(noP(meusDias, antDe, antAte), (d) => d.segundos);
+  const revP = soma(noP(meusDias), (d) => d.reviews), revA = soma(noP(meusDias, antDe, antAte), (d) => d.reviews);
+  const criadosP = soma(noP(meusDias), (d) => d.criados), criadosA = soma(noP(meusDias, antDe, antAte), (d) => d.criados);
+  const notasP = soma(noP(meusDias), (d) => d.notas_criadas);
   const tabela = (baralhos ?? []).filter((b) => decksDoIdioma.has(b.nome.split("::")[0]));
   const paraHoje = soma(tabela.filter((b) => !b.nome.includes("::")), (b) => b.revisar + b.aprendendo);
   const meta = sel?.weekly_goal_min ? sel.weekly_goal_min * 60 : 0;
-  // Listening (curso do Mairo, medido pelo script)
+  // Listening (script do curso) e aulas em vídeo do curso
   const escuta = minhasSessoes.filter((s) => s.label === ROTULO_LISTENING);
-  const escutaHoje = soma(escuta.filter((s) => s.day === hoje), (s) => s.seconds);
-  const escutaSemana = soma(escuta.filter((s) => s.day >= ws), (s) => s.seconds);
-  // aulas em vídeo do curso (medidas pelo mesmo script)
-  const aulasSemana = soma(minhasSessoes.filter((s) => s.label === "Aulas" && s.day >= ws), (s) => s.seconds);
+  const escutaP = soma(noP(escuta), (s) => s.seconds), escutaA = soma(noP(escuta, antDe, antAte), (s) => s.seconds);
+  const aulasP = soma(noP(minhasSessoes.filter((s) => s.label === "Aulas")), (s) => s.seconds);
+  // meta semanal proporcional ao período (ex.: 5 h por semana → 10 h em duas semanas)
+  const metaP = meta ? (meta * periodo.dias) / 7 : 0;
 
-  const semanal = useMemo(() => {
-    const w0 = weekStart(new Date());
-    return Array.from({ length: WEEKS }, (_, i) => {
-      const start = addDays(w0, -(WEEKS - 1 - i) * 7);
-      const a = dayKey(start), z = dayKey(addDays(start, 6));
-      const t = soma(minhasSessoes.filter((s) => s.day >= a && s.day <= z), (s) => s.seconds);
-      const k = soma(meusDias.filter((d) => d.day >= a && d.day <= z), (d) => d.segundos);
-      return {
-        label: start.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-        detail: `semana de ${start.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })} · ${fmtDuration(t + k)}${k ? ` (Anki ${fmtDuration(k)})` : ""}`,
-        value: Math.round((t + k) / 60),
-      };
+  // barras do período: por dia (até ~1 mês), por semana (até ~6 meses) ou por mês
+  const barras = useMemo(() => {
+    const ini = parseDay(de), fim = parseDay(ate);
+    const dias = periodo.dias;
+    const grupos: { a: Date; z: Date; rotulo: string; detalhe: string }[] = [];
+    if (dias <= 35) {
+      for (let d = ini; d <= fim; d = addDays(d, 1))
+        grupos.push({ a: d, z: d, rotulo: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), detalhe: d.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" }) });
+    } else if (dias <= 190) {
+      for (let w = weekStart(ini); w <= fim; w = addDays(w, 7))
+        grupos.push({ a: w < ini ? ini : w, z: addDays(w, 6) > fim ? fim : addDays(w, 6), rotulo: w.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), detalhe: `semana de ${w.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}` });
+    } else {
+      for (let m = new Date(ini.getFullYear(), ini.getMonth(), 1); m <= fim; m = new Date(m.getFullYear(), m.getMonth() + 1, 1)) {
+        const z = new Date(m.getFullYear(), m.getMonth() + 1, 0);
+        grupos.push({ a: m < ini ? ini : m, z: z > fim ? fim : z, rotulo: m.toLocaleDateString("pt-BR", { month: "short" }), detalhe: m.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) });
+      }
+    }
+    return grupos.map((g) => {
+      const a = dayKey(g.a), z = dayKey(g.z);
+      const t = soma(noP(minhasSessoes, a, z), (s) => s.seconds), k = soma(noP(meusDias, a, z), (d) => d.segundos);
+      return { label: g.rotulo, detail: `${g.detalhe} · ${fmtDuration(t + k)}${k ? ` (Anki ${fmtDuration(k)})` : ""}`, value: Math.round((t + k) / 60) };
     });
-  }, [minhasSessoes, meusDias]);
+  }, [minhasSessoes, meusDias, de, ate, periodo.dias]); // eslint-disable-line react-hooks/exhaustive-deps
+  const porQue = periodo.dias <= 35 ? "dia" : periodo.dias <= 190 ? "semana" : "mês";
 
   const ondeFoi = useMemo(() => {
     const m = new Map<string, number>();
-    const from = dayKey(addDays(new Date(), -29));
     for (const s of minhasSessoes) {
-      if (s.day < from) continue;
+      if (s.day < de || s.day > ate) continue;
       const k = s.label.startsWith("Lição") ? "Lições" : s.label.startsWith("Anki") ? "Anki" : s.label.startsWith("Listening") ? "Listening" : s.label || "Timer";
       m.set(k, (m.get(k) ?? 0) + s.seconds);
     }
-    const anki = soma(meusDias.filter((d) => d.day >= from), (d) => d.segundos);
+    const anki = soma(meusDias.filter((d) => d.day >= de && d.day <= ate), (d) => d.segundos);
     if (anki) m.set("Anki", (m.get("Anki") ?? 0) + anki);
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
-  }, [minhasSessoes, meusDias]);
+  }, [minhasSessoes, meusDias, de, ate]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   return (
     <Page
+      denso
       title="Idiomas"
       subtitle="Cada idioma com o seu tempo, as suas revisões e os seus cartões do Anki."
       actions={
         <>
+          <FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />
           <button className="btn" onClick={() => setModal("idioma")}><Plus size={15} /> Cadastrar idioma</button>
           <button className="btn" onClick={() => setModal("tempo")} disabled={!langs?.length}><Clock size={15} /> Registrar tempo</button>
         </>
@@ -166,16 +180,20 @@ export default function Idiomas() {
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 [&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1">
-            <Stat label="Tempo esta semana" value={fmtDuration(timerSemana + ankiSemana)}
-              hint={[meta ? `meta ${fmtDuration(meta)} · ${Math.round(Math.min(1, (timerSemana + ankiSemana) / meta) * 100)}%` : null,
-                escutaSemana ? `Listening ${fmtDuration(escutaSemana)}` : null, aulasSemana ? `Aulas ${fmtDuration(aulasSemana)}` : null,
-                ankiSemana ? `Anki ${fmtDuration(ankiSemana)}` : null,
-                timerSemana - escutaSemana - aulasSemana > 0 ? `Timer ${fmtDuration(timerSemana - escutaSemana - aulasSemana)}` : null,
-                `mês ${fmtDuration(totalMes)}`].filter(Boolean).join(" · ")} />
-            <Stat label="Para revisar hoje" value={baralhos ? nf.format(paraHoje) : "—"} hint={baralhos ? "nos baralhos deste idioma" : "conecte o AnkiWeb (no fim da página)"} />
-            <Stat label="Listening" value={fmtDuration(escutaHoje)} hint={`hoje · ${fmtDuration(escutaSemana)} na semana`} />
-            <Stat label="Revisões" value={nf.format(revHoje)} hint={`hoje · ${nf.format(revSemana)} na semana`} />
-            <Stat label="Cartões criados" value={nf.format(criadosDomingo)} hint={`desde domingo${notasDomingo && notasDomingo !== criadosDomingo ? ` · em ${nf.format(notasDomingo)} notas` : ""}`} />
+            <Stat label="Tempo" value={fmtDuration(timerP + ankiP)} hint={<Variacao atual={timerP + ankiP} base={timerA + ankiA} vs={periodo.vs} />}
+              explica={[`${periodo.nome}:`,
+                escutaP ? `Listening ${fmtDuration(escutaP)}` : null, aulasP ? `Aulas ${fmtDuration(aulasP)}` : null,
+                ankiP ? `Anki ${fmtDuration(ankiP)}` : null, timerP - escutaP - aulasP > 0 ? `Timer ${fmtDuration(timerP - escutaP - aulasP)}` : null,
+                metaP ? `· meta ${fmtDuration(metaP)} (${Math.round(Math.min(1, (timerP + ankiP) / metaP) * 100)}%)` : null,
+                `· período anterior ${fmtDuration(timerA + ankiA)}`].filter(Boolean).join(" ")} />
+            <Stat label="Para revisar hoje" value={baralhos ? nf.format(paraHoje) : "—"} hint={baralhos ? "fila de hoje no Anki" : "conecte o AnkiWeb (no fim da página)"}
+              explica="O que o Anki mostra para revisar hoje nos baralhos deste idioma (não depende do período)." />
+            <Stat label="Listening" value={fmtDuration(escutaP)} hint={<Variacao atual={escutaP} base={escutaA} vs={periodo.vs} />}
+              explica={`Áudios do curso (script) — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(escutaA)}.`} />
+            <Stat label="Revisões" value={nf.format(revP)} hint={<Variacao atual={revP} base={revA} vs={periodo.vs} />}
+              explica={`Revisões no Anki nos baralhos deste idioma — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(revA)}.`} />
+            <Stat label="Cartões criados" value={nf.format(criadosP)} hint={<Variacao atual={criadosP} base={criadosA} vs={periodo.vs} />}
+              explica={`Cartões criados — ${periodo.nome.toLowerCase()}${notasP && notasP !== criadosP ? `, em ${nf.format(notasP)} notas` : ""}. Período anterior: ${nf.format(criadosA)}.`} />
           </div>
 
           {conta && <div className="mt-3"><AnkiWebBarra conta={conta} onMudou={load} /></div>}
@@ -190,15 +208,15 @@ export default function Idiomas() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-4 mt-3 md:mt-4">
             <section className="card p-4 md:p-5 min-w-0">
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3 md:mb-4">
-                <h3 className="font-medium">Minutos por semana</h3>
-                <span className="text-xs text-muted">últimas {WEEKS} semanas · Timer + Anki</span>
+                <h3 className="font-medium">Minutos por {porQue}</h3>
+                <span className="text-xs text-muted">{periodo.nome.toLowerCase()} · Timer + Anki</span>
               </div>
-              <BarChart data={semanal} unit="min" />
+              <BarChart data={barras} unit="min" />
             </section>
             <section className="card p-4 md:p-5 min-w-0">
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-2 md:mb-3">
                 <h3 className="font-medium">Onde foi o tempo</h3>
-                <span className="text-xs text-muted">últimos 30 dias</span>
+                <span className="text-xs text-muted">{periodo.nome.toLowerCase()}</span>
               </div>
               {ondeFoi.length === 0 ? (
                 <p className="text-sm text-muted">Nada ainda. Use o Timer (categoria Idiomas → {sel.name}) ou “Registrar tempo”.</p>
@@ -226,9 +244,9 @@ export default function Idiomas() {
                   </div>
                 </div>
                 {verAnki === "revisoes"
-                  ? <Heatmap data={revisoes} metric="anki" />
+                  ? <Heatmap data={revisoes} metric="anki" weeks={semanasDoPeriodo(periodo)} end={parseDay(ate)} inicio={de} fim={ate} />
                   : <>
-                      <Heatmap data={criados} metric="anki" unidade="cartões criados" paleta="ama" />
+                      <Heatmap data={criados} metric="anki" unidade="cartões criados" paleta="ama" weeks={semanasDoPeriodo(periodo)} end={parseDay(ate)} inicio={de} fim={ate} />
                       <p className="text-xs text-faint mt-2">Contagem desde 08/11/2026, só nos baralhos de {sel.name}: {sel.anki_baralhos.join(", ")}.</p>
                     </>}
               </section>

@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Heatmap } from "@/components/heatmap";
-import { addDays, dayKey, weekStart } from "@/lib/dates";
+import { addDays, dayKey, parseDay, weekStart } from "@/lib/dates";
+import { semanasDoPeriodo, type Periodo } from "@/lib/periodo";
 import { DayStats, inicio12Meses, loadDaily, Metric, METRICS } from "@/lib/stats";
 
-export function CalendarPanel({ compacto = false }: { compacto?: boolean }) {
+/** Com `periodo` (filtro do painel): mostra só esse período, com as cores calculadas dentro dele. */
+export function CalendarPanel({ compacto = false, periodo }: { compacto?: boolean; periodo?: Periodo }) {
   const [year, setYear] = useState<number | "12m">("12m");
   const [metric, setMetric] = useState<Metric>("tempo");
   const [daily, setDaily] = useState<Map<string, DayStats>>(new Map());
@@ -16,10 +18,16 @@ export function CalendarPanel({ compacto = false }: { compacto?: boolean }) {
     const ini = dayKey(addDays(weekStart(new Date(year, 0, 1)), -7));
     if (ini < desde) setDesde(ini);
   }, [year, desde]);
+  // período antigo escolhido no filtro: busca desde o começo dele
+  useEffect(() => {
+    if (!periodo) return;
+    const ini = dayKey(addDays(weekStart(parseDay(periodo.de)), -7));
+    if (ini < desde) setDesde(ini);
+  }, [periodo?.de, desde]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { void loadDaily(desde).then(setDaily); }, [desde]);
 
-  const end = year === "12m" ? new Date() : new Date(year, 11, 31);
-  const weeks = year === "12m" ? 53 : Math.ceil((end.getTime() - weekStart(new Date(year, 0, 1)).getTime()) / (7 * 864e5));
+  const end = periodo ? parseDay(periodo.ate) : year === "12m" ? new Date() : new Date(year, 11, 31);
+  const weeks = periodo ? semanasDoPeriodo(periodo) : year === "12m" ? 53 : Math.ceil((end.getTime() - weekStart(new Date(year, 0, 1)).getTime()) / (7 * 864e5));
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
@@ -36,12 +44,14 @@ export function CalendarPanel({ compacto = false }: { compacto?: boolean }) {
             </button>
           ))}
         </div>
-        <select className={`input w-auto py-1 pr-7 ${compacto ? "text-xs" : ""}`} value={year} onChange={(e) => setYear(e.target.value === "12m" ? "12m" : Number(e.target.value))}>
-          <option value="12m">Últimos 12 meses</option>
-          {years.map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
+        {!periodo && (
+          <select className={`input w-auto py-1 pr-7 ${compacto ? "text-xs" : ""}`} value={year} onChange={(e) => setYear(e.target.value === "12m" ? "12m" : Number(e.target.value))}>
+            <option value="12m">Últimos 12 meses</option>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        )}
       </div>
-      <Heatmap data={daily} metric={metric} weeks={weeks} end={end} />
+      <Heatmap data={daily} metric={metric} weeks={weeks} end={end} inicio={periodo?.de} fim={periodo?.ate} />
     </section>
   );
 }

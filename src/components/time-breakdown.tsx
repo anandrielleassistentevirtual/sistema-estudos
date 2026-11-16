@@ -4,6 +4,7 @@ import { addDays, dayKey, fmtDuration, weekStart } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import { ankiPorIdioma, contaComoEstudo, type AnkiIdiomaDia } from "@/lib/tempo";
+import type { Periodo } from "@/lib/periodo";
 
 type Period = "semana" | "30d" | "ano";
 const PERIODS: { id: Period; label: string }[] = [
@@ -16,7 +17,8 @@ interface Sess { day: string; seconds: number; category: string; language: strin
 interface Read { day: string; seconds: number; during_timer: boolean; note_id: string | null }
 
 /** "Onde está indo seu tempo": Leitura, cada idioma, cada curso, outras categorias. */
-export function TimeBreakdown({ compacto = false }: { compacto?: boolean } = {}) {
+/** Com `periodo` (filtro do painel), usa esse período e esconde as abas próprias. */
+export function TimeBreakdown({ compacto = false, periodo }: { compacto?: boolean; periodo?: Periodo } = {}) {
   const [period, setPeriod] = useState<Period>("semana");
   const [sessions, setSessions] = useState<Sess[]>([]);
   const [reading, setReading] = useState<Read[]>([]);
@@ -24,8 +26,11 @@ export function TimeBreakdown({ compacto = false }: { compacto?: boolean } = {})
   const [anki, setAnki] = useState<{ dias: AnkiIdiomaDia[]; ankiWeb: boolean }>({ dias: [], ankiWeb: false });
   const [hover, setHover] = useState<string | null>(null);
 
+  // busca desde o começo do ano (ou 31 dias), ou desde o começo do período do filtro, se for mais antigo
+  const padrao = dayKey(new Date(new Date().getFullYear(), 0, 1) < addDays(new Date(), -31) ? new Date(new Date().getFullYear(), 0, 1) : addDays(new Date(), -31));
+  const carregarDesde = periodo && periodo.de < padrao ? periodo.de : padrao;
   useEffect(() => {
-    const from = dayKey(new Date(new Date().getFullYear(), 0, 1) < addDays(new Date(), -31) ? new Date(new Date().getFullYear(), 0, 1) : addDays(new Date(), -31));
+    const from = carregarDesde;
     const sb = supabase();
     void Promise.all([
       todas<Sess>((de, ate) => sb.from("study_sessions").select("day,seconds,category,language,note_id,label").gte("day", from).order("id").range(de, ate)),
@@ -40,11 +45,12 @@ export function TimeBreakdown({ compacto = false }: { compacto?: boolean } = {})
       const doCurso = (caminho: string) => { const p = caminho.split(" › ").map((x) => x.trim()).filter(Boolean); return p[1] ?? p[0] ?? ""; };
       setCourseOf(new Map(n.map((x) => [x.id, doCurso(x.course)])));
     }).catch(() => {});
-  }, []);
+  }, [carregarDesde]);
 
   const todasLinhas = useMemo(() => {
     const now = new Date();
-    const from = dayKey(period === "semana" ? weekStart(now) : period === "30d" ? addDays(now, -29) : new Date(now.getFullYear(), 0, 1));
+    const from = periodo ? periodo.de : dayKey(period === "semana" ? weekStart(now) : period === "30d" ? addDays(now, -29) : new Date(now.getFullYear(), 0, 1));
+    const ate = periodo ? periodo.ate : "9999-12-31";
     const m = new Map<string, { label: string; kind: string; seconds: number }>();
     const add = (key: string, label: string, kind: string, secs: number) => {
       const v = m.get(key) ?? { label, kind, seconds: 0 };
@@ -52,7 +58,7 @@ export function TimeBreakdown({ compacto = false }: { compacto?: boolean } = {})
       m.set(key, v);
     };
     for (const s of sessions) {
-      if (s.day < from || !contaComoEstudo(s.label, anki.ankiWeb)) continue;
+      if (s.day < from || s.day > ate || !contaComoEstudo(s.label, anki.ankiWeb)) continue;
       if (s.category === "Idiomas") add(`lang:${s.language ?? ""}`, s.language || "Idiomas (sem idioma)", "Idioma", s.seconds);
       else if (s.category === "Estudos") {
         const course = s.note_id ? courseOf.get(s.note_id) : undefined;
@@ -62,16 +68,16 @@ export function TimeBreakdown({ compacto = false }: { compacto?: boolean } = {})
     }
     // leitura medida no leitor sem o timer ligado (com o timer, já entrou acima)
     for (const r of reading) {
-      if (r.day < from || r.during_timer) continue;
+      if (r.day < from || r.day > ate || r.during_timer) continue;
       if (r.note_id) {
         const course = courseOf.get(r.note_id);
         add(`curso:${course ?? ""}`, course || "Estudos (sem curso)", "Curso", r.seconds);
       } else add("leitura", "Leitura", "Leitura", r.seconds);
     }
     // tempo no Anki: entra no idioma dono do baralho (a mesma regra dos indicadores do Dashboard)
-    for (const a of anki.dias) if (a.day >= from) add(`lang:${a.idioma}`, a.idioma, "Idioma", a.segundos);
+    for (const a of anki.dias) if (a.day >= from && a.day <= ate) add(`lang:${a.idioma}`, a.idioma, "Idioma", a.segundos);
     return [...m.entries()].map(([key, v]) => ({ key, ...v })).sort((a, b) => b.seconds - a.seconds);
-  }, [sessions, reading, courseOf, period, anki]);
+  }, [sessions, reading, courseOf, period, anki, periodo?.de, periodo?.ate]); // eslint-disable-line react-hooks/exhaustive-deps
   // o total é o mesmo dos indicadores (tudo); itens com menos de 1 min só não ganham linha própria
   const total = todasLinhas.reduce((a, r) => a + r.seconds, 0);
   const rows = todasLinhas.filter((r) => r.seconds >= 60);
@@ -87,14 +93,14 @@ export function TimeBreakdown({ compacto = false }: { compacto?: boolean } = {})
       <div className={`flex flex-wrap items-center justify-between gap-2 ${compacto ? "mb-3" : "mb-4"}`}>
         <div>
           <h2 className="font-medium">Onde está indo seu tempo</h2>
-          <p className="text-xs text-muted mt-0.5">{total ? `${fmtDuration(total)} no total` : "Nenhum tempo registrado no período"}</p>
+          <p className="text-xs text-muted mt-0.5">{total ? `${fmtDuration(total)} no total${periodo ? ` · ${periodo.nome.toLowerCase()}` : ""}` : "Nenhum tempo registrado no período"}</p>
         </div>
-        <div className="flex w-full sm:w-auto sm:inline-flex rounded-lg bg-surface-2 p-0.5 sm:p-1 text-xs">
+        {!periodo && <div className="flex w-full sm:w-auto sm:inline-flex rounded-lg bg-surface-2 p-0.5 sm:p-1 text-xs">
           {PERIODS.map((p) => (
             <button key={p.id} onClick={() => setPeriod(p.id)}
               className={`flex-auto sm:flex-none whitespace-nowrap px-2.5 py-1 rounded-md ${period === p.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>{p.label}</button>
           ))}
-        </div>
+        </div>}
       </div>
       {rows.length === 0 ? (
         <p className="text-sm text-muted py-6 text-center">Use o Timer (ou leia no leitor, faça lições e revisões) para ver aqui como seu tempo se divide.</p>

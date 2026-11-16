@@ -27,6 +27,8 @@ export function Heatmap({
   unidade,
   paleta,
   encaixar: _encaixar,
+  inicio,
+  fim,
 }: {
   data: Map<string, DayStats>;
   metric: Metric;
@@ -40,6 +42,9 @@ export function Heatmap({
   paleta?: "heat" | "out" | "ama";
   /** (o calendário já cabe sempre na largura; mantido por compatibilidade) */
   encaixar?: boolean;
+  /** período escolhido no filtro (aaaa-mm-dd): os dias de fora ficam apagados e as cores se calculam só com os de dentro */
+  inicio?: string;
+  fim?: string;
 }) {
   const [hover, setHover] = useState<{ day: string; x: number; y: number } | null>(null);
   const unit = unidade ?? METRICS.find((m) => m.id === metric)!.unit;
@@ -70,7 +75,9 @@ export function Heatmap({
   let faixas = 1;
   while (faixas < 4 && Math.ceil(weeks / faixas) * PASSO_MIN > util) faixas++;
   const porFaixa = Math.ceil(weeks / faixas);
-  const passo = Math.min(PASSO_MAX, util / porFaixa);
+  // períodos curtos (uma semana, um mês) ganham quadradinhos maiores
+  const passoMax = weeks <= 6 ? 30 : weeks <= 14 ? 21 : PASSO_MAX;
+  const passo = Math.min(passoMax, util / porFaixa);
   const cel = passo * 0.8;
   // a primeira faixa (a mais antiga) é a que fica mais curta, alinhada à direita como as outras
   const sobra = faixas * porFaixa - weeks;
@@ -84,7 +91,7 @@ export function Heatmap({
 
   const { cells, months, thresholds, first } = useMemo(() => {
     const first = addDays(weekStart(end), -(weeks - 1) * 7);
-    const cells: { day: string; w: number; d: number; v: number; future: boolean }[] = [];
+    const cells: { day: string; w: number; d: number; v: number; future: boolean; fora: boolean }[] = [];
     const months: { w: number; label: string }[] = [];
     const values: number[] = [];
     let lastMonth = -1;
@@ -94,8 +101,9 @@ export function Heatmap({
         const k = dayKey(date);
         const v = metricValue(data.get(k), metric);
         const future = k > today;
-        cells.push({ day: k, w, d, v, future });
-        if (v > 0) values.push(v);
+        const fora = !!(inicio && fim && (k < inicio || k > fim));
+        cells.push({ day: k, w, d, v, future, fora });
+        if (v > 0 && !fora) values.push(v);
         if (d === 0 && date.getMonth() !== lastMonth) {
           lastMonth = date.getMonth();
           months.push({ w, label: MESES[lastMonth] });
@@ -109,7 +117,7 @@ export function Heatmap({
     };
     const thresholds = quart(values);
     return { cells, months, thresholds, first };
-  }, [data, metric, weeks, end, today]);
+  }, [data, metric, weeks, end, today, inicio, fim]);
 
   // nomes dos meses por faixa; cada faixa começa dizendo em que mês está (se o mês não muda logo em seguida)
   const rotulosMeses = useMemo(() => {
@@ -161,6 +169,44 @@ export function Heatmap({
   // a dica não passa das bordas do quadro
   const ancora = !hover ? "-translate-x-1/2" : hover.x < 80 ? "translate-x-[-12px]" : largura && hover.x > largura - 80 ? "translate-x-[calc(-100%+12px)]" : "-translate-x-1/2";
 
+  // períodos curtos (até 6 semanas): calendário de mês, mais fácil de ler que uma ou duas colunas soltas
+  if (weeks <= 6) {
+    const nomes = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"];
+    // quadrados grandes numa semana; menores com 5–6 semanas, para o painel continuar cabendo na tela
+    const maximo = weeks <= 2 ? 46 : weeks <= 4 ? 36 : 30;
+    const lado = largura ? Math.min(maximo, (largura - 6 * 5) / 7) : maximo;
+    const linhas = Array.from({ length: weeks }, (_, w) => cells.filter((c) => c.w === w));
+    return (
+      <div ref={raiz} className="relative select-none">
+        <div className="grid gap-[5px]" style={{ gridTemplateColumns: `repeat(7, ${lado}px)` }}>
+          {nomes.map((n) => <div key={n} className="text-[10px] text-muted text-center">{n}</div>)}
+          {linhas.flat().map((c) => {
+            const dia = Number(c.day.slice(8));
+            const fundo = c.future || c.fora ? "var(--heat-0)" : cor(c.v);
+            const forte = !c.future && !c.fora && nivel(c.v, thresholds) >= 3;
+            return (
+              <div key={c.day} title={c.future ? undefined : `${fmtDayLong(c.day)}: ${nf.format(c.v)} ${unit}`}
+                onClick={() => !c.future && onSelect?.(c.day)}
+                className={`rounded-md grid place-items-center text-[11px] tabular-nums ${onSelect && !c.future ? "cursor-pointer" : ""}`}
+                style={{ height: lado, background: fundo, opacity: c.future ? 0.25 : c.fora ? 0.35 : 1, color: forte ? "#fff" : "var(--muted)",
+                  outline: c.day === today ? "1.5px solid var(--muted)" : selected === c.day ? "2px solid var(--text)" : undefined }}>
+                {dia}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-1 mt-1.5 text-[11px] text-muted justify-end">
+          menos
+          {[0, 1, 2, 3, 4, 5].map((l) => (
+            <span key={l} className="inline-block rounded-[2px]" style={{ width: 9, height: 9, background: `var(--${l ? escala : "heat"}-${l})` }}
+              title={l === 0 ? `nada` : l === 1 ? `até ${nf.format(thresholds[0])} ${unit}` : l === 5 ? `mais de ${nf.format(thresholds[3])} ${unit}` : `${nf.format(thresholds[l - 2])} a ${nf.format(thresholds[l - 1])} ${unit}`} />
+          ))}
+          mais
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div ref={raiz} className="relative select-none">
       {largura > 0 && (
@@ -195,7 +241,8 @@ export function Heatmap({
             const { f, c: col } = pos(c.w);
             const marcado = selected === c.day || hover?.day === c.day;
             return (
-              <rect key={c.day} x={x(col)} y={y(f, c.d)} width={cel} height={cel} rx={Math.min(3, cel / 4)} fill={cor(c.v)}
+              <rect key={c.day} x={x(col)} y={y(f, c.d)} width={cel} height={cel} rx={Math.min(3, cel / 4)} fill={c.fora ? "var(--heat-0)" : cor(c.v)}
+                opacity={c.fora ? 0.35 : 1}
                 stroke={marcado ? "var(--text)" : c.day === today ? "var(--muted)" : "none"} strokeWidth={marcado ? 2 : 1} />
             );
           })}
@@ -217,7 +264,8 @@ export function Heatmap({
       <div className="flex items-center gap-1 mt-1.5 text-[11px] text-muted justify-end">
         menos
         {[0, 1, 2, 3, 4, 5].map((l) => (
-          <span key={l} className="inline-block rounded-[2px]" style={{ width: 9, height: 9, background: `var(--${l ? escala : "heat"}-${l})` }} />
+          <span key={l} className="inline-block rounded-[2px]" style={{ width: 9, height: 9, background: `var(--${l ? escala : "heat"}-${l})` }}
+            title={l === 0 ? `nada` : l === 1 ? `até ${nf.format(thresholds[0])} ${unit}` : l === 5 ? `mais de ${nf.format(thresholds[3])} ${unit}` : `${nf.format(thresholds[l - 2])} a ${nf.format(thresholds[l - 1])} ${unit}`} />
         ))}
         mais
       </div>

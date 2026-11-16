@@ -8,7 +8,10 @@ import { Cover } from "@/components/cover";
 import { coverUrls } from "@/lib/covers";
 import { TimeBreakdown } from "@/components/time-breakdown";
 import { WritingPanel } from "@/components/writing-panel";
-import { addDays, dayKey, fmtDuration, nf, weekStart } from "@/lib/dates";
+import { addDays, dayKey, fmtDuration, nf, parseDay } from "@/lib/dates";
+import { FiltroPeriodo } from "@/components/filtro-periodo";
+import { Variacao } from "@/components/variacao";
+import { somaNoPeriodo, usePeriodo } from "@/lib/periodo";
 import { DayStats, inicio12Meses, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
 import { ppmDosLivros } from "@/lib/books";
@@ -16,26 +19,14 @@ import { sincronizarAnkiSeAntigo } from "@/lib/anki";
 import { todas } from "@/lib/supabase/todas";
 import { progressoDoLivro, type Book } from "@/lib/types";
 
-const WEEKS = 12;
-
-/** "▲ 18% vs. anterior" (verde) / "▼ 12% vs. média" (vermelho): curto para caber no quadro; o tooltip explica. */
-function Variacao({ atual, base, vs }: { atual: number; base: number; vs: "média" | "anterior" }) {
-  if (base <= 0) return <>{atual > 0 ? (vs === "média" ? "sem média ainda" : "novo nesta semana") : "—"}</>;
-  const p = Math.round(((atual - base) / base) * 100);
-  const cor = p > 0 ? "var(--good)" : p < 0 ? "var(--critical)" : undefined;
-  return (
-    <>
-      <span className="font-medium tabular-nums" style={{ color: cor }}>{p > 0 ? "▲" : p < 0 ? "▼" : "="} {Math.abs(p)}%</span>
-      <span> vs. {vs}</span>
-    </>
-  );
-}
 
 export default function Dashboard() {
   const [daily, setDaily] = useState<Map<string, DayStats>>(new Map());
   const [books, setBooks] = useState<Book[]>([]);
   const [covers, setCovers] = useState<Record<string, string>>({});
   const [nome, setNome] = useState("");
+  const [periodo, setPeriodo] = usePeriodo();
+  const [carregadoDesde, setCarregadoDesde] = useState(inicio12Meses);
   useEffect(() => {
     void supabase().auth.getUser().then(({ data }) => {
       const m = data.user?.user_metadata ?? {};
@@ -72,135 +63,109 @@ export default function Dashboard() {
   }, []);
   // Anki: se os números estão velhos (mais de 3 horas), busca no AnkiWeb em segundo plano e atualiza a tela
   useEffect(() => {
-    void sincronizarAnkiSeAntigo(3).then((ok) => { if (ok) void loadDaily(inicio12Meses()).then(setDaily); });
-  }, []);
+    void sincronizarAnkiSeAntigo(3).then((ok) => { if (ok) void loadDaily(carregadoDesde).then(setDaily); });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // período (ou o anterior, para comparar) mais antigo do que o já carregado: busca desde ele
+  useEffect(() => {
+    if (periodo.antDe >= carregadoDesde) return;
+    setCarregadoDesde(periodo.antDe);
+    void loadDaily(periodo.antDe).then(setDaily);
+  }, [periodo.antDe, carregadoDesde]);
 
+  /** Todos os números do topo no período escolhido, comparados com o período anterior equivalente. */
   const s = useMemo(() => {
-    const today = dayKey();
-    const ws = weekStart(new Date());
-    const sum = (from: Date, to: Date, f: (d: DayStats) => number) => {
-      let t = 0;
-      for (let d = new Date(from); d <= to; d = addDays(d, 1)) {
-        const v = daily.get(dayKey(d));
-        if (v) t += f(v);
-      }
-      return t;
-    };
-    const now = new Date();
     const time = (d: DayStats) => d.study + d.reading;
-    const weekly = Array.from({ length: WEEKS }, (_, i) => {
-      const start = addDays(ws, -(WEEKS - 1 - i) * 7);
-      const end = addDays(start, 6);
-      return {
-        label: start.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-        detail: `semana de ${start.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`,
-        value: sum(start, end, (d) => d.words),
-      };
-    });
-    const past = weekly.slice(0, -1).filter((w) => w.value > 0);
-    const avgWeek = past.length ? past.reduce((a, b) => a + b.value, 0) / past.length : 0;
-    const from30 = addDays(now, -29);
-    const words30 = sum(from30, now, (d) => d.words);
-    const secs30 = sum(from30, now, (d) => d.readingAll);
-    // sequência de dias com algum estudo
+    const ativo = (d: DayStats) => time(d) > 0 || d.anki > 0 || d.written > 0;
+    const em = (de: string, ate: string, f: (d: DayStats) => number) => somaNoPeriodo(daily, de, ate, f);
+    // primeiro dia com registro: os dias antes de começar a usar o sistema não entram nas médias
+    let primeiro = "9999-12-31";
+    for (const [k, v] of daily) if (k < primeiro && ativo(v)) primeiro = k;
+    const diasUteis = (de: string, ate: string) => {
+      const ini = de > primeiro ? de : primeiro;
+      return ini > ate ? 0 : Math.round((parseDay(ate).getTime() - parseDay(ini).getTime()) / 864e5) + 1;
+    };
+    const { de, ate, antDe, antAte } = periodo;
+    const tempo = em(de, ate, time), tempoAnt = em(antDe, antAte, time);
+    const dU = diasUteis(de, ate), dUAnt = diasUteis(antDe, antAte);
+    let diasAtivos = 0;
+    for (let d = parseDay(de); dayKey(d) <= ate; d = addDays(d, 1)) { const v = daily.get(dayKey(d)); if (v && ativo(v)) diasAtivos++; }
+    const ppmDe = (a: string, z: string) => { const seg = em(a, z, (d) => d.readingAll); return seg > 120 ? Math.round(em(a, z, (d) => d.words) / (seg / 60)) : 0; };
+    // sequência atual (até hoje)
     let streak = 0;
-    for (let d = new Date(now); ; d = addDays(d, -1)) {
+    for (let d = new Date(); ; d = addDays(d, -1)) {
       const v = daily.get(dayKey(d));
-      const any = v && (v.study + v.reading > 0 || v.anki > 0 || v.written > 0);
-      if (any) streak++;
-      else if (dayKey(d) !== today) break;
+      if (v && ativo(v)) streak++;
+      else if (dayKey(d) !== dayKey()) break;
       if (streak > 400) break;
     }
-    // maior sequência no período carregado (12 meses)
-    let recorde = 0, corrida = 0;
-    for (let d = addDays(now, -370); d <= now; d = addDays(d, 1)) {
-      const v = daily.get(dayKey(d));
-      corrida = v && (v.study + v.reading > 0 || v.anki > 0 || v.written > 0) ? corrida + 1 : 0;
-      recorde = Math.max(recorde, corrida);
-    }
-    // a semana passada só até o mesmo dia da semana de hoje (comparação justa no meio da semana)
-    const sp = (f: (d: DayStats) => number) => sum(addDays(ws, -7), addDays(now, -7), f);
     return {
-      today: time(daily.get(today) ?? ({} as DayStats)) || 0,
-      // média por dia desde o primeiro dia com registro (no máximo 30 dias): os dias antes de começar a usar o sistema não contam
-      media30: (() => {
-        let ini = from30;
-        while (ini < now && !time(daily.get(dayKey(ini)) ?? ({} as DayStats))) ini = addDays(ini, 1);
-        const dias = Math.max(1, Math.round((now.getTime() - ini.getTime()) / 864e5) + 1);
-        return sum(ini, now, time) / dias;
-      })(),
-      lastWeek: sp(time),
-      lastWords: sp((d) => d.words),
-      lastWritten: sp((d) => d.written),
-      lastAnki: sp((d) => d.anki),
-      recorde,
-      ankiHoje: daily.get(today)?.anki ?? 0,
-      week: sum(ws, now, time),
-      weekWords: sum(ws, now, (d) => d.words),
-      weekWritten: sum(ws, now, (d) => d.written),
-      weekAnki: sum(ws, now, (d) => d.anki),
-      wpm: secs30 > 60 ? Math.round(words30 / (secs30 / 60)) : 0,
-      avgWeek,
-      weekly,
-      streak,
+      tempo, tempoAnt,
+      media: dU ? tempo / dU : 0, mediaAnt: dUAnt ? tempoAnt / dUAnt : 0,
+      // dias do período desde o primeiro registro (os dias antes de começar a usar o sistema não contam)
+      diasAtivos, dias: dU || periodo.dias, streak,
+      ppm: ppmDe(de, ate), ppmAnt: ppmDe(antDe, antAte),
+      lidas: em(de, ate, (d) => d.words), lidasAnt: em(antDe, antAte, (d) => d.words),
+      escritas: em(de, ate, (d) => d.written), escritasAnt: em(antDe, antAte, (d) => d.written),
+      anki: em(de, ate, (d) => d.anki), ankiAnt: em(antDe, antAte, (d) => d.anki),
     };
-  }, [daily]);
+  }, [daily, periodo]);
 
   const count = (st: Book["status"]) => books.filter((b) => b.status === st).length;
   const reading = books.filter((b) => b.status === "lendo");
+  const naData = (iso: string | null | undefined, de: string, ate: string) => { const k = iso ? dayKey(new Date(iso)) : ""; return !!k && k >= de && k <= ate; };
+  const concluidos = books.filter((b) => naData(b.finished_at, periodo.de, periodo.ate)).length;
+  const concluidosAnt = books.filter((b) => naData(b.finished_at, periodo.antDe, periodo.antAte)).length;
   const lastDone = books.filter((b) => b.finished_at).sort((a, b) => (b.finished_at! > a.finished_at! ? 1 : -1))[0];
   const remainingWords = books
     .filter((b) => b.status !== "lido" && b.status !== "consulta") // obras de consulta não estão "pela frente"
     .reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
 
   // média simples entre os dois ritmos (a aula falada costuma render mais palavras por minuto que o livro)
-  const ppmMedia = ppm.leitura && ppm.estudos ? Math.round((ppm.leitura + ppm.estudos) / 2) : ppm.leitura || ppm.estudos || s.wpm;
+  const ppmMedia = ppm.leitura && ppm.estudos ? Math.round((ppm.leitura + ppm.estudos) / 2) : ppm.leitura || ppm.estudos || s.ppm;
   const ppmLivros = ritmoLivros || ppm.leitura || ppmMedia;
 
   return (
     // tudo numa tela: indicadores no topo; calendário e tempo lado a lado; escrita, leitura e biblioteca embaixo
     <Page denso title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
-      actions={<button className="text-xs text-faint hover:text-ink" title="Como você quer ser chamado" onClick={async () => {
-        const n = prompt("Seu nome:", nome)?.trim();
-        if (n === undefined || n === null) return;
-        await supabase().auth.updateUser({ data: { nome: n } });
-        setNome(n);
-      }}>{nome ? "trocar nome" : "Como quer ser chamado?"}</button>}>
+      actions={<>
+        <FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />
+        <button className="text-xs text-faint hover:text-ink self-center" title="Como você quer ser chamado" onClick={async () => {
+          const n = prompt("Seu nome:", nome)?.trim();
+          if (n === undefined || n === null) return;
+          await supabase().auth.updateUser({ data: { nome: n } });
+          setNome(n);
+        }}>{nome ? "trocar nome" : "Como quer ser chamado?"}</button>
+      </>}>
       <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-2 sm:gap-3">
-        {/* legendas: uma linha curta, para comparar; a explicação fica no tooltip */}
-        <Stat compacto label="Hoje" value={fmtDuration(s.today)} hint={<Variacao atual={s.today} base={s.media30} vs="média" />}
-          explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas. Comparado com a sua média por dia nos últimos 30 dias, contando a partir do primeiro registro (${fmtDuration(s.media30)}).`} />
-        <Stat compacto label="Esta semana" value={fmtDuration(s.week)} hint={<Variacao atual={s.week} base={s.lastWeek} vs="anterior" />}
-          explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas, de segunda até hoje. Comparado com os mesmos dias da semana passada (${fmtDuration(s.lastWeek)}).`} />
-        <Stat compacto label="Sequência" value={`${s.streak} ${s.streak === 1 ? "dia" : "dias"}`}
-          hint={s.recorde > s.streak ? `recorde: ${s.recorde} dias` : "seu recorde"}
-          explica="Dias seguidos com algum estudo, leitura, revisão ou escrita." />
-        <Stat compacto label="Velocidade" value={ppmMedia ? `${ppmMedia} ppm` : "—"} hint="palavras por minuto"
-          explica={ppm.leitura && ppm.estudos ? `Média dos últimos 30 dias: leitura ${ppm.leitura} ppm, estudos ${ppm.estudos} ppm.` : "Média dos últimos 30 dias."} />
-        <Stat compacto label="Palavras lidas" value={nf.format(s.weekWords)} hint={<Variacao atual={s.weekWords} base={s.lastWords} vs="anterior" />}
-          explica={`Palavras lidas no leitor nesta semana. Mesmos dias da semana passada: ${nf.format(s.lastWords)}. Média semanal: ${nf.format(Math.round(s.avgWeek))}.`} />
-        <Stat compacto label="Palavras escritas" value={nf.format(s.weekWritten)} hint={<Variacao atual={s.weekWritten} base={s.lastWritten} vs="anterior" />}
-          explica={`Palavras escritas na sala de escrita nesta semana. Mesmos dias da semana passada: ${nf.format(s.lastWritten)}.`} />
-        <Stat compacto label="Revisões Anki" value={nf.format(s.weekAnki)} hint={<Variacao atual={s.weekAnki} base={s.lastAnki} vs="anterior" />}
-          explica={`Revisões nos baralhos dos seus idiomas nesta semana (${nf.format(s.ankiHoje)} hoje). Mesmos dias da semana passada: ${nf.format(s.lastAnki)}.`} />
-        <Stat
-          compacto
-          label="Biblioteca"
-          value={`${count("aguardando")} ${count("aguardando") === 1 ? "livro" : "livros"}`}
-          hint={ppmLivros && remainingWords ? `≈ ${remainingWords / ppmLivros / 60 >= 10 ? `${Math.round(remainingWords / ppmLivros / 60)} h` : fmtDuration((remainingWords / ppmLivros) * 60)} de leitura` : "na fila"}
-          explica="Livros aguardando leitura e o tempo que falta, no seu ritmo, para ler o que não está concluído."
-        />
+        {/* tudo no período do filtro; legendas: uma linha curta comparando com o período anterior (o tooltip explica) */}
+        <Stat compacto label="Tempo" value={fmtDuration(s.tempo)} hint={<Variacao atual={s.tempo} base={s.tempoAnt} vs={periodo.vs} />}
+          explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(s.tempoAnt)}.`} />
+        <Stat compacto label="Média por dia" value={fmtDuration(s.media)} hint={<Variacao atual={s.media} base={s.mediaAnt} vs={periodo.vs} />}
+          explica={`Tempo dividido pelos dias do período (os dias antes do seu primeiro registro não contam). Período anterior: ${fmtDuration(s.mediaAnt)} por dia.`} />
+        <Stat compacto label="Dias de estudo" value={`${s.diasAtivos} de ${s.dias}`} hint={`sequência atual: ${s.streak} ${s.streak === 1 ? "dia" : "dias"}`}
+          explica="Dias do período com algum estudo, leitura, revisão ou escrita (contando a partir do seu primeiro registro). A sequência é de dias seguidos até hoje." />
+        <Stat compacto label="Velocidade" value={s.ppm ? `${s.ppm} ppm` : "—"} hint={<Variacao atual={s.ppm} base={s.ppmAnt} vs={periodo.vs} />}
+          explica={`Palavras por minuto no leitor (livros e aulas) — ${periodo.nome.toLowerCase()}. Período anterior: ${s.ppmAnt || "—"} ppm.`} />
+        <Stat compacto label="Palavras lidas" value={nf.format(s.lidas)} hint={<Variacao atual={s.lidas} base={s.lidasAnt} vs={periodo.vs} />}
+          explica={`Palavras lidas no leitor — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.lidasAnt)}.`} />
+        <Stat compacto label="Palavras escritas" value={nf.format(s.escritas)} hint={<Variacao atual={s.escritas} base={s.escritasAnt} vs={periodo.vs} />}
+          explica={`Palavras escritas na sala de escrita — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.escritasAnt)}.`} />
+        <Stat compacto label="Revisões Anki" value={nf.format(s.anki)} hint={<Variacao atual={s.anki} base={s.ankiAnt} vs={periodo.vs} />}
+          explica={`Revisões nos baralhos dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.ankiAnt)}.`} />
+        <Stat compacto label="Livros concluídos" value={nf.format(concluidos)}
+          hint={concluidos || concluidosAnt ? <Variacao atual={concluidos} base={concluidosAnt} vs={periodo.vs} /> : `${count("aguardando")} aguardando na fila`}
+          explica={`Livros terminados — ${periodo.nome.toLowerCase()}. Na fila: ${count("aguardando")} aguardando${ppmLivros && remainingWords ? `, ≈ ${Math.round(remainingWords / ppmLivros / 60)} h de leitura pela frente` : ""}.`} />
       </div>
 
       <ConfissaoAviso />
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-3 md:gap-4 mt-3 md:mt-4">
-        <CalendarPanel compacto />
-        <TimeBreakdown compacto />
+        <CalendarPanel compacto periodo={periodo} />
+        <TimeBreakdown compacto periodo={periodo} />
       </div>
 
       <section className="mt-3 md:mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
-        <WritingPanel compacto />
+        <WritingPanel compacto periodo={periodo} />
         <div className="card p-4 min-w-0">
           <h2 className="font-medium mb-2">Continuar lendo</h2>
           {reading.length === 0 ? (
@@ -244,8 +209,9 @@ export default function Dashboard() {
           {count("consulta") > 0 && (
             <p className="text-xs text-muted mt-2">+ {count("consulta")} {count("consulta") === 1 ? "obra" : "obras"} de consulta (fora dos indicadores)</p>
           )}
+          <p className="text-xs text-muted mt-2">Concluídos — {periodo.nome.toLowerCase()}: <b className="text-ink font-medium">{concluidos}</b></p>
           {lastDone && (
-            <p className="text-xs text-muted mt-2 truncate" title={lastDone.title}>
+            <p className="text-xs text-muted mt-1 truncate" title={lastDone.title}>
               Último concluído: {lastDone.title}, em {new Date(lastDone.finished_at!).toLocaleDateString("pt-BR")}
             </p>
           )}
