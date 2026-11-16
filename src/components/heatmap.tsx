@@ -169,8 +169,25 @@ export function Heatmap({
   // a dica não passa das bordas do quadro
   const ancora = !hover ? "-translate-x-1/2" : hover.x < 80 ? "translate-x-[-12px]" : largura && hover.x > largura - 80 ? "translate-x-[calc(-100%+12px)]" : "-translate-x-1/2";
 
+  // a mesma dica (balão) para o calendário anual e o de mês
+  const dica = hover && (
+    <div
+      className={`pointer-events-none absolute z-10 ${ancora} -translate-y-full rounded-md px-2.5 py-1.5 text-xs shadow-lg whitespace-nowrap`}
+      style={{ left: hover.x, top: hover.y - 6, background: "var(--text)", color: "var(--bg)" }}
+      role="status"
+    >
+      <div className="font-medium tabular-nums">{`${nf.format(metricValue(data.get(hover.day), metric))} ${unit}`}</div>
+      <div className="opacity-80">{fmtDayLong(hover.day)}</div>
+    </div>
+  );
+
   // períodos curtos (até 6 semanas): calendário de mês, mais fácil de ler que uma ou duas colunas soltas
   if (weeks <= 6) {
+    const mostrarCelula = (el: HTMLElement, dia: string) => {
+      const r = el.getBoundingClientRect();
+      const p = raiz.current!.getBoundingClientRect();
+      setHover({ day: dia, x: r.left - p.left + r.width / 2, y: r.top - p.top });
+    };
     const nomes = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"];
     // quadrados grandes numa semana; menores com 5–6 semanas, para o painel continuar cabendo na tela
     const maximo = weeks <= 2 ? 46 : weeks <= 4 ? 36 : 30;
@@ -185,8 +202,16 @@ export function Heatmap({
             const fundo = c.future || c.fora ? "var(--heat-0)" : cor(c.v);
             const forte = !c.future && !c.fora && nivel(c.v, thresholds) >= 3;
             return (
-              <div key={c.day} title={c.future ? undefined : `${fmtDayLong(c.day)}: ${nf.format(c.v)} ${unit}`}
-                onClick={() => !c.future && onSelect?.(c.day)}
+              <div key={c.day}
+                onPointerEnter={(e) => { if (e.pointerType === "mouse" && !c.future) mostrarCelula(e.currentTarget, c.day); }}
+                onPointerLeave={(e) => { if (e.pointerType === "mouse") setHover(null); }}
+                onClick={(e) => {
+                  if (c.future) return;
+                  // toque: abre a dica do dia; tocar de novo no mesmo dia fecha
+                  if ((e.nativeEvent as PointerEvent).pointerType !== "mouse" && hover?.day === c.day && !onSelect) setHover(null);
+                  else mostrarCelula(e.currentTarget, c.day);
+                  onSelect?.(c.day);
+                }}
                 className={`rounded-md grid place-items-center text-[11px] tabular-nums ${onSelect && !c.future ? "cursor-pointer" : ""}`}
                 style={{ height: lado, background: fundo, opacity: c.future ? 0.25 : c.fora ? 0.35 : 1, color: forte ? "#fff" : "var(--muted)",
                   outline: c.day === today ? "1.5px solid var(--muted)" : selected === c.day ? "2px solid var(--text)" : undefined }}>
@@ -195,6 +220,7 @@ export function Heatmap({
             );
           })}
         </div>
+        {dica}
         <div className="flex items-center gap-1 mt-1.5 text-[11px] text-muted justify-end">
           menos
           {[0, 1, 2, 3, 4, 5].map((l) => (
@@ -249,18 +275,7 @@ export function Heatmap({
         </svg>
       )}
       {!largura && <div style={{ height: 7 * PASSO_MAX + TOPO }} />}
-      {hover && (
-        <div
-          className={`pointer-events-none absolute z-10 ${ancora} -translate-y-full rounded-md px-2.5 py-1.5 text-xs shadow-lg whitespace-nowrap`}
-          style={{ left: hover.x, top: hover.y - 6, background: "var(--text)", color: "var(--bg)" }}
-          role="status"
-        >
-          <div className="font-medium tabular-nums">
-            {`${nf.format(metricValue(data.get(hover.day), metric))} ${unit}`}
-          </div>
-          <div className="opacity-80">{fmtDayLong(hover.day)}</div>
-        </div>
-      )}
+      {dica}
       <div className="flex items-center gap-1 mt-1.5 text-[11px] text-muted justify-end">
         menos
         {[0, 1, 2, 3, 4, 5].map((l) => (
