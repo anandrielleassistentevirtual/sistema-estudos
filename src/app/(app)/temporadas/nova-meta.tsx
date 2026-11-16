@@ -76,7 +76,11 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
   const dobra = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   const achados = busca.trim().length >= 2
     ? livros.filter((b) => b.status !== "lido" && !escolhidos.includes(b.id) && dobra(busca).split(/\s+/).every((w) => dobra(`${b.title} ${b.author ?? ""}`).includes(w))).slice(0, 6) : [];
-  const listaAulas = pasta ? daPasta(pasta) : [];
+  const [buscaAula, setBuscaAula] = useState("");
+  const [soEscolhidas, setSoEscolhidas] = useState(false);
+  // a lista: do curso escolhido (ou de todos), filtrada pela busca; "só as escolhidas" mostra o que já marcou
+  const listaAulas = (soEscolhidas ? aulas.filter((a) => aulasSel.includes(a.id)) : pasta ? daPasta(pasta) : buscaAula.trim().length >= 2 ? aulas : [])
+    .filter((a) => !buscaAula.trim() || dobra(buscaAula).split(/\s+/).every((w) => dobra(a.title).includes(w)));
   const palavrasAulas = aulas.filter((a) => aulasSel.includes(a.id)).reduce((n, a) => n + faltam(a), 0);
   const totalBaralho = baralhos.find((b) => b.nome === baralho)?.total;
 
@@ -85,10 +89,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
 
   function escolherPasta(id: string) {
     setPasta(id);
-    // ao abrir um curso, já vêm marcadas as aulas que faltam (dá para desmarcar)
-    if (id && !daPasta(id).some((a) => aulasSel.includes(a.id))) {
-      setAulasSel((l) => [...l, ...daPasta(id).filter((a) => a.situacao !== "concluida").map((a) => a.id)]);
-    }
+    setSoEscolhidas(false);
   }
 
   async function salvar() {
@@ -173,40 +174,49 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
           <div className="space-y-2 text-sm">
             <label className="block"><span className="label">Curso (pasta dos Estudos)</span>
               <select className="input mt-1" value={pasta} onChange={(e) => escolherPasta(e.target.value)}>
-                <option value="">Escolha…</option>
-                {ordem.map(({ pasta: p }) => <option key={p.id} value={p.id}>{caminhoDaPasta(p.id, porId)}</option>)}
+                <option value="">Todos os cursos (busque pelo nome)</option>
+                {ordem.map(({ pasta: p }) => <option key={p.id} value={p.id}>{caminhoDaPasta(p.id, porId)} · {daPasta(p.id).length}</option>)}
               </select></label>
-            {pasta && (
-              <>
-                <div className="flex items-center justify-between text-xs text-muted">
-                  <span>Marque as aulas que vai fazer nesta temporada</span>
-                  <span className="flex gap-2">
-                    <button className="hover:text-ink" onClick={() => setAulasSel((l) => [...new Set([...l, ...listaAulas.filter((a) => a.situacao !== "concluida").map((a) => a.id)])])}>pendentes</button>
-                    <button className="hover:text-ink" onClick={() => setAulasSel((l) => l.filter((id) => !listaAulas.some((a) => a.id === id)))}>nenhuma</button>
-                  </span>
-                </div>
-                <ul className="max-h-56 overflow-y-auto rounded-md border border-line divide-y divide-line">
-                  {listaAulas.length === 0 && <li className="px-2.5 py-2 text-muted">Nenhuma aula nesta pasta.</li>}
-                  {listaAulas.map((a) => {
-                    const feita = a.situacao === "concluida";
-                    return (
-                      <li key={a.id}>
-                        <label className={`flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-sel ${feita ? "text-faint" : ""}`}>
-                          <input type="checkbox" checked={aulasSel.includes(a.id)}
-                            onChange={(e) => setAulasSel((l) => (e.target.checked ? [...l, a.id] : l.filter((x) => x !== a.id)))} />
-                          <span className="truncate flex-1">{a.title}</span>
-                          <span className="text-xs text-muted shrink-0 tabular-nums">
-                            {feita ? "✓ feita" : a.situacao === "lendo" ? `${Math.round((a.progresso || 0) * 100)}%` : a.palavras ? `${nf.format(a.palavras)} pal.` : ""}
-                          </span>
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </>
+            <label className="input flex items-center gap-2 py-1.5">
+              <Search size={14} className="text-faint" />
+              <input className="bg-transparent outline-none flex-1 min-w-0" value={buscaAula} onChange={(e) => setBuscaAula(e.target.value)}
+                placeholder={pasta ? "Filtrar as aulas deste curso" : "Buscar aula pelo nome (ex.: COF 12)"} />
+            </label>
+            <div className="flex items-center justify-between text-xs text-muted">
+              <span>Marque as aulas que vai fazer nesta temporada</span>
+              <span className="flex gap-2">
+                {pasta && !soEscolhidas && (
+                  <button className="hover:text-ink" title="Marca todas as pendentes que estão na lista"
+                    onClick={() => setAulasSel((l) => [...new Set([...l, ...listaAulas.filter((a) => a.situacao !== "concluida").map((a) => a.id)])])}>marcar pendentes</button>
+                )}
+                {aulasSel.length > 0 && <button className="hover:text-ink" onClick={() => setAulasSel([])}>limpar</button>}
+              </span>
+            </div>
+            {(pasta || soEscolhidas || buscaAula.trim().length >= 2) && (
+              <ul className="max-h-56 overflow-y-auto rounded-md border border-line divide-y divide-line">
+                {listaAulas.length === 0 && <li className="px-2.5 py-2 text-muted">Nenhuma aula encontrada.</li>}
+                {listaAulas.slice(0, 400).map((a) => {
+                  const feita = a.situacao === "concluida";
+                  return (
+                    <li key={a.id}>
+                      <label className={`flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-sel ${feita ? "text-faint" : ""}`}>
+                        <input type="checkbox" checked={aulasSel.includes(a.id)}
+                          onChange={(e) => setAulasSel((l) => (e.target.checked ? [...l, a.id] : l.filter((x) => x !== a.id)))} />
+                        <span className="truncate flex-1">{a.title}</span>
+                        <span className="text-xs text-muted shrink-0 tabular-nums">
+                          {feita ? "✓ feita" : a.situacao === "lendo" ? `${Math.round((a.progresso || 0) * 100)}%` : a.palavras ? `${nf.format(a.palavras)} pal.` : ""}
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
             {aulasSel.length > 0 && (
-              <p className="text-xs text-muted">{aulasSel.length} {aulasSel.length === 1 ? "aula escolhida" : "aulas escolhidas"} · faltam {nf.format(palavrasAulas)} palavras</p>
+              <p className="text-xs text-muted flex items-center justify-between gap-2">
+                <span>{aulasSel.length} {aulasSel.length === 1 ? "aula escolhida" : "aulas escolhidas"} · faltam {nf.format(palavrasAulas)} palavras</span>
+                <button className="hover:text-ink underline-offset-2 hover:underline" onClick={() => setSoEscolhidas((v) => !v)}>{soEscolhidas ? "ver o curso" : "ver só as escolhidas"}</button>
+              </p>
             )}
           </div>
         )}

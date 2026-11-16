@@ -14,11 +14,11 @@ import { ankiPorIdioma } from "./tempo";
 export type Estacao = "verao" | "outono" | "inverno" | "primavera";
 export type Area = "leitura" | "estudos" | "idiomas" | "escrita" | "pesquisa" | "exercicio";
 
-export const ESTACOES: Record<Estacao, { nome: string; emoji: string; mes: number; dia: number }> = {
-  verao: { nome: "Verão", emoji: "☀️", mes: 12, dia: 21 },
-  outono: { nome: "Outono", emoji: "🍂", mes: 3, dia: 20 },
-  inverno: { nome: "Inverno", emoji: "❄️", mes: 6, dia: 21 },
-  primavera: { nome: "Primavera", emoji: "🌸", mes: 9, dia: 22 },
+export const ESTACOES: Record<Estacao, { nome: string; mes: number; dia: number }> = {
+  verao: { nome: "Verão", mes: 12, dia: 21 },
+  outono: { nome: "Outono", mes: 3, dia: 20 },
+  inverno: { nome: "Inverno", mes: 6, dia: 21 },
+  primavera: { nome: "Primavera", mes: 9, dia: 22 },
 };
 const ORDEM: Estacao[] = ["outono", "inverno", "primavera", "verao"]; // na ordem do ano civil (o verão começa em dezembro)
 
