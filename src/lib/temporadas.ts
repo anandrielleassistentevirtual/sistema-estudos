@@ -1,7 +1,7 @@
 "use client";
 /**
  * Temporadas: o ano de 12 semanas no ritmo das estações (hemisfério sul).
- * Cada estação tem ~13 semanas: 12 de execução + a última de revisão e descanso (sazonalidade, à Cal Newport).
+ * Cada estação tem ~13 semanas, todas de trabalho (a revisão é um momento, não uma semana parada).
  * O plano diz quanto por dia você quer dar a cada área, na unidade que mede o avanço dela: palavras na Leitura,
  * nos Estudos e na Escrita, cartões novos criados no Anki nos Idiomas, minutos no resto. A previsão usa esse plano e o seu
  * ritmo real (palavras por minuto, cartões por minuto…) para dizer o que cabe até o fim da temporada.
@@ -101,7 +101,8 @@ export function vizinha(e: Estacao, ano: number, passo: 1 | -1): { estacao: Esta
 export const nomeDaTemporada = (e: Estacao, ano: number) => `${ESTACOES[e].nome} ${e === "verao" ? `${ano}–${String(ano + 1).slice(2)}` : ano}`;
 
 /**
- * Semanas da temporada: da segunda-feira em que você começou até o fim; a última é a de revisão.
+ * Semanas da temporada: da segunda-feira em que você começou até o fim, todas de trabalho.
+ * (`revisao` fica vazia: a última semana conta como as outras.)
  * Execução = todas menos a última (no máximo 12).
  */
 export function semanasDa(t: Pick<Temporada, "comeca_em" | "fim">) {
@@ -109,8 +110,7 @@ export function semanasDa(t: Pick<Temporada, "comeca_em" | "fim">) {
   const fim = parseDay(t.fim);
   const semanas: { de: string; ate: string }[] = [];
   for (let w = ini; w <= fim; w = addDays(w, 7)) semanas.push({ de: dayKey(w), ate: dayKey(addDays(w, 6) > fim ? fim : addDays(w, 6)) });
-  const execucao = semanas.length > 1 ? semanas.slice(0, Math.min(12, semanas.length - 1)) : semanas;
-  return { semanas, execucao, revisao: semanas.length > 1 ? semanas.slice(execucao.length) : [] };
+  return { semanas, execucao: semanas, revisao: [] as { de: string; ate: string }[] };
 }
 
 type PorDia = Map<string, Record<Area, number>>;

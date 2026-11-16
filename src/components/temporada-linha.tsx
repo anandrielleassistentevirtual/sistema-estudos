@@ -21,7 +21,7 @@ export function TemporadaLinha() {
       const { execucao } = semanasDa(t);
       const hoje = dayKey();
       const i = execucao.findIndex((w) => hoje >= w.de && hoje <= w.ate);
-      const base = i >= 0 ? `${nome} · semana ${i + 1} de ${execucao.length}` : `${nome} · semana de revisão`;
+      const base = i >= 0 ? `${nome} · semana ${i + 1} de ${execucao.length}` : `${nome} · temporada encerrada`;
       if (i < 0) { setTexto({ base, exec: null, estacao: e.estacao }); return; }
       const reg = await tempoPorArea(dayKey(addDays(new Date(), -60)));
       const ritmo = ritmoPorArea(reg, (a) => unidadeDe(t, a));

@@ -237,7 +237,7 @@ export default function Temporadas() {
           {ehAtual && <span className="text-xs rounded-full px-2 py-0.5 bg-accent-soft text-ink">agora</span>}
           {!passada && execucao.length > 0 && (
             <span className="text-sm text-muted">
-              {semanaAtual >= 0 ? <>semana <b className="text-ink">{semanaAtual + 1}</b> de {execucao.length}</> : futura ? `${execucao.length} semanas de execução` : "semana de revisão"}
+              {semanaAtual >= 0 ? <>semana <b className="text-ink">{semanaAtual + 1}</b> de {execucao.length}</> : futura ? `${execucao.length} semanas` : "temporada encerrada"}
               {diasRestantes > 0 && ` · faltam ${diasRestantes} dias`}
               {revisao.length > 0 && ` · revisão a partir de ${fmtData(revisao[0].de)}`}
             </span>
