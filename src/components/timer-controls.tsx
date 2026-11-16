@@ -30,6 +30,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
   const [books, setBooks] = useState<BookOpt[]>([]);
   const [notes, setNotes] = useState<NoteOpt[]>([]);
   const [langs, setLangs] = useState<Language[]>([]);
+  const [maisMin, setMaisMin] = useState(5);
 
   useEffect(() => {
     const sb = supabase();
@@ -117,13 +118,20 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
       {t.anterior && (!foco || (!t.running && t.seconds === 0)) && (
         // o foco terminou (ou foi encerrado): dá para voltar a ele e acrescentar alguns minutos
         <div className={`flex flex-wrap items-center justify-center gap-1 ${compact ? "mt-2" : "mt-3"}`}>
-          <span className="text-xs text-muted mr-1">Voltar ao foco anterior ({Math.round(t.anterior.feito / 60)} min) e continuar</span>
+          <span className="text-xs text-muted mr-1">Voltar ao foco anterior ({Math.round(t.anterior.feito / 60)} min)</span>
           {t.mode === "livre" ? (
             <button className="btn btn-ghost px-2 py-0.5 text-xs" onClick={() => t.continuarFoco(0)} title="Continua contando a partir daquele foco">Continuar</button>
-          ) : [5, 10, 15, 25].map((m) => (
-            <button key={m} className="btn btn-ghost px-2 py-0.5 text-xs tabular-nums" onClick={() => t.continuarFoco(m)}
-              title={`Continua aquele foco por mais ${m} min (o que já foi salvo não conta duas vezes)`}>+{m}</button>
-          ))}
+          ) : (
+            // qualquer quantidade de minutos: digite e continue (Enter também serve)
+            <form className="inline-flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (maisMin >= 1) t.continuarFoco(maisMin); }}>
+              <span className="text-xs text-muted">por mais</span>
+              <input type="number" min={1} max={240} aria-label="Minutos a mais" className="input w-16 py-0.5 px-2 text-xs text-right tabular-nums"
+                value={maisMin || ""} onChange={(e) => setMaisMin(Math.min(240, Math.max(0, Math.round(Number(e.target.value) || 0))))} />
+              <span className="text-xs text-muted">min</span>
+              <button type="submit" className="btn px-2 py-0.5 text-xs" disabled={maisMin < 1}
+                title="Continua aquele foco (o que já foi salvo não conta duas vezes)"><Play size={12} /> Continuar</button>
+            </form>
+          )}
         </div>
       )}
 
