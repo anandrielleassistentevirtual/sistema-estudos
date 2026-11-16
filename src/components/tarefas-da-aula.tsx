@@ -7,11 +7,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Check, CornerDownRight, ListChecks, Play, Plus, X } from "lucide-react";
+import { Check, CornerDownRight, Feather, ListChecks, Play, Plus, X } from "lucide-react";
 import { useTimerEstado } from "@/components/timer-context";
 import { supabase } from "@/lib/supabase/client";
 import {
-  TIPOS, aulasDaPasta, concluirTarefa, criarTarefaNoFim, iniciarTarefa, mudarTarefa, proximaAula, tarefasDaAula, textoDoPrazo,
+  TIPOS, aulasDaPasta, concluirTarefa, criarTarefaNoFim, iniciarTarefa, mudarTarefa, rotaDaFolha, proximaAula, tarefasDaAula, textoDoPrazo,
   type AulaLite, type Tarefa, type TipoTarefa,
 } from "@/lib/tarefas";
 
@@ -63,8 +63,9 @@ export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
     try { sessionStorage.setItem(`tarefas-antes:${aula.id}`, "1"); } catch {}
   }
 
-  function fazerAgora(t: Tarefa) {
+  async function fazerAgora(t: Tarefa) {
     const ir = iniciarTarefa(t, timer, t.book_id ? livros.get(t.book_id) : null);
+    if (t.tipo === "escrever") { const rota = await rotaDaFolha(t); if (rota) return router.push(rota); }
     if (ir.rota) return router.push(ir.rota);
     if (ir.link) window.open(ir.link, "_blank", "noopener");
     dispensar();
@@ -101,9 +102,9 @@ export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
             </div>
           )}
         </div>
-        {!t.feita_em && (
-          <button className="btn btn-ghost px-2 py-1 shrink-0" title="Fazer agora: liga o Timer nesta tarefa" onClick={() => fazerAgora(t)}><Play size={14} /></button>
-        )}
+        {!t.feita_em && (t.tipo === "escrever"
+          ? <button className="btn btn-ghost px-2 py-1 shrink-0" title="Escrever: abre a folha desta tarefa na sala de Escrita" onClick={() => void fazerAgora(t)}><Feather size={14} /></button>
+          : <button className="btn btn-ghost px-2 py-1 shrink-0" title="Fazer agora: liga o Timer nesta tarefa" onClick={() => void fazerAgora(t)}><Play size={14} /></button>)}
       </li>
     );
   };

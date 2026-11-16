@@ -16,7 +16,7 @@ import { ppmDosLivros } from "@/lib/books";
 import { fmtDuration, nf } from "@/lib/dates";
 import { progressoDoLivro, type Book } from "@/lib/types";
 import {
-  POR_PAGINA, TIPOS, carregarAulasLite, carregarTarefas, concluirTarefa, criarTarefa, iniciarTarefa, mudarTarefa, proximaAula, proximaPosicao,
+  POR_PAGINA, TIPOS, carregarAulasLite, carregarTarefas, concluirTarefa, criarTarefa, iniciarTarefa, mudarTarefa, rotaDaFolha, proximaAula, proximaPosicao,
   tempoPorTarefa, textoDoPrazo, type AulaLite, type Tarefa, type TipoTarefa,
 } from "@/lib/tarefas";
 
@@ -94,8 +94,13 @@ export default function Tarefas() {
   /** Não terminou: reescreve no fim da lista (como no caderno). */
   const fizUmaParte = (t: Tarefa) => trocar(t, { posicao: proximaPosicao(tarefas ?? []), destacada: false });
 
-  function fazerAgora(t: Tarefa) {
+  async function fazerAgora(t: Tarefa) {
     const ir = iniciarTarefa(t, timer, t.book_id ? livroDe.get(t.book_id) : null);
+    // tarefa de escrever: abre a folha dela na sala de Escrita
+    if (t.tipo === "escrever") {
+      const rota = await rotaDaFolha(t);
+      if (rota) { setTarefas((l) => l?.map((x) => (x.id === t.id ? { ...x, escrita_doc_id: t.escrita_doc_id } : x)) ?? null); router.push(rota); return; }
+    }
     if (ir.rota) router.push(ir.rota);
     else if (ir.link) window.open(ir.link, "_blank", "noopener");
   }
@@ -151,12 +156,20 @@ export default function Tarefas() {
           </div>
           {/* celular: as ações principais com nome, embaixo do texto (o texto fica com a largura toda) */}
           <div className="flex gap-2 mt-2.5 sm:hidden">
-            <button className="btn py-1.5 px-3 text-[13px]" onClick={() => fazerAgora(t)}><Play size={14} /> Fazer agora</button>
+            {t.tipo === "escrever"
+              ? <button className="btn py-1.5 px-3 text-[13px]" onClick={() => void fazerAgora(t)}><Feather size={14} /> Escrever</button>
+              : <button className="btn py-1.5 px-3 text-[13px]" onClick={() => void fazerAgora(t)}><Play size={14} /> Fazer agora</button>}
             <button className="btn py-1.5 px-3 text-[13px]" onClick={() => setConcluindo(t)}><Check size={15} /> Feita</button>
           </div>
         </div>
         <div className="flex items-center gap-0.5 shrink-0 -mt-1 sm:mt-0">
-          <button className="btn btn-ghost px-2 py-1 hidden sm:inline-flex" title="Fazer agora: liga o Timer nesta tarefa" onClick={() => fazerAgora(t)}><Play size={15} /></button>
+          {t.tipo === "escrever" ? (
+            <button className="btn px-2.5 py-1 text-xs hidden sm:inline-flex mr-1" title="Abre a folha desta tarefa na sala de Escrita e liga o Timer" onClick={() => void fazerAgora(t)}>
+              <Feather size={14} /> {t.escrita_doc_id ? "Continuar" : "Escrever"}
+            </button>
+          ) : (
+            <button className="btn btn-ghost px-2 py-1 hidden sm:inline-flex" title="Fazer agora: liga o Timer nesta tarefa" onClick={() => void fazerAgora(t)}><Play size={15} /></button>
+          )}
           <button className="btn btn-ghost px-2 py-1 hidden sm:inline-flex" title="Feita: riscar" onClick={() => setConcluindo(t)}><Check size={16} /></button>
           <button className="btn btn-ghost px-2 py-1 hidden sm:inline-flex" title="Fiz uma parte: reescreve no fim da lista" onClick={() => fizUmaParte(t)}><RefreshCw size={14} /></button>
           <RowMenu items={[
