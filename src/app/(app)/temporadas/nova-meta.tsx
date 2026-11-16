@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { arvoreDePastas, caminhoDaPasta, type PastaEstudo } from "@/lib/estudos";
 import { AREAS, type Area, type Meta } from "@/lib/temporadas";
@@ -17,17 +17,31 @@ const TIPOS: { id: Tipo; nome: string; exemplo: string }[] = [
   { id: "horas", nome: "Horas", exemplo: "N horas numa área" },
 ];
 
+function nomeAutomatico(tipo: Tipo, livros: number, curso: string | undefined, alvo: string, area: Area) {
+  return tipo === "livros" ? `Ler ${livros} ${livros === 1 ? "livro" : "livros"}`
+    : tipo === "curso" ? `Terminar ${curso ?? "o curso"}`
+    : tipo === "palavras" ? `Escrever ${alvo || "N"} palavras`
+    : `${alvo || "N"} h de ${AREAS.find((a) => a.id === area)?.nome}`;
+}
+
 /** Uma meta da temporada: livros da Biblioteca, um curso dos Estudos, palavras escritas ou horas numa área. */
-export function NovaMeta({ temporadaId, livros, pastas, posicao, onClose, onSalva }: {
+export function NovaMeta({ temporadaId, livros, pastas, posicao, onClose, onSalva, editar }: {
   temporadaId: string; livros: Livro[]; pastas: PastaEstudo[]; posicao: number; onClose: () => void; onSalva: (m: Meta) => void;
+  /** meta existente: o formulário vem preenchido e salva por cima */
+  editar?: Meta;
 }) {
-  const [tipo, setTipo] = useState<Tipo>("livros");
-  const [escolhidos, setEscolhidos] = useState<string[]>([]);
+  const [tipo, setTipo] = useState<Tipo>(editar?.tipo ?? "livros");
+  const [escolhidos, setEscolhidos] = useState<string[]>(editar?.tipo === "livros" ? editar.refs : []);
   const [busca, setBusca] = useState("");
-  const [pasta, setPasta] = useState("");
-  const [alvo, setAlvo] = useState("");
-  const [area, setArea] = useState<Area>("idiomas");
-  const [titulo, setTitulo] = useState("");
+  const [pasta, setPasta] = useState(editar?.tipo === "curso" ? editar.refs[0] ?? "" : "");
+  const [alvo, setAlvo] = useState(editar && (editar.tipo === "palavras" || editar.tipo === "horas") ? String(editar.alvo) : "");
+  const [area, setArea] = useState<Area>(editar?.tipo === "horas" ? editar.area : "idiomas");
+  // um nome que era o automático continua automático (acompanha os livros, o alvo…)
+  const [titulo, setTitulo] = useState(() => {
+    if (!editar) return "";
+    const auto = nomeAutomatico(editar.tipo, editar.refs.length, editar.tipo === "curso" ? pastas.find((p) => p.id === editar.refs[0])?.nome : undefined, String(editar.alvo), editar.area);
+    return editar.titulo === auto ? "" : editar.titulo;
+  });
   const [erro, setErro] = useState<string | null>(null);
   const porId = useMemo(() => new Map(pastas.map((p) => [p.id, p])), [pastas]);
   const { ordem } = useMemo(() => arvoreDePastas(pastas), [pastas]);
@@ -35,15 +49,12 @@ export function NovaMeta({ temporadaId, livros, pastas, posicao, onClose, onSalv
   const achados = busca.trim().length >= 2
     ? livros.filter((b) => b.status !== "lido" && !escolhidos.includes(b.id) && dobra(busca).split(/\s+/).every((w) => dobra(`${b.title} ${b.author ?? ""}`).includes(w))).slice(0, 6) : [];
 
-  const sugestao = tipo === "livros" ? `Ler ${escolhidos.length} ${escolhidos.length === 1 ? "livro" : "livros"}`
-    : tipo === "curso" ? (pasta ? `Terminar ${porId.get(pasta)?.nome ?? "o curso"}` : "Terminar o curso")
-    : tipo === "palavras" ? `Escrever ${alvo || "N"} palavras`
-    : `${alvo || "N"} h de ${AREAS.find((a) => a.id === area)?.nome}`;
+  const sugestao = nomeAutomatico(tipo, escolhidos.length, pasta ? porId.get(pasta)?.nome : undefined, alvo, area);
 
   async function salvar() {
     setErro(null);
     const m: Meta = {
-      temporada_id: temporadaId, posicao, tipo,
+      temporada_id: temporadaId, posicao: editar?.posicao ?? posicao, tipo,
       area: tipo === "livros" ? "leitura" : tipo === "curso" ? "estudos" : tipo === "palavras" ? "escrita" : area,
       titulo: titulo.trim() || sugestao,
       alvo: tipo === "palavras" || tipo === "horas" ? Number(alvo.replace(",", ".")) || 0 : 0,
@@ -52,7 +63,10 @@ export function NovaMeta({ temporadaId, livros, pastas, posicao, onClose, onSalv
     if (tipo === "livros" && !escolhidos.length) return setErro("Escolha pelo menos um livro.");
     if (tipo === "curso" && !pasta) return setErro("Escolha o curso.");
     if ((tipo === "palavras" || tipo === "horas") && !m.alvo) return setErro("Diga quanto.");
-    const { data, error } = await supabase().from("temporada_metas").insert(m).select().single();
+    const sb = supabase();
+    const { data, error } = editar?.id
+      ? await sb.from("temporada_metas").update(m).eq("id", editar.id).select().single()
+      : await sb.from("temporada_metas").insert(m).select().single();
     if (error) return setErro(error.message);
     onSalva(data as Meta);
   }
@@ -61,7 +75,7 @@ export function NovaMeta({ temporadaId, livros, pastas, posicao, onClose, onSalv
     <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/45" onClick={onClose}>
       <div className="card w-full max-w-md p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Nova meta da temporada</h2>
+          <h2 className="font-medium">{editar ? "Editar a meta" : "Nova meta da temporada"}</h2>
           <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -81,7 +95,13 @@ export function NovaMeta({ temporadaId, livros, pastas, posicao, onClose, onSalv
                   return (
                     <li key={id} className="flex items-center justify-between gap-2 rounded-md bg-surface-2 px-2.5 py-1.5">
                       <span className="truncate">{i + 1}. {b?.title}</span>
-                      <button className="text-faint hover:text-ink" onClick={() => setEscolhidos((l) => l.filter((x) => x !== id))}><X size={13} /></button>
+                      <span className="flex items-center gap-1 shrink-0">
+                        <button className="text-faint hover:text-ink disabled:opacity-30" title="Ler antes" disabled={i === 0}
+                          onClick={() => setEscolhidos((l) => { const n = [...l]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n; })}><ChevronUp size={14} /></button>
+                        <button className="text-faint hover:text-ink disabled:opacity-30" title="Ler depois" disabled={i === escolhidos.length - 1}
+                          onClick={() => setEscolhidos((l) => { const n = [...l]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; return n; })}><ChevronDown size={14} /></button>
+                        <button className="text-faint hover:text-ink" title="Tirar da meta" onClick={() => setEscolhidos((l) => l.filter((x) => x !== id))}><X size={13} /></button>
+                      </span>
                     </li>
                   );
                 })}

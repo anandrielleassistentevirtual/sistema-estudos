@@ -4,7 +4,7 @@
  * (com o seu ritmo real ao lado), as metas com a previsão e a execução de cada semana.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Page } from "@/components/page";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
@@ -33,6 +33,7 @@ export default function Temporadas() {
   const [escrita, setEscrita] = useState<{ dia: string; palavras: number; segundos: number }[]>([]);
   const [ppm, setPpm] = useState({ livros: 220, estudos: 220 });
   const [novaMeta, setNovaMeta] = useState(false);
+  const [editando, setEditando] = useState<Meta | null>(null);
   const [carregando, setCarregando] = useState(true);
 
   const carregar = useCallback(async () => {
@@ -242,6 +243,7 @@ export default function Temporadas() {
                         <div className="font-medium truncate"><span className="inline-block w-2 h-2 rounded-full mr-2 align-middle" style={{ background: area.cor }} />{m.titulo}</div>
                         <div className="text-xs mt-0.5" style={{ color: p.ok ? "var(--good)" : "#c98a1a" }}>{p.ok ? "✓ " : "⚠ "}{p.resumo}</div>
                       </div>
+                      <button className="text-faint hover:text-ink shrink-0" title="Editar a meta" onClick={() => setEditando(m)}><Pencil size={14} /></button>
                       <button className="text-faint hover:text-critical shrink-0" title="Apagar a meta" onClick={async () => {
                         if (!confirm(`Apagar a meta “${m.titulo}”?`)) return;
                         await supabase().from("temporada_metas").delete().eq("id", m.id!);
@@ -299,6 +301,10 @@ export default function Temporadas() {
         </div>
       </section>
 
+      {editando && registro && (
+        <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} posicao={editando.posicao ?? 0} editar={editando}
+          onClose={() => setEditando(null)} onSalva={(m) => { setMetas((l) => l.map((x) => (x.id === m.id ? m : x))); setEditando(null); }} />
+      )}
       {novaMeta && registro && (
         <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} posicao={minhasMetas.length}
           onClose={() => setNovaMeta(false)} onSalva={(m) => { setMetas((l) => [...l, m]); setNovaMeta(false); }} />
