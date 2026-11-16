@@ -14,7 +14,7 @@ export function Page({
   /** painel para bater o olho: mais largo e com menos espaço no cabeçalho (cabe numa tela, sem rolar) */
   denso?: boolean;
   title: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   children: React.ReactNode;
   wide?: boolean;

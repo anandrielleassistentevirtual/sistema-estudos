@@ -39,7 +39,7 @@ export default function TimerPage() {
     void load();
   }, [t.lastSaved]);
 
-  const contadas = today.filter((s) => contaComoEstudo(s.label, extras.ankiWeb));
+  const contadas = today.filter((s) => contaComoEstudo(s.label, extras.ankiWeb, s.category));
   const byCat = contadas.reduce<Record<string, number>>((a, s) => ((a[s.category] = (a[s.category] ?? 0) + s.seconds), a), {});
   if (extras.leitura) byCat.Leitura = (byCat.Leitura ?? 0) + extras.leitura;
   if (extras.estudosLeitor) byCat.Estudos = (byCat.Estudos ?? 0) + extras.estudosLeitor;

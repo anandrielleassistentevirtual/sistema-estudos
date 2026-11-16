@@ -27,5 +27,9 @@ export async function ankiPorIdioma(desde: string): Promise<{ dias: AnkiIdiomaDi
   return { dias, ankiWeb: !!conta.data };
 }
 
-/** A sessão entra no tempo de estudo? (a revisão feita no sistema não conta de novo quando o AnkiWeb está ligado) */
-export const contaComoEstudo = (label: string | null | undefined, ankiWeb: boolean) => !(ankiWeb && (label ?? "").startsWith("Anki ·"));
+/**
+ * A sessão entra no tempo de estudo? Não entram: a revisão feita no sistema quando o AnkiWeb está ligado
+ * (já vem no tempo do Anki) e o Exercício (não é estudo; aparece só nas Temporadas).
+ */
+export const contaComoEstudo = (label: string | null | undefined, ankiWeb: boolean, categoria?: string | null) =>
+  categoria !== "Exercício" && !(ankiWeb && (label ?? "").startsWith("Anki ·"));

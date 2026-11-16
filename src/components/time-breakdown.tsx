@@ -58,7 +58,7 @@ export function TimeBreakdown({ compacto = false, periodo }: { compacto?: boolea
       m.set(key, v);
     };
     for (const s of sessions) {
-      if (s.day < from || s.day > ate || !contaComoEstudo(s.label, anki.ankiWeb)) continue;
+      if (s.day < from || s.day > ate || !contaComoEstudo(s.label, anki.ankiWeb, s.category)) continue;
       if (s.category === "Idiomas") add(`lang:${s.language ?? ""}`, s.language || "Idiomas (sem idioma)", "Idioma", s.seconds);
       else if (s.category === "Estudos") {
         const course = s.note_id ? courseOf.get(s.note_id) : undefined;

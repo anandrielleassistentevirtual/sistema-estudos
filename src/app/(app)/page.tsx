@@ -11,6 +11,7 @@ import { WritingPanel } from "@/components/writing-panel";
 import { addDays, dayKey, fmtDuration, nf, parseDay } from "@/lib/dates";
 import { FiltroPeriodo } from "@/components/filtro-periodo";
 import { Variacao } from "@/components/variacao";
+import { TemporadaLinha } from "@/components/temporada-linha";
 import { somaNoPeriodo, usePeriodo } from "@/lib/periodo";
 import { DayStats, inicio12Meses, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
@@ -126,7 +127,7 @@ export default function Dashboard() {
 
   return (
     // tudo numa tela: indicadores no topo; calendário e tempo lado a lado; escrita, leitura e biblioteca embaixo
-    <Page denso title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+    <Page denso title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={<>{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · <TemporadaLinha /></>}
       actions={<>
         <FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />
         <button className="text-xs text-faint hover:text-ink self-center" title="Como você quer ser chamado" onClick={async () => {

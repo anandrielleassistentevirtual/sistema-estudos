@@ -5,13 +5,14 @@ import { useEffect, useState } from "react";
 import {
   BookHeart, Feather, GraduationCap, HardDrive, Languages, LayoutDashboard, Library,
   LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, NotebookPen, Sun, Timer, X,
-} from "lucide-react";
+ Sprout } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useTimer } from "./timer-context";
 import { fmtClock } from "@/lib/dates";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/temporadas", label: "Temporadas", icon: Sprout },
   { href: "/timer", label: "Timer", icon: Timer },
   { sep: true },
   { href: "/lectio", label: "Oração", icon: BookHeart },
