@@ -21,6 +21,7 @@ import {
   type Area, type Estacao, type Meta, type Registros, type Temporada, type Unidade,
 } from "@/lib/temporadas";
 import { NovaMeta, type Livro, type AulaT, type BaralhoT } from "./nova-meta";
+import { DetalheDaMeta, type ItemDaMeta } from "./detalhe-meta";
 
 const fmtData = (k: string) => parseDay(k).toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
 /** Arredonda um plano para um número redondo na unidade. */
@@ -49,7 +50,8 @@ export default function Temporadas() {
   const [editando, setEditando] = useState<Meta | null>(null);
   const [semanaSel, setSemanaSel] = useState<number | null>(null);
   /** metas com a lista de livros/aulas aberta */
-  const [abertas, setAbertas] = useState<Set<string>>(new Set());
+  /** a meta aberta no detalhamento */
+  const [metaAberta, setMetaAberta] = useState<string | null>(null);
   const [idiomas, setIdiomas] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(true);
 
@@ -146,6 +148,8 @@ export default function Temporadas() {
     numeros: Numero[]; selo: string; sub?: string;
     /** o que falta, na unidade `un`, e se entra na meta total da área */
     falta: number; un: Unidade; noTotal: boolean;
+    /** para o detalhamento: os itens (livros/aulas) e o que precisa por dia × o seu ritmo */
+    itens?: ItemDaMeta[]; precisaN?: number; ritmoN?: number;
   };
   const COR: Record<Estado, string> = { ok: "var(--good)", feita: "var(--good)", risco: "#c98a1a", fora: "var(--critical)" };
   const SELO: Record<Estado, string> = { ok: "no ritmo", feita: "concluída", risco: "em risco", fora: "não cabe" };
@@ -234,12 +238,12 @@ export default function Temporadas() {
       const itens = m.tipo === "livros"
         ? m.refs.map((id) => livros.find((b) => b.id === id)).filter((b): b is Livro => !!b).map((b) => {
             const total = b.word_count ?? 0, lido = b.status === "lido";
-            return { titulo: b.title, total, falta: lido ? 0 : total * (1 - progressoDoLivro(b)), feito: lido };
+            return { id: b.id, titulo: b.title, total, falta: lido ? 0 : total * (1 - progressoDoLivro(b)), feito: lido };
           })
         : (m.tipo === "aulas"
             ? m.refs.map((id) => aulas.find((x) => x.id === id)).filter((x): x is AulaT => !!x)
             : aulas.filter((x) => x.pasta_id && subarvore(m.refs[0] ?? "", arvoreDePastas(pastas).filhos).has(x.pasta_id))
-          ).map((x) => ({ titulo: x.title, total: x.palavras || 0, falta: faltam(x), feito: x.situacao === "concluida" }));
+          ).map((x) => ({ id: x.id, titulo: x.title, total: x.palavras || 0, falta: faltam(x), feito: x.situacao === "concluida" }));
       const seq = emSequencia(a, itens);
       const av = avalia(a, seq.falta, "palavras");
       const feitos = itens.filter((i) => i.feito).length;
@@ -248,7 +252,8 @@ export default function Temporadas() {
       const muitas = m.tipo !== "livros" && pend.length > 3;
       return {
         linhas: muitas ? pend.slice(0, 3) : seq.linhas, mais: muitas ? pend.length - 3 : 0, pct: seq.pct, estado: av.estado,
-        falta: seq.falta, un: "palavras", noTotal: true, selo: SELO[av.estado],
+        falta: seq.falta, un: "palavras", noTotal: true, selo: SELO[av.estado], precisaN: av.precisa, ritmoN: av.real,
+        itens: itens.map((i, k) => ({ ...i, quando: seq.linhas[k]?.quando, ok: seq.linhas[k]?.ok })),
         numeros: [
           { valor: `${feitos}/${itens.length}`, rotulo: m.tipo === "livros" ? "livros lidos" : "aulas feitas" },
           { valor: N(av.precisa), rotulo: "precisa/dia", cor: COR[av.estado] },
@@ -279,6 +284,7 @@ export default function Temporadas() {
       const porDiaNome = medida === "revisoes" ? "revisões" : "novos";
       return { linhas: [], estado: av.estado, pct: m.alvo ? Math.min(1, atual / m.alvo) : 0, falta, un: "cartoes", noTotal: medida !== "revisoes",
         selo: SELO[av.estado], sub: falta > 0 ? `faltam ${nf.format(falta)} ${medida === "revisoes" ? "revisões" : "cartões"}` : "meta batida",
+        precisaN: av.precisa, ritmoN: av.real,
         numeros: [
           { valor: `${N(atual)}/${N(m.alvo)}`, rotulo: nomeM },
           { valor: N(av.precisa), rotulo: "precisa/dia", cor: COR[av.estado] },
@@ -296,6 +302,7 @@ export default function Temporadas() {
       return { linhas: [], estado, pct: m.alvo ? Math.min(1, c.feitos / m.alvo) : 0, falta: 0, un: "min", noTotal: false,
         selo: c.falta <= 0 ? "concluída" : atrasadas >= 1 ? `${atrasadas} atrasada${atrasadas > 1 ? "s" : ""}` : c.feitos > c.esperadoHoje ? "adiantado" : "em dia",
         sub: c.falta > 0 ? `faltam ${c.falta} ${un} · meta: ${N(c.porDia)} por dia até ${fmtData(c.prazo)}` : "tudo feito",
+        precisaN: c.falta > 0 ? c.precisa : 0, ritmoN: c.feitos / Math.max(1, diasEntre(c.ini, hoje)),
         numeros: [
           { valor: `${c.feitos}/${m.alvo}`, rotulo: un },
           { valor: c.falta > 0 ? N(c.precisa) : "—", rotulo: "precisa/dia", cor: COR[estado] },
@@ -310,7 +317,7 @@ export default function Temporadas() {
       const falta = Math.max(0, m.alvo - feito);
       const av = avalia("escrita", falta, "palavras");
       return { linhas: [], estado: av.estado, pct: m.alvo ? Math.min(1, feito / m.alvo) : 0, falta, un: "palavras", noTotal: true,
-        selo: SELO[av.estado], sub: falta > 0 ? `faltam ${nf.format(falta)} palavras` : "meta batida",
+        selo: SELO[av.estado], sub: falta > 0 ? `faltam ${nf.format(falta)} palavras` : "meta batida", precisaN: av.precisa, ritmoN: av.real,
         numeros: [
           { valor: `${N(feito)}/${N(m.alvo)}`, rotulo: "palavras escritas" },
           { valor: N(av.precisa), rotulo: "precisa/dia", cor: COR[av.estado] },
@@ -323,7 +330,7 @@ export default function Temporadas() {
     const falta = Math.max(0, m.alvo * 60 - feito);
     const av = avalia(m.area, falta, "min");
     return { linhas: [], estado: av.estado, pct: m.alvo ? Math.min(1, feito / 60 / m.alvo) : 0, falta, un: "min", noTotal: true,
-      selo: SELO[av.estado], sub: falta > 0 ? `faltam ${fmtDuration(falta * 60)}` : "meta batida",
+      selo: SELO[av.estado], sub: falta > 0 ? `faltam ${fmtDuration(falta * 60)}` : "meta batida", precisaN: av.precisa, ritmoN: av.real,
       numeros: [
         { valor: fmtDuration(feito * 60), rotulo: `de ${m.alvo} h` },
         { valor: `${N(av.precisa)} min`, rotulo: "precisa/dia", cor: COR[av.estado] },
@@ -501,7 +508,8 @@ export default function Temporadas() {
                 const p = previsoes.get(m.id!)!;
                 const area = AREAS.find((a) => a.id === m.area)!;
                 return (
-                  <li key={m.id} className="group rounded-xl border border-line px-3.5 py-2.5">
+                  <li key={m.id} className="group rounded-xl border border-line px-3.5 py-2.5 cursor-pointer hover:border-[var(--muted)] transition-colors"
+                    title="Ver o detalhamento" onClick={(e) => { if (!(e.target as HTMLElement).closest("button,input,a")) setMetaAberta(m.id!); }}>
                     <div className="flex items-center gap-2">
                       <span className="font-medium truncate flex-1 min-w-0">{m.titulo}</span>
                       <span className="text-[11px] font-medium rounded-full px-2 py-0.5 shrink-0 whitespace-nowrap"
@@ -530,25 +538,11 @@ export default function Temporadas() {
                     <div className="mt-1 flex justify-between gap-2 text-[11px] text-muted tabular-nums">
                       <span className="truncate">
                         {p.sub}
-                        {p.linhas.length > 0 && (
-                          <button className="ml-1.5 hover:text-ink underline-offset-2 hover:underline" onClick={() => setAbertas((x) => { const n = new Set(x); if (n.has(m.id!)) n.delete(m.id!); else n.add(m.id!); return n; })}>
-                            · {abertas.has(m.id!) ? "recolher ▴" : `ver ${m.tipo === "livros" ? "livros" : "aulas"} ▾`}
-                          </button>
-                        )}
+                        <button className="ml-1.5 hover:text-ink underline-offset-2 hover:underline" onClick={() => setMetaAberta(m.id!)}>· detalhes ›</button>
                       </span>
                       <span>{Math.round(p.pct * 100)}%</span>
                     </div>
-                    {p.linhas.length > 0 && abertas.has(m.id!) && (
-                      <ul className="mt-2.5 pt-2 border-t border-line space-y-0.5 text-xs">
-                        {p.linhas.map((l, i) => (
-                          <li key={i} className="flex justify-between gap-2">
-                            <span className={`truncate ${l.quando === "✓" ? "text-faint line-through" : "text-muted"}`}>{l.texto}</span>
-                            <span className="shrink-0 tabular-nums" style={{ color: l.quando === "✓" ? "var(--good)" : l.ok ? "var(--faint)" : "#c98a1a" }}>{l.quando}</span>
-                          </li>
-                        ))}
-                        {!!p.mais && <li className="text-faint">e mais {p.mais} {p.mais === 1 ? "aula" : "aulas"}</li>}
-                      </ul>
-                    )}
+
 
                   </li>
                 );
@@ -627,6 +621,17 @@ export default function Temporadas() {
       </section>
       </div>
 
+      {metaAberta && (() => {
+        const m = minhasMetas.find((x) => x.id === metaAberta);
+        const p = m && previsoes.get(m.id!);
+        if (!m || !p) return null;
+        const g = grupos.find((x) => x.area.id === m.area);
+        return (
+          <DetalheDaMeta meta={m} cor={g?.area.cor ?? "var(--accent)"} area={g?.nome ?? ""} comecaEm={t.comeca_em} hoje={ateHoje} ankiDias={ankiDias}
+            minutosPorDia={(d) => feitoEm(reg, m.area, "min", d, d)} onClose={() => setMetaAberta(null)}
+            resumo={{ numeros: p.numeros, selo: p.selo, corSelo: COR[p.estado], sub: p.sub, pct: p.pct, itens: p.itens, precisa: p.precisaN, ritmo: p.ritmoN }} />
+        );
+      })()}
       {editando && registro && (
         <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} aulas={aulas} baralhos={baralhos} posicao={editando.posicao ?? 0} editar={editando} fimPadrao={dayKey(addDays(new Date(), 13))}
           onClose={() => setEditando(null)} onSalva={(m) => { setMetas((l) => l.map((x) => (x.id === m.id ? m : x))); setEditando(null); }} />
