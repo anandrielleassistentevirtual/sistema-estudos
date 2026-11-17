@@ -197,22 +197,32 @@ export function enfase(minDia: number): { nome: string; nivel: 0 | 1 | 2 | 3 } {
   return { nome: "forte", nivel: 3 };
 }
 
+/** Uma área na nota da semana: o planejado, o feito e quantos pontos ela tirou da nota. */
+export interface AreaDaSemana { area: Area; un: Unidade; plano: number; feito: number; pct: number; peso: number; perde: number }
+
 /**
- * Nota da semana (como no método das 12 semanas): para cada área com plano, o quanto do planejado foi feito
- * (até 100%), com peso pelo tempo planejado. 85% ou mais é uma semana bem executada.
+ * Nota da semana, área por área (como no método das 12 semanas): para cada área com plano, o quanto do
+ * planejado foi feito (até 100%), com peso pelo tempo que o plano pede. `perde` = pontos que a área tirou da nota.
  */
-export function execucaoDaSemana(r: Registros, t: Pick<Temporada, "unidades">, plano: Record<Area, number>, de: string, ate: string, rend: Record<Area, number>) {
+export function detalheDaSemana(r: Registros, t: Pick<Temporada, "unidades">, plano: Record<Area, number>, de: string, ate: string, rend: Record<Area, number>) {
   const dias = Math.round((parseDay(ate).getTime() - parseDay(de).getTime()) / 864e5) + 1;
-  let peso = 0, feito = 0;
+  const areas: AreaDaSemana[] = [];
   for (const a of AREAS) {
     const u = unidadeDe(t, a.id);
     const p = (plano[a.id] ?? 0) * dias;
     if (p <= 0) continue;
-    const pesoMin = u === "min" ? p : p / (rend[a.id] || 1); // o peso de cada área é o tempo que ela pede
-    peso += pesoMin;
-    feito += pesoMin * Math.min(1, feitoEm(r, a.id, u, de, ate) / p);
+    const feito = feitoEm(r, a.id, u, de, ate);
+    // o peso de cada área é o tempo que ela pede
+    areas.push({ area: a.id, un: u, plano: p, feito, pct: Math.min(1, feito / p), peso: u === "min" ? p : p / (rend[a.id] || 1), perde: 0 });
   }
-  return peso ? feito / peso : null;
+  const total = areas.reduce((n, x) => n + x.peso, 0);
+  for (const x of areas) x.perde = total ? (x.peso / total) * (1 - x.pct) : 0;
+  return { nota: total ? areas.reduce((n, x) => n + x.peso * x.pct, 0) / total : null, areas, dias };
+}
+
+/** Nota da semana (0 a 1): 85% ou mais é uma semana bem executada. */
+export function execucaoDaSemana(r: Registros, t: Pick<Temporada, "unidades">, plano: Record<Area, number>, de: string, ate: string, rend: Record<Area, number>) {
+  return detalheDaSemana(r, t, plano, de, ate, rend).nota;
 }
 
 export async function carregarTemporadas(): Promise<{ temporadas: Temporada[]; metas: Meta[] }> {

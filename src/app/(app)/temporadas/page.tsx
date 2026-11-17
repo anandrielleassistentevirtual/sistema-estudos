@@ -15,7 +15,7 @@ import { faltam, ppmMedio, porOrdem, subarvore, arvoreDePastas, type PastaEstudo
 import { progressoDoLivro } from "@/lib/types";
 import { contaAnki } from "@/lib/anki";
 import {
-  AREAS, ESTACOES, NOME_UNIDADE, UNIDADES, carregarTemporadas, diasEntre, enfase, estacaoDe, execucaoDaSemana, feitoEm, limites, nomeDaTemporada,
+  AREAS, ESTACOES, NOME_UNIDADE, UNIDADES, carregarTemporadas, detalheDaSemana, diasEntre, enfase, estacaoDe, execucaoDaSemana, feitoEm, limites, nomeDaTemporada,
   rendimento, ritmoPorArea, salvarTemporada, semanasDa, tempoPorArea, unidadeDe, vizinha,
   type Area, type Estacao, type Meta, type Registros, type Temporada, type Unidade,
 } from "@/lib/temporadas";
@@ -46,6 +46,7 @@ export default function Temporadas() {
   const [ppm, setPpm] = useState({ livros: 220, estudos: 220 });
   const [novaMeta, setNovaMeta] = useState(false);
   const [editando, setEditando] = useState<Meta | null>(null);
+  const [semanaSel, setSemanaSel] = useState<number | null>(null);
   const [carregando, setCarregando] = useState(true);
 
   const carregar = useCallback(async () => {
@@ -105,6 +106,10 @@ export default function Temporadas() {
   const notas = execucao.map((w) => (w.de > hoje ? null : execucaoDaSemana(reg, t, planoCompleto, w.de, w.ate > hoje ? hoje : w.ate, rend)));
   const feitas = notas.filter((n): n is number => n !== null);
   const mediaExec = feitas.length ? feitas.reduce((a, b) => a + b, 0) / feitas.length : null;
+  // a semana aberta no detalhe (a atual, se nada for escolhido)
+  const iSel = semanaSel !== null && semanaSel < execucao.length && notas[semanaSel] !== null ? semanaSel : semanaAtual >= 0 ? semanaAtual : notas.findLastIndex((n) => n !== null);
+  const wSel = iSel >= 0 ? execucao[iSel] : null;
+  const detalhe = wSel ? detalheDaSemana(reg, t, planoCompleto, wSel.de, wSel.ate > hoje ? hoje : wSel.ate, rend) : null;
 
   async function mudar(campos: Partial<Temporada>) {
     const novo = await salvarTemporada({
@@ -406,31 +411,65 @@ export default function Temporadas() {
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3">
           <h2 className="font-medium">Execução semanal</h2>
           <span className="text-xs text-muted">
-            85% ou mais é uma semana bem executada
+            o plano de cada área × os dias da semana · 85% ou mais é bem executada
             {mediaExec !== null && <> · média <b style={{ color: corExecucao(mediaExec) }}>{Math.round(mediaExec * 100)}%</b></>}
           </span>
         </div>
-        <div className="flex items-end gap-1.5 flex-1 min-h-24">
+        <div className="flex items-end gap-1.5">
           {execucao.map((w, i) => {
             const n = notas[i];
+            const sel = i === iSel;
             return (
-              <div key={w.de} className="flex-1 min-w-0 flex flex-col items-center gap-1" title={`Semana ${i + 1} (${fmtData(w.de)} a ${fmtData(w.ate)})${n !== null ? `: ${Math.round(n * 100)}%` : ""}`}>
+              <button key={w.de} type="button" disabled={n === null} onClick={() => setSemanaSel(i)}
+                className={`flex-1 min-w-0 flex flex-col items-center gap-1 rounded-md pt-0.5 ${n === null ? "cursor-default" : "hover:bg-surface-2/60"}`}
+                title={`Semana ${i + 1} (${fmtData(w.de)} a ${fmtData(w.ate)})${n !== null ? `: ${Math.round(n * 100)}% · clique para ver por área` : ""}`}>
                 <span className="text-[10px] tabular-nums text-muted">{n !== null ? `${Math.round(n * 100)}%` : ""}</span>
-                <div className="w-full rounded-t-md bg-surface-2 relative overflow-hidden" style={{ height: 96 }}>
-                  {n !== null && <div className="absolute bottom-0 left-0 right-0 rounded-t-md" style={{ height: `${Math.max(4, n * 100)}%`, background: corExecucao(n), opacity: i === semanaAtual ? 0.75 : 1 }} />}
+                <div className={`w-full rounded-md bg-surface-2 relative overflow-hidden ${sel ? "ring-2 ring-offset-1 ring-offset-[var(--surface)]" : ""}`}
+                  style={{ height: 44, ...(sel ? { ["--tw-ring-color" as string]: "var(--muted)" } : {}) }}>
+                  {n !== null && <div className="absolute bottom-0 left-0 right-0" style={{ height: `${Math.max(4, n * 100)}%`, background: corExecucao(n), opacity: i === semanaAtual ? 0.75 : 1 }} />}
                 </div>
-                <span className={`text-[10px] tabular-nums ${i === semanaAtual ? "text-ink font-medium" : "text-faint"}`}>S{i + 1}</span>
-              </div>
+                <span className={`text-[10px] tabular-nums ${sel ? "text-ink font-medium" : "text-faint"}`}>S{i + 1}</span>
+              </button>
             );
           })}
-          {revisao.length > 0 && (
-            <div className="flex-1 min-w-0 flex flex-col items-center gap-1" title="Semana de revisão e descanso">
-              <span className="text-[10px] text-muted"> </span>
-              <div className="w-full rounded-t-md grid place-items-center text-[10px] text-muted" style={{ height: 96, background: "repeating-linear-gradient(135deg, var(--surface-2) 0 6px, transparent 6px 12px)" }}>rev.</div>
-              <span className="text-[10px] text-faint">rev.</span>
-            </div>
-          )}
         </div>
+
+        {/* o detalhe da semana: onde está dando certo e onde está dando errado */}
+        {detalhe && wSel && (
+          <div className="mt-3 pt-3 border-t border-line">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs mb-1.5">
+              <span className="text-muted">
+                Semana {iSel + 1} · {fmtData(wSel.de)} a {fmtData(wSel.ate > hoje ? hoje : wSel.ate)}{wSel.ate > hoje ? " (até hoje)" : ""}
+              </span>
+              {(() => {
+                const pior = [...detalhe.areas].sort((a, b) => b.perde - a.perde)[0];
+                return pior && pior.perde >= 0.01
+                  ? <span className="text-muted">quem mais puxou para baixo: <b className="font-medium text-ink">{AREAS.find((x) => x.id === pior.area)!.nome}</b> (−{Math.round(pior.perde * 100)} pontos)</span>
+                  : detalhe.areas.length ? <span style={{ color: "var(--good)" }}>todas as áreas no plano</span> : null;
+              })()}
+            </div>
+            {detalhe.areas.length === 0 ? (
+              <p className="text-xs text-muted">Sem plano nesta temporada: defina quanto por dia em cada área.</p>
+            ) : (
+              <ul className="space-y-1">
+                {detalhe.areas.map((x) => {
+                  const a = AREAS.find((y) => y.id === x.area)!;
+                  const nome = x.un === "palavras" ? "pal." : x.un === "cartoes" ? "novos" : "min";
+                  const n = (v: number) => (x.un === "min" ? fmtDuration(v * 60) : `${nf.format(Math.round(v))} ${nome}`);
+                  return (
+                    <li key={x.area} className="grid grid-cols-[6.5rem_minmax(0,1fr)_auto_2.6rem] items-center gap-x-2.5 text-xs"
+                      title={`${a.nome}: feito ${n(x.feito)} de ${n(x.plano)} planejados (${detalhe.dias} ${detalhe.dias === 1 ? "dia" : "dias"} × o plano diário). Pesa ${Math.round((x.peso / detalhe.areas.reduce((s, y) => s + y.peso, 0)) * 100)}% da nota.`}>
+                      <span className="truncate"><span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle" style={{ background: a.cor }} />{a.nome}</span>
+                      <span className="h-1.5 rounded-full bg-surface-2 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${x.pct * 100}%`, background: corExecucao(x.pct) }} /></span>
+                      <span className="tabular-nums text-muted whitespace-nowrap">{n(x.feito)} de {n(x.plano)}</span>
+                      <span className="tabular-nums text-right font-medium" style={{ color: corExecucao(x.pct) }}>{Math.round(x.pct * 100)}%</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
       </section>
       </div>
 
