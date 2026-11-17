@@ -14,6 +14,7 @@ import { ppmDosLivros } from "@/lib/books";
 import { faltam, ppmMedio, porOrdem, subarvore, arvoreDePastas, type PastaEstudo } from "@/lib/estudos";
 import { progressoDoLivro } from "@/lib/types";
 import { contaAnki } from "@/lib/anki";
+import { loadLanguages } from "@/lib/languages";
 import {
   AREAS, ESTACOES, NOME_UNIDADE, UNIDADES, carregarTemporadas, detalheDaSemana, diasEntre, enfase, estacaoDe, execucaoDaSemana, feitoEm, limites, nomeDaTemporada,
   rendimento, ritmoPorArea, salvarTemporada, semanasDa, tempoPorArea, unidadeDe, vizinha,
@@ -49,6 +50,7 @@ export default function Temporadas() {
   const [semanaSel, setSemanaSel] = useState<number | null>(null);
   /** metas com a lista de livros/aulas aberta */
   const [abertas, setAbertas] = useState<Set<string>>(new Set());
+  const [idiomas, setIdiomas] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(true);
 
   const carregar = useCallback(async () => {
@@ -77,6 +79,7 @@ export default function Temporadas() {
     setCarregando(false);
   }, []);
   useEffect(() => { void carregar(); }, [carregar]);
+  useEffect(() => { void loadLanguages().then((l) => setIdiomas(l.map((x) => x.name))).catch(() => {}); }, []);
 
   const lim = limites(sel.estacao, sel.ano);
   const registro = temporadas.find((t) => t.estacao === sel.estacao && t.ano === sel.ano);
@@ -193,6 +196,38 @@ export default function Temporadas() {
     await supabase().from("temporada_metas").update({ refs }).eq("id", m.id!);
   }
 
+  /** meta de contagem: um quadrado por dia, do começo ao prazo (quantos foram feitos em cada dia), com +1 e −1 */
+  function reguaDaContagem(m: Meta) {
+    const c = contagem(m);
+    const meta = Math.ceil(c.porDia);
+    const dias: string[] = [];
+    for (let d = parseDay(c.ini); dayKey(d) <= c.prazo && dias.length < 60; d = addDays(d, 1)) dias.push(dayKey(d));
+    const noDia = (k: string) => m.refs.filter((x) => x === k).length;
+    const un = m.unidade || "itens";
+    return (
+      <div className="mt-2.5 flex items-center gap-3">
+        <div className="flex-1 min-w-0 flex gap-[3px]">
+          {dias.map((k) => {
+            const n = noDia(k);
+            const futuro = k > hoje;
+            const cor = n >= meta ? "var(--good)" : n > 0 ? "#c98a1a" : futuro || k === hoje ? "var(--surface-2)" : "color-mix(in srgb, var(--critical) 35%, var(--surface-2))";
+            return (
+              <span key={k} className={`flex-1 h-5 rounded-[4px] grid place-items-center text-[10px] tabular-nums ${k === hoje ? "ring-1 ring-[var(--muted)]" : ""}`}
+                style={{ background: cor, color: n >= meta ? "#fff" : "var(--muted)" }}
+                title={`${fmtData(k)}: ${n} ${un}${futuro ? "" : ` (meta do dia: ${meta})`}`}>{n || ""}</span>
+            );
+          })}
+        </div>
+        {c.falta > 0 && hoje <= c.prazo && (
+          <span className="flex items-center gap-1 shrink-0">
+            <button className="btn btn-ghost px-1.5 py-0.5 text-xs" title="Desfazer a última" disabled={!m.refs.length} onClick={() => void marcarContagem(m, -1)}>−1</button>
+            <button className="btn px-2 py-0.5 text-xs" title={`Marcar 1 ${un.replace(/s$/, "")} feita hoje`} onClick={() => void marcarContagem(m, 1)}><Plus size={12} /> 1</button>
+          </span>
+        )}
+      </div>
+    );
+  }
+
   function previsao(m: Meta): Previsao {
     if (m.tipo === "livros" || m.tipo === "aulas" || m.tipo === "curso") {
       const a: Area = m.tipo === "livros" ? "leitura" : "estudos";
@@ -246,7 +281,7 @@ export default function Temporadas() {
         selo: SELO[av.estado], sub: falta > 0 ? `faltam ${nf.format(falta)} ${medida === "revisoes" ? "revisões" : "cartões"}` : "meta batida",
         numeros: [
           { valor: `${N(atual)}/${N(m.alvo)}`, rotulo: nomeM },
-          { valor: N(av.precisa), rotulo: `${porDiaNome}/dia precisa`, cor: COR[av.estado] },
+          { valor: N(av.precisa), rotulo: "precisa/dia", cor: COR[av.estado] },
           { valor: N(av.real), rotulo: "seu ritmo/dia" },
         ],
         resumo: `${nf.format(atual)} de ${nf.format(m.alvo)} ${nomeM} · ${av.texto}` };
@@ -298,6 +333,12 @@ export default function Temporadas() {
   }
   const minhasMetas = metas.filter((m) => registro && m.temporada_id === registro.id);
   const previsoes = new Map(minhasMetas.map((m) => [m.id!, previsao(m)]));
+  // as metas de cada área, na ordem das áreas; Idiomas leva o nome do idioma quando há um só (Inglês)
+  const grupos = AREAS.filter((a) => minhasMetas.some((m) => m.area === a.id)).map((a) => ({
+    area: a,
+    nome: a.id === "idiomas" && idiomas.length === 1 ? idiomas[0] : a.nome,
+    metas: minhasMetas.filter((m) => m.area === a.id),
+  }));
   // até 3 metas da temporada, mais até 2 retas curtas de contagem (ex.: 28 aulas em 14 dias)
   const retas = minhasMetas.filter((m) => m.tipo === "contagem").length;
   const grandes = minhasMetas.length - retas;
@@ -447,14 +488,21 @@ export default function Temporadas() {
               {carregando ? "…" : "Escolha o que esta temporada precisa entregar: livros para ler, aulas para fazer, um baralho do Anki, palavras para escrever ou horas numa área. O sistema projeta com o seu plano e diz se cabe."}
             </p>
           ) : (
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
-              {minhasMetas.map((m) => {
+            // agrupadas por área: Leitura, Estudos, Inglês…
+            <div className="grid grid-cols-1 gap-3 items-start md:[grid-template-columns:var(--cols)]"
+              style={{ ["--cols" as string]: `repeat(${grupos.length}, minmax(0, 1fr))` }}>
+            {grupos.map((g) => (
+            <div key={g.area.id} className="min-w-0">
+              <h3 className="text-[11px] uppercase tracking-wider text-muted mb-1.5 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full" style={{ background: g.area.cor }} />{g.nome}
+              </h3>
+            <ul className="space-y-3">
+              {g.metas.map((m) => {
                 const p = previsoes.get(m.id!)!;
                 const area = AREAS.find((a) => a.id === m.area)!;
                 return (
                   <li key={m.id} className="group rounded-xl border border-line px-3.5 py-2.5">
                     <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: area.cor }} />
                       <span className="font-medium truncate flex-1 min-w-0">{m.titulo}</span>
                       <span className="text-[11px] font-medium rounded-full px-2 py-0.5 shrink-0 whitespace-nowrap"
                         style={{ color: COR[p.estado], background: `color-mix(in srgb, ${COR[p.estado]} 14%, transparent)` }}>{p.selo}</span>
@@ -476,7 +524,9 @@ export default function Temporadas() {
                         </div>
                       ))}
                     </div>
-                    <div className="mt-2.5 h-1.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${p.pct * 100}%`, background: area.cor }} /></div>
+                    {m.tipo === "contagem" ? reguaDaContagem(m) : (
+                      <div className="mt-2.5 h-1.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${p.pct * 100}%`, background: area.cor }} /></div>
+                    )}
                     <div className="mt-1 flex justify-between gap-2 text-[11px] text-muted tabular-nums">
                       <span className="truncate">
                         {p.sub}
@@ -499,41 +549,14 @@ export default function Temporadas() {
                         {!!p.mais && <li className="text-faint">e mais {p.mais} {p.mais === 1 ? "aula" : "aulas"}</li>}
                       </ul>
                     )}
-                    {m.tipo === "contagem" && (() => {
-                      // um quadrado por dia, do começo ao prazo: quantos foram feitos em cada dia
-                      const c = contagem(m);
-                      const meta = Math.ceil(c.porDia);
-                      const dias: string[] = [];
-                      for (let d = parseDay(c.ini); dayKey(d) <= c.prazo && dias.length < 60; d = addDays(d, 1)) dias.push(dayKey(d));
-                      const noDia = (k: string) => m.refs.filter((x) => x === k).length;
-                      const un = m.unidade || "itens";
-                      return (
-                        <div className="mt-2 pt-2 border-t border-line flex items-center gap-3">
-                          <div className="flex-1 min-w-0 flex gap-[3px]">
-                            {dias.map((k) => {
-                              const n = noDia(k);
-                              const futuro = k > hoje;
-                              const cor = n >= meta ? "var(--good)" : n > 0 ? "#c98a1a" : futuro || k === hoje ? "var(--surface-2)" : "color-mix(in srgb, var(--critical) 35%, var(--surface-2))";
-                              return (
-                                <span key={k} className={`flex-1 h-5 rounded-[4px] grid place-items-center text-[10px] tabular-nums ${k === hoje ? "ring-1 ring-[var(--muted)]" : ""}`}
-                                  style={{ background: cor, color: n >= meta ? "#fff" : "var(--muted)" }}
-                                  title={`${fmtData(k)}: ${n} ${un}${futuro ? "" : ` (meta do dia: ${meta})`}`}>{n || ""}</span>
-                              );
-                            })}
-                          </div>
-                          {c.falta > 0 && hoje <= c.prazo && (
-                            <span className="flex items-center gap-1 shrink-0">
-                              <button className="btn btn-ghost px-1.5 py-0.5 text-xs" title="Desfazer a última" disabled={!m.refs.length} onClick={() => void marcarContagem(m, -1)}>−1</button>
-                              <button className="btn px-2 py-0.5 text-xs" title={`Marcar 1 ${un.replace(/s$/, "")} feita hoje`} onClick={() => void marcarContagem(m, 1)}><Plus size={12} /> 1</button>
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
+
                   </li>
                 );
               })}
             </ul>
+            </div>
+            ))}
+            </div>
           )}
         </section>
 
