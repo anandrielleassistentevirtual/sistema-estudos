@@ -127,16 +127,16 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/45" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/45" onClick={onClose}>
       <div className="card w-full max-w-md p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="font-medium">{editar ? "Editar a meta" : "Nova meta da temporada"}</h2>
-          <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
+          <button onClick={onClose} className="p-1.5 -m-1.5 sm:p-0 sm:m-0 text-muted hover:text-ink" aria-label="Fechar"><X size={18} /></button>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {TIPOS.filter((x) => !soContagem || x.id === "contagem").map((x) => (
             <button key={x.id} onClick={() => setTipo(x.id)} title={x.exemplo}
-              className={`text-xs rounded-full px-3 py-1 border ${tipo === x.id ? "border-ink text-ink" : "border-line text-muted hover:text-ink"}`}>{x.nome}</button>
+              className={`text-sm sm:text-xs rounded-full px-3.5 py-1.5 sm:px-3 sm:py-1 border ${tipo === x.id ? "border-ink text-ink" : "border-line text-muted hover:text-ink"}`}>{x.nome}</button>
           ))}
         </div>
 
@@ -150,7 +150,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
                   return (
                     <li key={id} className="flex items-center justify-between gap-2 rounded-md bg-surface-2 px-2.5 py-1.5">
                       <span className="truncate">{i + 1}. {b?.title}</span>
-                      <span className="flex items-center gap-1 shrink-0">
+                      <span className="flex items-center gap-1 shrink-0 [&>button]:p-1 sm:[&>button]:p-0">
                         <button className="text-faint hover:text-ink disabled:opacity-30" title="Ler antes" disabled={i === 0}
                           onClick={() => setEscolhidos((l) => { const n = [...l]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n; })}><ChevronUp size={14} /></button>
                         <button className="text-faint hover:text-ink disabled:opacity-30" title="Ler depois" disabled={i === escolhidos.length - 1}
@@ -204,7 +204,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
               </span>
             </div>
             {(pasta || soEscolhidas || buscaAula.trim().length >= 2) && (
-              <ul className="max-h-56 overflow-y-auto rounded-md border border-line divide-y divide-line">
+              <ul className="max-h-56 overflow-y-auto rounded-md border border-line divide-y divide-line [&_label]:py-2.5 sm:[&_label]:py-1.5">
                 {listaAulas.length === 0 && <li className="px-2.5 py-2 text-muted">Nenhuma aula encontrada.</li>}
                 {listaAulas.slice(0, 400).map((a) => {
                   const feita = a.situacao === "concluida";
@@ -246,7 +246,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
             <div className="flex flex-wrap gap-1.5">
               {MEDIDAS.map((x) => (
                 <button key={x.id} onClick={() => setMedida(x.id)} title={x.dica}
-                  className={`text-xs rounded-full px-3 py-1 border ${medida === x.id ? "border-ink text-ink" : "border-line text-muted hover:text-ink"}`}>{x.nome}</button>
+                  className={`text-sm sm:text-xs rounded-full px-3.5 py-1.5 sm:px-3 sm:py-1 border ${medida === x.id ? "border-ink text-ink" : "border-line text-muted hover:text-ink"}`}>{x.nome}</button>
               ))}
             </div>
             <label className="block"><span className="label">
@@ -260,12 +260,12 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
         {tipo === "contagem" && (
           <div className="space-y-3 text-sm">
             {soContagem && <p className="text-xs text-muted">A temporada já tem 3 metas; cabe ainda uma reta curta de contagem.</p>}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <label className="block"><span className="label">Quantas</span>
                 <input className="input mt-1" inputMode="numeric" value={alvo} onChange={(e) => setAlvo(e.target.value.replace(/\D/g, ""))} placeholder="ex.: 28" /></label>
               <label className="block"><span className="label">O quê</span>
                 <input className="input mt-1" value={unidade} onChange={(e) => setUnidade(e.target.value)} placeholder="aulas" /></label>
-              <label className="block"><span className="label">Até</span>
+              <label className="block col-span-2 sm:col-span-1"><span className="label">Até</span>
                 <input type="date" className="input mt-1" value={prazo} onChange={(e) => setPrazo(e.target.value)} /></label>
             </div>
             <label className="block"><span className="label">Área</span>
@@ -295,7 +295,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
         <label className="block text-sm"><span className="label">Nome da meta (opcional)</span>
           <input className="input mt-1" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder={sugestao} /></label>
         {erro && <p className="text-sm text-critical">{erro}</p>}
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 [&>.btn]:flex-1 sm:[&>.btn]:flex-none [&>.btn]:justify-center">
           <button className="btn" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" onClick={() => void salvar()}>Salvar</button>
         </div>

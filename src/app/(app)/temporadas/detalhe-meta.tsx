@@ -89,42 +89,44 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
   const q = (v: number) => (unidade === "min" ? fmtDuration(v * 60) : `${N(v)} ${unidade}`);
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-3 md:p-6 bg-black/45" onClick={onClose}>
+    <div className="modal fixed inset-0 z-[62] grid place-items-center p-3 md:p-6 bg-black/45" onClick={onClose}>
       <div className="card w-full max-w-3xl max-h-[92vh] overflow-y-auto p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-wider text-muted flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full" style={{ background: cor }} />{area}
             </div>
-            <h2 className="text-lg font-medium mt-0.5">{meta.titulo}</h2>
+            <h2 className="text-lg font-medium mt-0.5 leading-snug break-words">{meta.titulo}</h2>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-xs font-medium rounded-full px-2 py-0.5" style={{ color: resumo.corSelo, background: `color-mix(in srgb, ${resumo.corSelo} 14%, transparent)` }}>{resumo.selo}</span>
-            <button onClick={onClose} className="text-muted hover:text-ink" aria-label="Fechar"><X size={18} /></button>
+            <button onClick={onClose} className="p-1.5 -m-1.5 sm:p-0 sm:m-0 text-muted hover:text-ink" aria-label="Fechar"><X size={18} /></button>
           </div>
         </div>
 
         {/* os números do cartão e os da temporada */}
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mt-4">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-x-3 gap-y-4 mt-4 [&>div]:min-w-0 [&>div>div:first-child]:text-[1.15rem] sm:[&>div>div:first-child]:text-xl [&>div>div:first-child]:truncate">
           {resumo.numeros.map((n, i) => (
-            <div key={i}><div className="text-xl font-medium tabular-nums leading-none" style={{ color: n.cor }}>{n.valor}</div><div className="text-[11px] text-muted mt-1">{n.rotulo}</div></div>
+            <div key={i}><div className="text-xl font-medium tabular-nums leading-none" style={{ color: n.cor }}>
+              {n.valor.includes("/") ? <>{n.valor.split("/")[0]}<span className="text-xs sm:text-sm font-normal text-muted">/{n.valor.split("/")[1]}</span></> : n.valor}
+            </div><div className="text-[11px] text-muted mt-1 leading-tight">{n.rotulo}</div></div>
           ))}
           <div><div className="text-xl font-medium tabular-nums leading-none">{porDia ? (unidade === "min" ? fmtDuration(total * 60) : N(total)) : "…"}</div><div className="text-[11px] text-muted mt-1">{unidade === "min" ? "feito" : unidade} desde {fmtData(ini)}</div></div>
           <div><div className="text-xl font-medium tabular-nums leading-none">{ativos}<span className="text-sm text-muted">/{dias.length}</span></div><div className="text-[11px] text-muted mt-1">dias com avanço</div></div>
           <div><div className="text-xl font-medium tabular-nums leading-none">{melhor ? (unidade === "min" ? fmtDuration(maior * 60) : N(maior)) : "—"}</div><div className="text-[11px] text-muted mt-1">{melhor ? `melhor dia (${fmtData(melhor)})` : "melhor dia"}</div></div>
         </div>
         <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${resumo.pct * 100}%`, background: cor }} /></div>
-        <div className="mt-1 flex justify-between text-[11px] text-muted tabular-nums"><span>{resumo.sub}</span><span>{Math.round(resumo.pct * 100)}%</span></div>
+        <div className="mt-1 flex justify-between gap-2 text-[11px] text-muted tabular-nums"><span className="min-w-0">{resumo.sub}</span><span>{Math.round(resumo.pct * 100)}%</span></div>
 
         {/* dia a dia */}
-        <h3 className="text-sm font-medium mt-5 mb-2 flex items-baseline justify-between">
+        <h3 className="text-sm font-medium mt-5 mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
           Dia a dia
           <span className="text-[11px] text-muted font-normal">
             {ref > 0 && <><span className="inline-block w-4 border-t border-dashed align-middle mr-1" style={{ borderColor: resumo.corSelo }} />precisa {q(ref)}/dia · </>}
             média {q(dias.length ? total / dias.length : 0)}/dia
           </span>
         </h3>
-        <div className="relative h-32 flex items-end gap-[2px] border-b border-line">
+        <div className="relative h-24 sm:h-32 flex items-end gap-px sm:gap-[2px] border-b border-line">
           {ref > 0 && <div className="absolute left-0 right-0 border-t border-dashed pointer-events-none" style={{ bottom: `${(ref / topo) * 100}%`, borderColor: resumo.corSelo }} />}
           {dias.map((d, i) => {
             const v = valores[i];
@@ -143,7 +145,30 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
         {resumo.itens && resumo.itens.length > 0 && (
           <>
             <h3 className="text-sm font-medium mt-5 mb-2">{meta.tipo === "livros" ? "Livros" : "Aulas"} <span className="text-[11px] text-muted font-normal">na ordem da meta · previsão pelo seu ritmo</span></h3>
-            <div className="max-h-72 overflow-y-auto">
+            {/* celular: um bloco por item (título, barra e os números numa linha) */}
+            <ul className="sm:hidden divide-y divide-line border-t border-line">
+              {resumo.itens.map((it) => {
+                const pct = it.total ? 1 - it.falta / it.total : it.feito ? 1 : 0;
+                const x = porItem.get(it.id);
+                return (
+                  <li key={it.id} className="py-2 text-sm">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className={`min-w-0 line-clamp-2 break-words ${it.feito ? "text-muted line-through" : ""}`}>{it.titulo}</span>
+                      <span className="shrink-0 text-xs tabular-nums" style={{ color: it.feito ? "var(--good)" : it.ok ? "var(--muted)" : "#c98a1a" }}>{it.feito ? "✓ feito" : it.quando ?? "—"}</span>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted tabular-nums">
+                      <span className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${pct * 100}%`, background: cor }} /></span>
+                      <span className="w-8 text-right">{Math.round(pct * 100)}%</span>
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-faint tabular-nums">
+                      {x?.palavras ? `${nf.format(x.palavras)} pal. lidas na temporada` : "nada lido na temporada"}{x?.segundos ? ` · ${fmtDuration(x.segundos)}` : ""}
+                      {!it.feito && ` · faltam ${nf.format(Math.round(it.falta))} pal.`}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="hidden sm:block max-h-72 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[11px] text-muted [&>th]:font-normal [&>th]:py-1 [&>th]:px-2 [&>th]:text-right [&>th]:whitespace-nowrap">
