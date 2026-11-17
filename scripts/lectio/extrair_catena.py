@@ -44,7 +44,7 @@ def faixas(ref: str):
     m = re.match(r"\s*(Mt|Mc|Lc|Jo)\s+(.+)$", ref)
     if not m:
         return None, []
-    abbr, resto = m.group(1), m.group(2)
+    abbr, resto = m.group(1), re.sub(r"\s*,\s*", ",", m.group(2))  # "Mt 12, 46-50" → "12,46-50"
     out = []
     cap = None
     for parte in re.split(r"[.;]\s*", resto):
