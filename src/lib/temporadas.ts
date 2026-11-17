@@ -64,13 +64,17 @@ export interface Meta {
   temporada_id?: string;
   area: Area;
   /** livros; aulas escolhidas; curso (a pasta inteira, metas antigas); palavras escritas; horas numa área; cartões do Anki */
-  tipo: "livros" | "aulas" | "curso" | "palavras" | "horas" | "anki";
+  tipo: "livros" | "aulas" | "curso" | "palavras" | "horas" | "anki" | "contagem";
   titulo: string;
   alvo: number;
   refs: string[];
   posicao?: number;
   /** meta do Anki: "total" (o baralho chega a N cartões), "criados" (N cartões novos) ou "revisoes" */
   medida?: "total" | "criados" | "revisoes" | null;
+  /** meta de contagem: até quando, e o nome do que se conta ("aulas"); refs = a data de cada item feito */
+  prazo?: string | null;
+  unidade?: string | null;
+  created_at?: string;
 }
 
 const inicioDe = (e: Estacao, ano: number) => new Date(ano, ESTACOES[e].mes - 1, ESTACOES[e].dia);
@@ -229,7 +233,7 @@ export async function carregarTemporadas(): Promise<{ temporadas: Temporada[]; m
   const sb = supabase();
   const [t, m] = await Promise.all([
     sb.from("temporadas").select("id,ano,estacao,inicio,fim,comeca_em,plano,unidades,nota").order("inicio"),
-    sb.from("temporada_metas").select("id,temporada_id,area,tipo,titulo,alvo,refs,posicao,medida").order("posicao").order("created_at"),
+    sb.from("temporada_metas").select("id,temporada_id,area,tipo,titulo,alvo,refs,posicao,medida,prazo,unidade,created_at").order("posicao").order("created_at"),
   ]);
   return { temporadas: (t.data as Temporada[] | null) ?? [], metas: (m.data as Meta[] | null) ?? [] };
 }

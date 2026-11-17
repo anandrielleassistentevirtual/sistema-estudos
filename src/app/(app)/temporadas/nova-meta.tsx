@@ -11,7 +11,7 @@ export interface Livro { id: string; title: string; author: string | null; word_
 export interface AulaT { id: string; title: string; pasta_id: string | null; palavras: number; progresso: number; situacao: "pendente" | "lendo" | "concluida"; ordem?: number | null }
 export interface BaralhoT { nome: string; total: number }
 
-type Tipo = "livros" | "aulas" | "anki" | "palavras" | "horas";
+type Tipo = "livros" | "aulas" | "anki" | "palavras" | "horas" | "contagem";
 type Medida = NonNullable<Meta["medida"]>;
 const TIPOS: { id: Tipo; nome: string; exemplo: string }[] = [
   { id: "livros", nome: "Livros", exemplo: "ler estes livros" },
@@ -19,6 +19,7 @@ const TIPOS: { id: Tipo; nome: string; exemplo: string }[] = [
   { id: "anki", nome: "Anki", exemplo: "um baralho chegar a N cartões" },
   { id: "palavras", nome: "Escrita", exemplo: "escrever N palavras" },
   { id: "horas", nome: "Horas", exemplo: "N horas numa área" },
+  { id: "contagem", nome: "Contagem", exemplo: "N coisas até uma data (ex.: 28 aulas em 14 dias)" },
 ];
 const MEDIDAS: { id: Medida; nome: string; dica: string }[] = [
   { id: "total", nome: "Total no baralho", dica: "o baralho chega a N cartões" },
@@ -26,8 +27,9 @@ const MEDIDAS: { id: Medida; nome: string; dica: string }[] = [
   { id: "revisoes", nome: "Revisões", dica: "fazer N revisões na temporada" },
 ];
 
-function nomeAutomatico(tipo: Tipo, n: number, alvo: string, area: Area, baralho: string, medida: Medida) {
+function nomeAutomatico(tipo: Tipo, n: number, alvo: string, area: Area, baralho: string, medida: Medida, unidade = "", prazo = "") {
   const N = alvo ? nf.format(Number(alvo)) : "N";
+  if (tipo === "contagem") return `${N} ${unidade || "itens"}${prazo ? ` até ${prazo.slice(8, 10)}/${prazo.slice(5, 7)}` : ""}`;
   return tipo === "livros" ? `Ler ${n} ${n === 1 ? "livro" : "livros"}`
     : tipo === "aulas" ? `Fazer ${n} ${n === 1 ? "aula" : "aulas"}`
     : tipo === "anki" ? (medida === "total" ? `${baralho || "Baralho"} com ${N} cartões` : medida === "criados" ? `${N} cartões novos em ${baralho || "…"}` : `${N} revisões em ${baralho || "…"}`)
@@ -36,8 +38,12 @@ function nomeAutomatico(tipo: Tipo, n: number, alvo: string, area: Area, baralho
 }
 
 /** Uma meta da temporada: livros da Biblioteca, aulas dos Estudos, um baralho do Anki, palavras escritas ou horas numa área. */
-export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao, onClose, onSalva, editar }: {
+export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao, onClose, onSalva, editar, soContagem, fimPadrao }: {
   temporadaId: string; livros: Livro[]; pastas: PastaEstudo[]; aulas: AulaT[]; baralhos: BaralhoT[]; posicao: number;
+  /** já há 3 metas: só cabe uma reta curta de contagem */
+  soContagem?: boolean;
+  /** prazo sugerido para a contagem */
+  fimPadrao?: string;
   onClose: () => void; onSalva: (m: Meta) => void;
   /** meta existente: o formulário vem preenchido e salva por cima */
   editar?: Meta;
@@ -53,7 +59,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
       return { tipo: "aulas" as Tipo, pasta: p, aulas: daPasta(p).filter((a) => a.situacao !== "concluida").map((a) => a.id) };
     }
     if (editar?.tipo === "aulas") return { tipo: "aulas" as Tipo, pasta: aulas.find((a) => a.id === editar.refs[0])?.pasta_id ?? "", aulas: editar.refs };
-    return { tipo: (editar?.tipo ?? "livros") as Tipo, pasta: "", aulas: [] as string[] };
+    return { tipo: (editar?.tipo ?? (soContagem ? "contagem" : "livros")) as Tipo, pasta: "", aulas: [] as string[] };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [tipo, setTipo] = useState<Tipo>(ini.tipo);
@@ -63,12 +69,14 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
   const [aulasSel, setAulasSel] = useState<string[]>(ini.aulas);
   const [baralho, setBaralho] = useState(editar?.tipo === "anki" ? editar.refs[0] ?? "" : baralhos[0]?.nome ?? "");
   const [medida, setMedida] = useState<Medida>(editar?.medida ?? "total");
-  const [alvo, setAlvo] = useState(editar && ["palavras", "horas", "anki"].includes(editar.tipo) ? String(editar.alvo) : "");
+  const [alvo, setAlvo] = useState(editar && ["palavras", "horas", "anki", "contagem"].includes(editar.tipo) ? String(editar.alvo) : "");
+  const [unidade, setUnidade] = useState(editar?.unidade ?? "aulas");
+  const [prazo, setPrazo] = useState(editar?.prazo ?? fimPadrao ?? "");
   const [area, setArea] = useState<Area>(editar?.tipo === "horas" ? editar.area : "idiomas");
   // um nome que era o automático continua automático (acompanha os livros, o alvo…)
   const [titulo, setTitulo] = useState(() => {
     if (!editar || editar.tipo === "curso") return "";
-    const auto = nomeAutomatico(editar.tipo as Tipo, editar.refs.length, String(editar.alvo), editar.area, editar.refs[0] ?? "", editar.medida ?? "total");
+    const auto = nomeAutomatico(editar.tipo as Tipo, editar.refs.length, String(editar.alvo), editar.area, editar.refs[0] ?? "", editar.medida ?? "total", editar.unidade ?? "", editar.prazo ?? "");
     return editar.titulo === auto ? "" : editar.titulo;
   });
   const [erro, setErro] = useState<string | null>(null);
@@ -85,7 +93,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
   const totalBaralho = baralhos.find((b) => b.nome === baralho)?.total;
 
   const n = tipo === "livros" ? escolhidos.length : aulasSel.length;
-  const sugestao = nomeAutomatico(tipo, n, alvo, area, baralho, medida);
+  const sugestao = nomeAutomatico(tipo, n, alvo, area, baralho, medida, unidade, prazo);
 
   function escolherPasta(id: string) {
     setPasta(id);
@@ -97,16 +105,19 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
     const m: Meta = {
       temporada_id: temporadaId, posicao: editar?.posicao ?? posicao, tipo,
       area: tipo === "livros" ? "leitura" : tipo === "aulas" ? "estudos" : tipo === "anki" ? "idiomas" : tipo === "palavras" ? "escrita" : area,
+      ...(tipo === "contagem" ? { prazo: prazo || null, unidade: unidade.trim() || "itens" } : {}),
       titulo: titulo.trim() || sugestao,
-      alvo: ["palavras", "horas", "anki"].includes(tipo) ? Number(alvo.replace(/\./g, "").replace(",", ".")) || 0 : 0,
+      alvo: ["palavras", "horas", "anki", "contagem"].includes(tipo) ? Number(alvo.replace(/\./g, "").replace(",", ".")) || 0 : 0,
       // as aulas ficam na ordem do curso
-      refs: tipo === "livros" ? escolhidos : tipo === "aulas" ? aulas.filter((a) => aulasSel.includes(a.id)).map((a) => a.id) : tipo === "anki" ? [baralho] : [],
+      refs: tipo === "livros" ? escolhidos : tipo === "aulas" ? aulas.filter((a) => aulasSel.includes(a.id)).map((a) => a.id) : tipo === "anki" ? [baralho]
+        : tipo === "contagem" ? (editar?.tipo === "contagem" ? editar.refs : []) : [],
       medida: tipo === "anki" ? medida : null,
     };
     if (tipo === "livros" && !escolhidos.length) return setErro("Escolha pelo menos um livro.");
     if (tipo === "aulas" && !aulasSel.length) return setErro("Marque pelo menos uma aula.");
     if (tipo === "anki" && !baralho) return setErro("Escolha o baralho.");
-    if (["palavras", "horas", "anki"].includes(tipo) && !m.alvo) return setErro("Diga quanto.");
+    if (["palavras", "horas", "anki", "contagem"].includes(tipo) && !m.alvo) return setErro("Diga quanto.");
+    if (tipo === "contagem" && !prazo) return setErro("Diga até quando.");
     const sb = supabase();
     const { data, error } = editar?.id
       ? await sb.from("temporada_metas").update(m).eq("id", editar.id).select().single()
@@ -123,7 +134,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
           <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {TIPOS.map((x) => (
+          {TIPOS.filter((x) => !soContagem || x.id === "contagem").map((x) => (
             <button key={x.id} onClick={() => setTipo(x.id)} title={x.exemplo}
               className={`text-xs rounded-full px-3 py-1 border ${tipo === x.id ? "border-ink text-ink" : "border-line text-muted hover:text-ink"}`}>{x.nome}</button>
           ))}
@@ -243,6 +254,25 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
               <input className="input mt-1" inputMode="numeric" value={alvo} onChange={(e) => setAlvo(e.target.value.replace(/\D/g, ""))}
                 placeholder={medida === "total" && totalBaralho ? `hoje: ${nf.format(totalBaralho)}` : "ex.: 500"} /></label>
             {medida === "total" && totalBaralho !== undefined && <p className="text-xs text-muted">Hoje o baralho tem {nf.format(totalBaralho)} cartões.</p>}
+          </div>
+        )}
+
+        {tipo === "contagem" && (
+          <div className="space-y-3 text-sm">
+            {soContagem && <p className="text-xs text-muted">A temporada já tem 3 metas; cabe ainda uma reta curta de contagem.</p>}
+            <div className="grid grid-cols-3 gap-3">
+              <label className="block"><span className="label">Quantas</span>
+                <input className="input mt-1" inputMode="numeric" value={alvo} onChange={(e) => setAlvo(e.target.value.replace(/\D/g, ""))} placeholder="ex.: 28" /></label>
+              <label className="block"><span className="label">O quê</span>
+                <input className="input mt-1" value={unidade} onChange={(e) => setUnidade(e.target.value)} placeholder="aulas" /></label>
+              <label className="block"><span className="label">Até</span>
+                <input type="date" className="input mt-1" value={prazo} onChange={(e) => setPrazo(e.target.value)} /></label>
+            </div>
+            <label className="block"><span className="label">Área</span>
+              <select className="input mt-1" value={area} onChange={(e) => setArea(e.target.value as Area)}>
+                {AREAS.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+              </select></label>
+            <p className="text-xs text-muted">Cada dia você marca o que fez com “+1”; a meta mostra se está em dia e quanto precisa por dia.</p>
           </div>
         )}
 

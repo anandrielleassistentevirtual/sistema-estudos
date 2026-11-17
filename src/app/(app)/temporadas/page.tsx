@@ -162,6 +162,28 @@ export default function Temporadas() {
     const total = itens.reduce((n, i) => n + i.total, 0);
     return { linhas, falta: acum, pct: total ? 1 - acum / total : 0 };
   }
+  /** meta de contagem: cada item feito é uma data em refs */
+  function contagem(m: Meta) {
+    const ini = m.created_at ? dayKey(new Date(m.created_at)) : hoje;
+    const prazo = m.prazo ?? fimExecucao;
+    const feitos = m.refs.length;
+    const diasTot = Math.max(1, diasEntre(ini, prazo));
+    const porDia = m.alvo / diasTot;
+    const restantes = hoje > prazo ? 0 : diasEntre(hoje, prazo);
+    const falta = Math.max(0, m.alvo - feitos);
+    // até ontem o plano já pedia isto (o dia de hoje ainda está em aberto)
+    const esperadoOntem = porDia * Math.max(0, diasEntre(ini, hoje) - 1);
+    const esperadoHoje = porDia * diasEntre(ini, hoje);
+    return { ini, prazo, feitos, porDia, restantes, falta, precisa: restantes ? falta / restantes : falta, atraso: esperadoOntem - feitos, esperadoHoje };
+  }
+  async function marcarContagem(m: Meta, delta: 1 | -1) {
+    let refs = [...m.refs];
+    if (delta > 0) refs.push(hoje);
+    else { const i = refs.lastIndexOf(hoje); if (i >= 0) refs.splice(i, 1); else refs = refs.slice(0, -1); }
+    setMetas((l) => l.map((x) => (x.id === m.id ? { ...x, refs } : x)));
+    await supabase().from("temporada_metas").update({ refs }).eq("id", m.id!);
+  }
+
   function previsao(m: Meta): Previsao {
     if (m.tipo === "livros" || m.tipo === "aulas" || m.tipo === "curso") {
       const a: Area = m.tipo === "livros" ? "leitura" : "estudos";
@@ -207,6 +229,17 @@ export default function Temporadas() {
       return { linhas: [], estado: av.estado, pct: m.alvo ? Math.min(1, atual / m.alvo) : 0, falta, un: "cartoes", noTotal: medida !== "revisoes",
         resumo: `${nf.format(atual)} de ${nf.format(m.alvo)} ${nomeM} · ${av.texto}` };
     }
+    if (m.tipo === "contagem") {
+      const c = contagem(m);
+      const un = m.unidade || "itens";
+      const q = (v: number) => nf.format(Math.round(v * 10) / 10);
+      const estado: Estado = c.falta <= 0 ? "feita" : c.restantes === 0 ? "fora"
+        : c.precisa <= c.porDia + 0.01 ? "ok" : c.precisa <= c.porDia * 1.5 ? "risco" : "fora";
+      return { linhas: [], estado, pct: m.alvo ? Math.min(1, c.feitos / m.alvo) : 0, falta: 0, un: "min", noTotal: false,
+        resumo: c.falta <= 0 ? `${c.feitos} de ${m.alvo} ${un} · concluída`
+          : `${c.feitos} de ${m.alvo} ${un} · faltam ${c.falta} em ${c.restantes} ${c.restantes === 1 ? "dia" : "dias"} → ${q(c.precisa)}/dia`
+            + (c.atraso >= 1 ? ` · ${Math.floor(c.atraso)} atrasada${Math.floor(c.atraso) > 1 ? "s" : ""}` : c.feitos > c.esperadoHoje ? " · adiantado" : " · em dia") };
+    }
     if (m.tipo === "palavras") {
       const feito = feitoNaTemporada("escrita", "palavras");
       const falta = Math.max(0, m.alvo - feito);
@@ -223,6 +256,9 @@ export default function Temporadas() {
   }
   const minhasMetas = metas.filter((m) => registro && m.temporada_id === registro.id);
   const previsoes = new Map(minhasMetas.map((m) => [m.id!, previsao(m)]));
+  // até 3 metas da temporada, mais até 2 retas curtas de contagem (ex.: 28 aulas em 14 dias)
+  const retas = minhasMetas.filter((m) => m.tipo === "contagem").length;
+  const grandes = minhasMetas.length - retas;
   const diasDaTemporada = diasEntre(t.comeca_em, fimExecucao);
   function metaTotal(a: Area): { total: number; daMeta: boolean } {
     const feito = feitoNaTemporada(a);
@@ -360,7 +396,7 @@ export default function Temporadas() {
         <section className="card p-4 min-w-0">
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-medium">Metas <span className="text-xs text-muted font-normal">· 1 a 3 por temporada</span></h2>
-            {minhasMetas.length < 3 && !passada && (
+            {(grandes < 3 || retas < 2) && !passada && (
               <button className="btn text-xs py-1" onClick={async () => { if (!registro) await mudar({}); setNovaMeta(true); }}><Plus size={13} /> Meta</button>
             )}
           </div>
@@ -369,7 +405,7 @@ export default function Temporadas() {
               {carregando ? "…" : "Escolha o que esta temporada precisa entregar: livros para ler, aulas para fazer, um baralho do Anki, palavras para escrever ou horas numa área. O sistema projeta com o seu plano e diz se cabe."}
             </p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
               {minhasMetas.map((m) => {
                 const p = previsoes.get(m.id!)!;
                 const area = AREAS.find((a) => a.id === m.area)!;
@@ -388,6 +424,37 @@ export default function Temporadas() {
                       }}><Trash2 size={14} /></button>
                     </div>
                     <div className="h-1.5 rounded-full bg-surface-2 mt-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${p.pct * 100}%`, background: area.cor }} /></div>
+                    {m.tipo === "contagem" && (() => {
+                      // um quadrado por dia, do começo ao prazo: quantos foram feitos em cada dia
+                      const c = contagem(m);
+                      const meta = Math.ceil(c.porDia);
+                      const dias: string[] = [];
+                      for (let d = parseDay(c.ini); dayKey(d) <= c.prazo && dias.length < 60; d = addDays(d, 1)) dias.push(dayKey(d));
+                      const noDia = (k: string) => m.refs.filter((x) => x === k).length;
+                      const un = m.unidade || "itens";
+                      return (
+                        <div className="mt-2.5 flex items-center gap-3">
+                          <div className="flex-1 min-w-0 flex gap-[3px]">
+                            {dias.map((k) => {
+                              const n = noDia(k);
+                              const futuro = k > hoje;
+                              const cor = n >= meta ? "var(--good)" : n > 0 ? "#c98a1a" : futuro || k === hoje ? "var(--surface-2)" : "color-mix(in srgb, var(--critical) 35%, var(--surface-2))";
+                              return (
+                                <span key={k} className={`flex-1 h-5 rounded-[4px] grid place-items-center text-[10px] tabular-nums ${k === hoje ? "ring-1 ring-[var(--muted)]" : ""}`}
+                                  style={{ background: cor, color: n >= meta ? "#fff" : "var(--muted)" }}
+                                  title={`${fmtData(k)}: ${n} ${un}${futuro ? "" : ` (meta do dia: ${meta})`}`}>{n || ""}</span>
+                              );
+                            })}
+                          </div>
+                          {c.falta > 0 && hoje <= c.prazo && (
+                            <span className="flex items-center gap-1 shrink-0">
+                              <button className="btn btn-ghost px-1.5 py-0.5 text-xs" title="Desfazer a última" disabled={!m.refs.length} onClick={() => void marcarContagem(m, -1)}>−1</button>
+                              <button className="btn px-2 py-0.5 text-xs" title={`Marcar 1 ${un.replace(/s$/, "")} feita hoje`} onClick={() => void marcarContagem(m, 1)}><Plus size={12} /> 1</button>
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {p.linhas.length > 0 && (
                       <ul className="mt-2 space-y-0.5 text-xs">
                         {p.linhas.map((l, i) => (
@@ -474,11 +541,12 @@ export default function Temporadas() {
       </div>
 
       {editando && registro && (
-        <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} aulas={aulas} baralhos={baralhos} posicao={editando.posicao ?? 0} editar={editando}
+        <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} aulas={aulas} baralhos={baralhos} posicao={editando.posicao ?? 0} editar={editando} fimPadrao={dayKey(addDays(new Date(), 13))}
           onClose={() => setEditando(null)} onSalva={(m) => { setMetas((l) => l.map((x) => (x.id === m.id ? m : x))); setEditando(null); }} />
       )}
       {novaMeta && registro && (
         <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} aulas={aulas} baralhos={baralhos} posicao={minhasMetas.length}
+          soContagem={grandes >= 3} fimPadrao={dayKey(addDays(new Date(), 13))}
           onClose={() => setNovaMeta(false)} onSalva={(m) => { setMetas((l) => [...l, m]); setNovaMeta(false); }} />
       )}
     </Page>
