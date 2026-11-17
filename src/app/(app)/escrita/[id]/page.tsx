@@ -10,7 +10,7 @@ import { supabase, fire } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import { dayKey, fmtClock, fmtDuration, nf, addDays, parseDay } from "@/lib/dates";
 import {
-  compilarMarkdown, contarPalavras, paragrafosHtml, corStatus, ESCALETA, escaletaDeLinhas, lerXlsx, manuscrito, semComentarios, STATUS, estrutura, abnt, ordenarReferencias, sobrenome,
+  compilarMarkdown, contarPalavras, paragrafosHtml, corStatus, ESCALETA, escaletaDeLinhas, lerXlsx, manuscrito, STATUS, estrutura, abnt, ordenarReferencias, sobrenome,
   type Doc, type Estrutura, type Projeto, type Referencia, type Secao, type Sessao,
 } from "@/lib/escrita";
 import { Editor, type EditorHandle } from "@/components/escrita/editor";
@@ -305,7 +305,7 @@ export default function SalaDeEscrita() {
     if (!projeto) return;
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const fmt = (s: string) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(^|[^\p{L}])[_*](.+?)[_*](?![\p{L}])/gu, "$1<i>$2</i>");
-    const pars = (t: string) => semComentarios(t).split(/\n+/).filter((l) => l.trim()).map((l) => `<p>${fmt(l)}</p>`).join("");
+    const pars = (t: string) => paragrafosHtml(t).map((l) => `<p>${l}</p>`).join("");
     const corpo = ms.map(({ cap, cenas }) =>
       `${E.comCap ? `<h2>${esc(cap.titulo)}</h2>` : ""}${pars(cap.conteudo)}${E.unidade === "parte"
         ? cenas.map((c) => `${cenas.length > 1 && c.titulo.trim() ? `<h3>${esc(c.titulo)}</h3>` : ""}${pars(c.conteudo)}`).join("")

@@ -106,7 +106,7 @@ export default function AulaAberta() {
     if (!Object.keys(p).length) return;
     setSalvo("salvando");
     // anotações guardam também quando foram mexidas (para a aba Notas → Aulas)
-    const dados = "anotacoes" in p ? { ...p, anotacoes_em: new Date().toISOString() } : p;
+    const dados = "anotacoes" in p ? { ...p, anotacoes_em: (p.anotacoes ?? "").trim() ? new Date().toISOString() : null } : p;
     await supabase().from("notes").update(dados).eq("id", id);
     setSalvo(Object.keys(pend.current).length ? "pendente" : "salvo");
   }, [id]);

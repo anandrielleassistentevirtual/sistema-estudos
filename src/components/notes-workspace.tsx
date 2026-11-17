@@ -9,6 +9,7 @@ import { nf } from "@/lib/dates";
 import type { Note } from "@/lib/types";
 import { atomicTemplate, locationLabel, newZid } from "@/lib/zettel";
 import { bookName } from "@/lib/folders";
+import { syncHeading, caminhoRelativo } from "@/lib/estudos";
 import { stepZoom, useEffectiveTheme, useReaderPrefs, zoomOf, ZOOM } from "@/components/reader/prefs";
 import { FONTS, THEMES } from "@/components/reader/types";
 import { LessonReader } from "@/components/reader/lesson-reader";
@@ -262,11 +263,10 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     else if (confirm(`A nota “${title}” não existe. Criar agora?`)) void create(title);
   }
 
-  const relOf = (f: File) => (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
 
   /** Onde cada arquivo vai parar: curso e módulo (a partir das pastas). */
   function placeOf(f: File, level: 0 | 1) {
-    const parts = relOf(f).split("/");
+    const parts = caminhoRelativo(f).split("/");
     const dirs = parts.slice(0, -1);
     const course = dirs[level] ?? dirs[0] ?? "";
     const module = dirs.slice(level + 1).join(" › ");
@@ -278,9 +278,9 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     if (!files.length) return;
     if (!isStudy) { void importFiles(files, 0); return; }
     // pasta-mãe com vários cursos ("1. Estudos/EFESC/…") ou a pasta de um curso só ("EFESC/…")?
-    const tops = new Set(files.map((f) => relOf(f).split("/")[1]).filter(Boolean));
-    const deep = files.filter((f) => relOf(f).split("/").length >= 3).length;
-    const level: 0 | 1 = deep > files.length / 2 && tops.size > 1 && /estudo|curso/i.test(relOf(files[0]).split("/")[0]) ? 1 : 0;
+    const tops = new Set(files.map((f) => caminhoRelativo(f).split("/")[1]).filter(Boolean));
+    const deep = files.filter((f) => caminhoRelativo(f).split("/").length >= 3).length;
+    const level: 0 | 1 = deep > files.length / 2 && tops.size > 1 && /estudo|curso/i.test(caminhoRelativo(files[0]).split("/")[0]) ? 1 : 0;
     setPreview({ files, level });
   }
 
@@ -309,7 +309,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
           content = content.slice(fm[0].length);
         }
       } else {
-        folder = relOf(f).split("/").slice(1, -1).join("/");
+        folder = caminhoRelativo(f).split("/").slice(1, -1).join("/");
       }
       const title = (isStudy ? content.match(/^#\s+(.+)$/m)?.[1]?.trim() : null) || f.name.replace(/\.(md|markdown|txt)$/i, "");
       const key = `${course}|${folder}|${title}`.toLowerCase();
@@ -613,13 +613,6 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     )}
     </div>
   );
-}
-
-/** Se o texto começa com "# <nome antigo>", troca pelo nome novo. */
-function syncHeading(content: string, oldTitle: string, newTitle: string) {
-  const m = content.match(/^([ \t]*#[ \t]+)(.+?)[ \t]*$/m);
-  if (!m || m.index === undefined || content.slice(0, m.index).trim() !== "" || m[2].trim() !== oldTitle.trim()) return content;
-  return content.slice(0, m.index) + m[1] + newTitle + content.slice(m.index + m[0].length);
 }
 
 function safe(s: string) {

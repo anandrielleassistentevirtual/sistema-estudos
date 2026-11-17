@@ -6,7 +6,8 @@ import type { SituacaoAula } from "@/components/status-pill";
 
 /** Aula na lista (sem a transcrição, que é baixada só ao abrir a aula). */
 export type Aula = Pick<Note, "id" | "title" | "folder" | "professor" | "course" | "created_at" | "updated_at" | "location" | "completed_at"> & {
-  anotacoes: string;
+  /** quando as anotações foram mexidas pela última vez; nulo = sem anotações (marcador leve, sem baixar o texto) */
+  anotacoes_em: string | null;
   /** palavras da transcrição (contadas pelo banco quando o texto muda) */
   palavras: number;
   /** quanto já foi lido (0 a 1) */
@@ -49,7 +50,7 @@ export function caminhoDaPasta(id: string | null, porId: Map<string, PastaEstudo
   return nomes.join(" › ");
 }
 
-export const COLUNAS_AULA = "id,title,folder,professor,course,created_at,updated_at,location,completed_at,anotacoes,palavras,progresso,situacao,pasta_id,ordem";
+export const COLUNAS_AULA = "id,title,folder,professor,course,created_at,updated_at,location,completed_at,anotacoes_em,palavras,progresso,situacao,pasta_id,ordem";
 
 /** Palavras que faltam ler numa aula. */
 export const faltam = (a: Pick<Aula, "palavras" | "progresso" | "situacao">) =>
@@ -195,13 +196,15 @@ export async function baixarTodas(aulas: Aula[]) {
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
   // as transcrições são grandes: de 100 em 100
-  const data = await todas<{ id: string; content: string }>((de, ate) => supabase().from("notes").select("id,content").eq("kind", "estudo").order("id").range(de, ate), 100);
+  const data = await todas<{ id: string; content: string; anotacoes: string }>((de, ate) => supabase().from("notes").select("id,content,anotacoes").eq("kind", "estudo").order("id").range(de, ate), 100);
   const textos = new Map(data.map((x) => [x.id, x.content]));
+  const anotacoesDe = new Map(data.map((x) => [x.id, x.anotacoes ?? ""]));
   for (const a of aulas) {
     const dir = [...a.course.split(" › "), ...a.folder.split(" › ")].filter(Boolean).map(seguro).join("/");
     const front = `---\nprofessor: ${a.professor}\ncurso: ${a.course}\n---\n\n`;
     zip.file(`${dir ? dir + "/" : ""}${seguro(a.title)}.md`, front + (textos.get(a.id) ?? ""));
-    if ((a.anotacoes ?? "").trim()) zip.file(`${dir ? dir + "/" : ""}${seguro(a.title)} (anotações).md`, a.anotacoes);
+    const anot = anotacoesDe.get(a.id) ?? "";
+    if (anot.trim()) zip.file(`${dir ? dir + "/" : ""}${seguro(a.title)} (anotações).md`, anot);
   }
   baixar(await zip.generateAsync({ type: "blob" }), `estudos-${new Date().toISOString().slice(0, 10)}.zip`);
 }

@@ -432,7 +432,7 @@ export default function Estudos() {
                                   <ListChecks size={11} /> {antesDe.get(a.id)} {antesDe.get(a.id) === 1 ? "tarefa antes" : "tarefas antes"}
                                 </span>
                               )}
-                              {(a.anotacoes ?? "").trim() && (
+                              {a.anotacoes_em && (
                                 <span className="inline-flex items-center gap-1" title="Esta aula tem anotações suas">
                                   · <NotebookPen size={11} /> anotações
                                 </span>

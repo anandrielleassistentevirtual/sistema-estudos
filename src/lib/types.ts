@@ -64,19 +64,6 @@ export interface Note {
   completed_at?: string | null;
 }
 
-
-export interface Sentence {
-  id: string;
-  lesson_id: string;
-  idx: number;
-  text: string;
-  translation: string;
-  start_s: number | null;
-  end_s: number | null;
-  read_count: number;
-  audio_path?: string | null;
-}
-
 export const STATUS_LABEL: Record<BookStatus, string> = {
   aguardando: "Aguardando",
   lendo: "Lendo",

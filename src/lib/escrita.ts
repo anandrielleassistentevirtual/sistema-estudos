@@ -46,15 +46,6 @@ export interface Sessao {
   palavras: number;
 }
 
-export const SECOES: { id: Secao; label: string }[] = [
-  { id: "manuscrito", label: "Manuscrito" },
-  { id: "rascunhos", label: "Rascunhos" },
-  { id: "enredo", label: "Enredo" },
-  { id: "personagens", label: "Personagens" },
-  { id: "lugares", label: "Lugares" },
-  { id: "pesquisa", label: "Pesquisa" },
-];
-
 /**
  * Como cada tipo de projeto se organiza.
  * - Romance e novela: capítulos → cenas, com escaleta.
