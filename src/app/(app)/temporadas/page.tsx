@@ -47,6 +47,8 @@ export default function Temporadas() {
   const [novaMeta, setNovaMeta] = useState(false);
   const [editando, setEditando] = useState<Meta | null>(null);
   const [semanaSel, setSemanaSel] = useState<number | null>(null);
+  /** metas com a lista de livros/aulas aberta */
+  const [abertas, setAbertas] = useState<Set<string>>(new Set());
   const [carregando, setCarregando] = useState(true);
 
   const carregar = useCallback(async () => {
@@ -134,21 +136,28 @@ export default function Temporadas() {
 
   type Estado = "ok" | "risco" | "fora" | "feita";
   type Linha = { texto: string; ok: boolean; quando?: string };
+  type Numero = { valor: string; rotulo: string; cor?: string };
   type Previsao = {
     linhas: Linha[]; resumo: string; estado: Estado; pct: number; mais?: number;
+    /** o cartão: os números grandes, a etiqueta de situação e a linha embaixo da barra */
+    numeros: Numero[]; selo: string; sub?: string;
     /** o que falta, na unidade `un`, e se entra na meta total da área */
     falta: number; un: Unidade; noTotal: boolean;
   };
   const COR: Record<Estado, string> = { ok: "var(--good)", feita: "var(--good)", risco: "#c98a1a", fora: "var(--critical)" };
+  const SELO: Record<Estado, string> = { ok: "no ritmo", feita: "concluída", risco: "em risco", fora: "não cabe" };
+  /** número curto: 4.276 · 9,9 · 2 */
+  const N = (v: number) => (!isFinite(v) ? "—" : nf.format(v > 0 && v < 10 && v % 1 ? Math.round(v * 10) / 10 : Math.round(v)));
   /** compara o que falta com o seu ritmo e com o plano: no ritmo, em risco (só seguindo o plano) ou fora do alcance */
-  function avalia(a: Area, falta: number, un: Unidade, real = ritmoEm(a, un), noPlano = planoEm(a, un), nome?: string): { estado: Estado; texto: string } {
-    if (falta <= 0.5) return { estado: "feita", texto: "concluída" };
-    const precisa = diasRestantes ? falta / diasRestantes : Infinity;
+  function avalia(a: Area, falta: number, un: Unidade, real = ritmoEm(a, un), noPlano = planoEm(a, un), nome?: string) {
+    const precisa = falta <= 0.5 ? 0 : diasRestantes ? falta / diasRestantes : Infinity;
+    const base = { precisa, real, noPlano };
+    if (falta <= 0.5) return { ...base, estado: "feita" as Estado, texto: "concluída" };
     const q = (v: number) => (nome ? `${nf.format(Math.round(v))} ${nome}` : fmtQ(v, un, un !== "cartoes"));
-    if (!isFinite(precisa)) return { estado: "fora", texto: `a temporada acabou; faltaram ${q(falta)}` };
-    if (precisa <= real) return { estado: "ok", texto: `no seu ritmo: precisa ${q(precisa)}/dia, você faz ${q(real)}` };
-    if (precisa <= noPlano) return { estado: "risco", texto: `em risco: precisa ${q(precisa)}/dia, você faz ${q(real)} (o plano cobre)` };
-    return { estado: "fora", texto: `não cabe: precisa ${q(precisa)}/dia, você faz ${q(real)}, plano ${q(noPlano)}` };
+    if (!isFinite(precisa)) return { ...base, estado: "fora" as Estado, texto: `a temporada acabou; faltaram ${q(falta)}` };
+    if (precisa <= real) return { ...base, estado: "ok" as Estado, texto: `no seu ritmo: precisa ${q(precisa)}/dia, você faz ${q(real)}` };
+    if (precisa <= noPlano) return { ...base, estado: "risco" as Estado, texto: `em risco: precisa ${q(precisa)}/dia, você faz ${q(real)} (o plano cobre)` };
+    return { ...base, estado: "fora" as Estado, texto: `não cabe: precisa ${q(precisa)}/dia, você faz ${q(real)}, plano ${q(noPlano)}` };
   }
   /** itens lidos em sequência (livros ou aulas): quando termina cada um, no seu ritmo real */
   function emSequencia(a: Area, itens: { titulo: string; total: number; falta: number; feito: boolean }[]) {
@@ -204,7 +213,13 @@ export default function Temporadas() {
       const muitas = m.tipo !== "livros" && pend.length > 3;
       return {
         linhas: muitas ? pend.slice(0, 3) : seq.linhas, mais: muitas ? pend.length - 3 : 0, pct: seq.pct, estado: av.estado,
-        falta: seq.falta, un: "palavras", noTotal: true,
+        falta: seq.falta, un: "palavras", noTotal: true, selo: SELO[av.estado],
+        numeros: [
+          { valor: `${feitos}/${itens.length}`, rotulo: m.tipo === "livros" ? "livros lidos" : "aulas feitas" },
+          { valor: N(av.precisa), rotulo: "precisa/dia", cor: COR[av.estado] },
+          { valor: N(av.real), rotulo: "seu ritmo/dia" },
+        ],
+        sub: seq.falta > 0 ? `faltam ${nf.format(Math.round(seq.falta))} palavras` : "tudo feito",
         resumo: `${feitos} de ${itens.length} ${nome} · faltam ${nf.format(Math.round(seq.falta))} palavras · ${av.texto}`,
       };
     }
@@ -226,7 +241,14 @@ export default function Temporadas() {
         ? avalia("idiomas", falta, "cartoes", ritmoDia, ritmoDia, "revisões")
         : avalia("idiomas", falta, "cartoes", ritmoDia, planoEm("idiomas", "cartoes"));
       const nomeM = medida === "revisoes" ? "revisões" : medida === "criados" ? "cartões novos" : "cartões no baralho";
+      const porDiaNome = medida === "revisoes" ? "revisões" : "novos";
       return { linhas: [], estado: av.estado, pct: m.alvo ? Math.min(1, atual / m.alvo) : 0, falta, un: "cartoes", noTotal: medida !== "revisoes",
+        selo: SELO[av.estado], sub: falta > 0 ? `faltam ${nf.format(falta)} ${medida === "revisoes" ? "revisões" : "cartões"}` : "meta batida",
+        numeros: [
+          { valor: `${N(atual)}/${N(m.alvo)}`, rotulo: nomeM },
+          { valor: N(av.precisa), rotulo: `${porDiaNome}/dia precisa`, cor: COR[av.estado] },
+          { valor: N(av.real), rotulo: "seu ritmo/dia" },
+        ],
         resumo: `${nf.format(atual)} de ${nf.format(m.alvo)} ${nomeM} · ${av.texto}` };
     }
     if (m.tipo === "contagem") {
@@ -235,7 +257,15 @@ export default function Temporadas() {
       const q = (v: number) => nf.format(Math.round(v * 10) / 10);
       const estado: Estado = c.falta <= 0 ? "feita" : c.restantes === 0 ? "fora"
         : c.precisa <= c.porDia + 0.01 ? "ok" : c.precisa <= c.porDia * 1.5 ? "risco" : "fora";
+      const atrasadas = Math.floor(c.atraso);
       return { linhas: [], estado, pct: m.alvo ? Math.min(1, c.feitos / m.alvo) : 0, falta: 0, un: "min", noTotal: false,
+        selo: c.falta <= 0 ? "concluída" : atrasadas >= 1 ? `${atrasadas} atrasada${atrasadas > 1 ? "s" : ""}` : c.feitos > c.esperadoHoje ? "adiantado" : "em dia",
+        sub: c.falta > 0 ? `faltam ${c.falta} ${un} · meta: ${N(c.porDia)} por dia até ${fmtData(c.prazo)}` : "tudo feito",
+        numeros: [
+          { valor: `${c.feitos}/${m.alvo}`, rotulo: un },
+          { valor: c.falta > 0 ? N(c.precisa) : "—", rotulo: "precisa/dia", cor: COR[estado] },
+          { valor: String(c.restantes), rotulo: c.restantes === 1 ? "dia restante" : "dias restantes" },
+        ],
         resumo: c.falta <= 0 ? `${c.feitos} de ${m.alvo} ${un} · concluída`
           : `${c.feitos} de ${m.alvo} ${un} · faltam ${c.falta} em ${c.restantes} ${c.restantes === 1 ? "dia" : "dias"} → ${q(c.precisa)}/dia`
             + (c.atraso >= 1 ? ` · ${Math.floor(c.atraso)} atrasada${Math.floor(c.atraso) > 1 ? "s" : ""}` : c.feitos > c.esperadoHoje ? " · adiantado" : " · em dia") };
@@ -245,6 +275,12 @@ export default function Temporadas() {
       const falta = Math.max(0, m.alvo - feito);
       const av = avalia("escrita", falta, "palavras");
       return { linhas: [], estado: av.estado, pct: m.alvo ? Math.min(1, feito / m.alvo) : 0, falta, un: "palavras", noTotal: true,
+        selo: SELO[av.estado], sub: falta > 0 ? `faltam ${nf.format(falta)} palavras` : "meta batida",
+        numeros: [
+          { valor: `${N(feito)}/${N(m.alvo)}`, rotulo: "palavras escritas" },
+          { valor: N(av.precisa), rotulo: "precisa/dia", cor: COR[av.estado] },
+          { valor: N(av.real), rotulo: "seu ritmo/dia" },
+        ],
         resumo: `${nf.format(feito)} de ${nf.format(m.alvo)} palavras · ${av.texto}` };
     }
     // horas numa área
@@ -252,6 +288,12 @@ export default function Temporadas() {
     const falta = Math.max(0, m.alvo * 60 - feito);
     const av = avalia(m.area, falta, "min");
     return { linhas: [], estado: av.estado, pct: m.alvo ? Math.min(1, feito / 60 / m.alvo) : 0, falta, un: "min", noTotal: true,
+      selo: SELO[av.estado], sub: falta > 0 ? `faltam ${fmtDuration(falta * 60)}` : "meta batida",
+      numeros: [
+        { valor: fmtDuration(feito * 60), rotulo: `de ${m.alvo} h` },
+        { valor: `${N(av.precisa)} min`, rotulo: "precisa/dia", cor: COR[av.estado] },
+        { valor: `${N(av.real)} min`, rotulo: "seu ritmo/dia" },
+      ],
       resumo: `${fmtDuration(feito * 60)} de ${m.alvo} h · ${av.texto}` };
   }
   const minhasMetas = metas.filter((m) => registro && m.temporada_id === registro.id);
@@ -292,7 +334,7 @@ export default function Temporadas() {
       </div>
 
       {/* plano por área: o ritmo real, o que a meta pede por dia, o plano e o que já foi feito */}
-      <section className="card p-4 min-w-0">
+      <section className="card px-4 py-3 min-w-0">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-1">
           <h2 className="font-medium">Plano da temporada</h2>
           <span className="flex flex-wrap items-center gap-x-3 text-xs text-muted">
@@ -310,7 +352,7 @@ export default function Temporadas() {
                 <th colSpan={4} className="text-center"><span className="block border-b border-line pb-1">por dia</span></th>
                 <th colSpan={2} className="text-center !pr-0"><span className="block border-b border-line pb-1">na temporada</span></th>
               </tr>
-              <tr className="text-xs text-muted [&>th]:font-normal [&>th]:py-2 [&>th]:px-3 [&>th]:text-right">
+              <tr className="text-xs text-muted [&>th]:font-normal [&>th]:py-1.5 [&>th]:px-3 [&>th]:text-right">
                 <th className="!text-left !pl-0">Área</th>
                 <th title="Média por dia nos últimos 28 dias">Seu ritmo</th>
                 <th title="Quanto precisa por dia, daqui ao fim da temporada, para chegar à meta total">Ritmo diário</th>
@@ -335,7 +377,7 @@ export default function Temporadas() {
                 const dia = (v: number) => (v >= 0.5 ? nf.format(un === "cartoes" && v < 10 && v % 1 ? Math.round(v * 10) / 10 : Math.round(v)) : "—");
                 const tot = (v: number) => (v < 1 ? "—" : un === "min" ? fmtDuration(v * 60) : nf.format(Math.round(v)));
                 return (
-                  <tr key={a.id} className={`border-t border-line tabular-nums [&>td]:py-1.5 [&>td]:px-3 [&>td]:text-right [&>td]:whitespace-nowrap ${vazio ? "text-faint" : ""}`}>
+                  <tr key={a.id} className={`border-t border-line tabular-nums [&>td]:py-1 [&>td]:px-3 [&>td]:text-right [&>td]:whitespace-nowrap ${vazio ? "text-faint" : ""}`}>
                     <td className="!text-left !pl-0"><span className="inline-block w-2 h-2 rounded-full mr-2 align-middle" style={{ background: a.cor }} /><span className={vazio ? "" : "text-ink"}>{a.nome}</span>
                       <span className="ml-1.5 text-xs text-faint">{un === "palavras" ? "palavras" : un === "cartoes" ? "cartões novos" : "minutos"}</span></td>
                     <td className="text-muted" title={un === "min" ? undefined : `≈ ${Math.round(ritmoMin[a.id])} min/dia`}>{dia(ritmo[a.id])}</td>
@@ -346,10 +388,10 @@ export default function Temporadas() {
                     <td className="!text-center">
                       <span className="inline-flex items-center rounded-lg border border-line bg-surface focus-within:border-ink/40">
                         <input type="number" min={0} step={un === "palavras" ? 500 : un === "cartoes" ? 1 : 5} aria-label={`Plano de ${a.nome} (${NOME_UNIDADE[un]}/dia)`}
-                          className="w-[4.6rem] bg-transparent py-1 pl-2 text-right tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" value={p}
+                          className="w-[4.6rem] bg-transparent py-0.5 pl-2 text-right tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" value={p}
                           onChange={(ev) => void mudar({ plano: { ...t.plano, [a.id]: Math.max(0, Number(ev.target.value) || 0) } })} />
                         {UNIDADES[a.id].length > 1 ? (
-                          <select aria-label={`Unidade de ${a.nome}`} className="w-[3.9rem] bg-transparent pl-1.5 pr-1 py-1 text-xs text-muted hover:text-ink outline-none cursor-pointer" value={un}
+                          <select aria-label={`Unidade de ${a.nome}`} className="w-[3.9rem] bg-transparent pl-1.5 pr-1 py-0.5 text-xs text-muted hover:text-ink outline-none cursor-pointer" value={un}
                             title="Mudar a unidade (o plano é convertido pelo seu ritmo)"
                             onChange={(ev) => {
                               const nova = ev.target.value as Unidade;
@@ -391,7 +433,7 @@ export default function Temporadas() {
         </p>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-3 md:gap-4 mt-3 md:mt-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-3 md:gap-4 mt-3">
         {/* metas com previsão */}
         <section className="card p-4 min-w-0">
           <div className="flex items-center justify-between mb-2">
@@ -410,20 +452,53 @@ export default function Temporadas() {
                 const p = previsoes.get(m.id!)!;
                 const area = AREAS.find((a) => a.id === m.area)!;
                 return (
-                  <li key={m.id} className="rounded-lg border border-line p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="font-medium truncate"><span className="inline-block w-2 h-2 rounded-full mr-2 align-middle" style={{ background: area.cor }} />{m.titulo}</div>
-                        <div className="text-xs mt-0.5" style={{ color: COR[p.estado] }}>{p.estado === "ok" || p.estado === "feita" ? "✓ " : p.estado === "risco" ? "⚠ " : "✕ "}{p.resumo}</div>
-                      </div>
-                      <button className="text-faint hover:text-ink shrink-0" title="Editar a meta" onClick={() => setEditando(m)}><Pencil size={14} /></button>
-                      <button className="text-faint hover:text-critical shrink-0" title="Apagar a meta" onClick={async () => {
-                        if (!confirm(`Apagar a meta “${m.titulo}”?`)) return;
-                        await supabase().from("temporada_metas").delete().eq("id", m.id!);
-                        setMetas((l) => l.filter((x) => x.id !== m.id));
-                      }}><Trash2 size={14} /></button>
+                  <li key={m.id} className="group rounded-xl border border-line px-3.5 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: area.cor }} />
+                      <span className="font-medium truncate flex-1 min-w-0">{m.titulo}</span>
+                      <span className="text-[11px] font-medium rounded-full px-2 py-0.5 shrink-0 whitespace-nowrap"
+                        style={{ color: COR[p.estado], background: `color-mix(in srgb, ${COR[p.estado]} 14%, transparent)` }}>{p.selo}</span>
+                      <span className="flex sm:hidden sm:group-hover:flex sm:group-focus-within:flex items-center gap-1.5 shrink-0">
+                        <button className="text-faint hover:text-ink" title="Editar a meta" onClick={() => setEditando(m)}><Pencil size={13} /></button>
+                        <button className="text-faint hover:text-critical" title="Apagar a meta" onClick={async () => {
+                          if (!confirm(`Apagar a meta “${m.titulo}”?`)) return;
+                          await supabase().from("temporada_metas").delete().eq("id", m.id!);
+                          setMetas((l) => l.filter((x) => x.id !== m.id));
+                        }}><Trash2 size={13} /></button>
+                      </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-surface-2 mt-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${p.pct * 100}%`, background: area.cor }} /></div>
+                    {/* os números, como nos outros indicadores */}
+                    <div className="grid grid-cols-3 gap-2 mt-2.5" title={p.resumo}>
+                      {p.numeros.map((n, i) => (
+                        <div key={i} className="min-w-0">
+                          <div className="text-xl font-medium tabular-nums leading-none truncate" style={{ color: n.cor }}>{n.valor}</div>
+                          <div className="text-[11px] text-muted mt-1 leading-tight">{n.rotulo}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2.5 h-1.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${p.pct * 100}%`, background: area.cor }} /></div>
+                    <div className="mt-1 flex justify-between gap-2 text-[11px] text-muted tabular-nums">
+                      <span className="truncate">
+                        {p.sub}
+                        {p.linhas.length > 0 && (
+                          <button className="ml-1.5 hover:text-ink underline-offset-2 hover:underline" onClick={() => setAbertas((x) => { const n = new Set(x); if (n.has(m.id!)) n.delete(m.id!); else n.add(m.id!); return n; })}>
+                            · {abertas.has(m.id!) ? "recolher ▴" : `ver ${m.tipo === "livros" ? "livros" : "aulas"} ▾`}
+                          </button>
+                        )}
+                      </span>
+                      <span>{Math.round(p.pct * 100)}%</span>
+                    </div>
+                    {p.linhas.length > 0 && abertas.has(m.id!) && (
+                      <ul className="mt-2.5 pt-2 border-t border-line space-y-0.5 text-xs">
+                        {p.linhas.map((l, i) => (
+                          <li key={i} className="flex justify-between gap-2">
+                            <span className={`truncate ${l.quando === "✓" ? "text-faint line-through" : "text-muted"}`}>{l.texto}</span>
+                            <span className="shrink-0 tabular-nums" style={{ color: l.quando === "✓" ? "var(--good)" : l.ok ? "var(--faint)" : "#c98a1a" }}>{l.quando}</span>
+                          </li>
+                        ))}
+                        {!!p.mais && <li className="text-faint">e mais {p.mais} {p.mais === 1 ? "aula" : "aulas"}</li>}
+                      </ul>
+                    )}
                     {m.tipo === "contagem" && (() => {
                       // um quadrado por dia, do começo ao prazo: quantos foram feitos em cada dia
                       const c = contagem(m);
@@ -433,7 +508,7 @@ export default function Temporadas() {
                       const noDia = (k: string) => m.refs.filter((x) => x === k).length;
                       const un = m.unidade || "itens";
                       return (
-                        <div className="mt-2.5 flex items-center gap-3">
+                        <div className="mt-2 pt-2 border-t border-line flex items-center gap-3">
                           <div className="flex-1 min-w-0 flex gap-[3px]">
                             {dias.map((k) => {
                               const n = noDia(k);
@@ -455,17 +530,6 @@ export default function Temporadas() {
                         </div>
                       );
                     })()}
-                    {p.linhas.length > 0 && (
-                      <ul className="mt-2 space-y-0.5 text-xs">
-                        {p.linhas.map((l, i) => (
-                          <li key={i} className="flex justify-between gap-2">
-                            <span className="truncate">{l.texto}</span>
-                            <span className="shrink-0 tabular-nums" style={{ color: l.ok ? "var(--muted)" : "#c98a1a" }}>{l.quando}</span>
-                          </li>
-                        ))}
-                        {!!p.mais && <li className="text-faint">e mais {p.mais} {p.mais === 1 ? "aula" : "aulas"}</li>}
-                      </ul>
-                    )}
                   </li>
                 );
               })}
