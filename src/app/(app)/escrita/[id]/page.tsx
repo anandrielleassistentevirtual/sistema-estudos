@@ -896,17 +896,44 @@ function Consulta({ refs, onInserir }: { refs: Referencia[]; onInserir: (txt: st
   const [q, setQ] = useState("");
   const [aba, setAba] = useState<"notas" | "refs">("notas");
   const [aberta, setAberta] = useState<string | null>(null);
+  const [tudoCarregado, setTudoCarregado] = useState(false);
   useEffect(() => {
     (async () => {
       const sb = supabase();
       const [n, b] = await Promise.all([
-        todas<NotaConsulta>((de, ate) => sb.from("notes").select("id,kind,title,quote,content,book_id").in("kind", ["literaria", "atomica"]).order("updated_at", { ascending: false }).order("id").range(de, ate)),
+        todas<NotaConsulta>((de, ate) => sb.from("notes").select("id,kind,title,quote,book_id").in("kind", ["literaria", "atomica"]).order("updated_at", { ascending: false }).order("id").range(de, ate)),
         todas<LivroLite>((de, ate) => sb.from("books").select("id,title,author").order("id").range(de, ate)),
       ]);
-      setNotas(n);
+      setNotas(n.map((x) => ({ ...x, content: "" })));
       setLivros(new Map(b.map((x) => [x.id, x])));
     })();
   }, []);
+  // o texto das notas (campo pesado) só é baixado quando precisa: tudo de uma vez ao buscar (a busca olha dentro das notas);
+  // sem busca, baixa só o texto das notas visíveis (para a prévia). Abrir o editor para escrever não baixa nada pesado.
+  useEffect(() => {
+    if (!notas) return;
+    const sb = supabase();
+    if (q.trim()) {
+      if (tudoCarregado) return;
+      let vivo = true;
+      void todas<{ id: string; content: string }>((de, ate) => sb.from("notes").select("id,content").in("kind", ["literaria", "atomica"]).order("id").range(de, ate)).then((rows) => {
+        if (!vivo) return;
+        const m = new Map(rows.map((r) => [r.id, r.content ?? ""]));
+        setNotas((all) => all?.map((n) => ({ ...n, content: m.get(n.id) ?? n.content })) ?? all);
+        setTudoCarregado(true);
+      });
+      return () => { vivo = false; };
+    }
+    const faltam = notas.slice(0, 80).filter((n) => !n.content).map((n) => n.id);
+    if (!faltam.length) return;
+    let vivo = true;
+    void sb.from("notes").select("id,content").in("id", faltam).then(({ data }) => {
+      if (!vivo || !data) return;
+      const m = new Map((data as { id: string; content: string }[]).map((r) => [r.id, r.content ?? ""]));
+      setNotas((all) => all?.map((n) => (m.has(n.id) ? { ...n, content: m.get(n.id)! } : n)) ?? all);
+    });
+    return () => { vivo = false; };
+  }, [q, notas, tudoCarregado]);
   const termos = dobrar(q).split(/\s+/).filter(Boolean);
   const casa = (t: string) => termos.every((w) => dobrar(t).includes(w));
   const lista = (notas ?? []).filter((n) => {

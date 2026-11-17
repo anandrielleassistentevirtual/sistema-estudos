@@ -33,18 +33,21 @@ export default function Literarias() {
   const [bookId, setBookId] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<Note | "nova" | null>(null);
+  // a lista vem sem o texto (campo pesado); o texto de cada livro é baixado quando o livro é aberto
+  const [comConteudo, setComConteudo] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     const sb = supabase();
     const [f, b, n, a] = await Promise.all([
       sb.from("folders").select("*"),
       todas<BookLite>((de, ate) => sb.from("books").select("id,title,author,format,folder_id").order("author").order("title").order("id").range(de, ate)),
-      todas<Note>((de, ate) => sb.from("notes").select("*").eq("kind", "literaria").order("id").range(de, ate)),
+      todas<Note>((de, ate) => sb.from("notes").select("id,kind,title,status,book_id,location,quote,created_at,concluded_at,source_id,zid").eq("kind", "literaria").order("id").range(de, ate)),
       todas<(typeof atomics)[number]>((de, ate) => sb.from("notes").select("id,title,source_id,zid").eq("kind", "atomica").not("source_id", "is", null).order("id").range(de, ate)),
     ]);
     setFolders(((f.data as F[]) ?? []).sort(cddCompare));
     setBooks(b);
-    setNotes(n);
+    setNotes(n.map((x) => ({ ...x, content: "" })));
+    setComConteudo(new Set());
     setAtomics(a);
   }, []);
   useEffect(() => {
@@ -57,6 +60,19 @@ export default function Literarias() {
     const url = bookId ? `?livro=${bookId}` : window.location.pathname;
     window.history.replaceState(null, "", url);
   }, [bookId]);
+
+  // ao abrir um livro, baixa o texto só das anotações dele e junta na lista (para exibir, editar e exportar)
+  useEffect(() => {
+    if (!bookId || comConteudo.has(bookId)) return;
+    let vivo = true;
+    void supabase().from("notes").select("id,content").eq("kind", "literaria").eq("book_id", bookId).then(({ data }) => {
+      if (!vivo || !data) return;
+      const texto = new Map((data as { id: string; content: string }[]).map((x) => [x.id, x.content ?? ""]));
+      setNotes((all) => all.map((n) => (texto.has(n.id) ? { ...n, content: texto.get(n.id)! } : n)));
+      setComConteudo((s) => new Set(s).add(bookId));
+    });
+    return () => { vivo = false; };
+  }, [bookId, comConteudo]);
 
   const children = useMemo(() => {
     const m = new Map<string | null, F[]>();
