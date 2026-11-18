@@ -16,7 +16,7 @@ import { progressoDoLivro } from "@/lib/types";
 import { contaAnki } from "@/lib/anki";
 import { loadLanguages } from "@/lib/languages";
 import {
-  AREAS, ESTACOES, NOME_UNIDADE, UNIDADES, carregarTemporadas, detalheDaSemana, diasEntre, enfase, estacaoDe, execucaoDaSemana, feitoEm, limites, nomeDaTemporada,
+  AREAS, NOME_UNIDADE, UNIDADES, carregarTemporadas, detalheDaSemana, diasEntre, estacaoDe, execucaoDaSemana, feitoEm, limites, nomeDaTemporada,
   rendimento, ritmoPorArea, salvarTemporada, semanasDa, tempoPorArea, unidadeDe, vizinha,
   type Area, type Estacao, type Meta, type Registros, type Temporada, type Unidade,
 } from "@/lib/temporadas";
@@ -101,10 +101,6 @@ export default function Temporadas() {
   const rend = useMemo(() => rendimento(reg), [reg]);
   const plano = (a: Area) => t.plano[a] ?? redondo(ritmo[a], u(a));
   const planoCompleto = Object.fromEntries(AREAS.map((a) => [a.id, plano(a.id)])) as Record<Area, number>;
-  /** o plano em minutos por dia (para a ênfase e para metas de horas) */
-  const planoMin = (a: Area) => (u(a) === "min" ? plano(a) : plano(a) / (rend[a] || 1));
-  /** o plano em palavras (ou cartões) por dia; em minutos, convertido pelo seu ritmo de leitura */
-  const planoQtd = (a: Area) => (u(a) !== "min" ? plano(a) : plano(a) * (a === "leitura" ? ppm.livros : a === "estudos" ? ppm.estudos : rend[a]));
   const { execucao, revisao } = semanasDa(t);
   const fimExecucao = execucao[execucao.length - 1]?.ate ?? t.fim;
   const desdeHoje = hoje > t.comeca_em ? hoje : t.comeca_em;
