@@ -17,7 +17,7 @@ import { ppmDosLivros } from "@/lib/books";
 import { fmtDuration, nf } from "@/lib/dates";
 import { progressoDoLivro, type Book } from "@/lib/types";
 import {
-  POR_PAGINA, TIPOS, carregarAulasLite, carregarTarefas, concluirTarefa, criarTarefa, iniciarTarefa, mudarTarefa, proximaAula, proximaPosicao,
+  POR_PAGINA, TIPOS, carregarAulasLite, carregarTarefas, concluirTarefa, criarTarefa, iniciarTarefa, mudarTarefa, carregarEscritos, proximaAula, proximaPosicao,
   tempoPorTarefa, textoDoPrazo, type AulaLite, type Tarefa, type TipoTarefa,
 } from "@/lib/tarefas";
 
@@ -45,6 +45,8 @@ export default function Tarefas() {
   const [editando, setEditando] = useState<Tarefa | null>(null);
   const [guia, setGuia] = useState(false);
   const [abertas, setAbertas] = useState<Set<string>>(new Set()); // descrições mostradas por inteiro
+  /** o que já foi escrito nas tarefas de escrever (inclusive as feitas há mais tempo) */
+  const [escritos, setEscritos] = useState<Tarefa[]>([]);
 
   async function load() {
     const sb = supabase();
@@ -56,6 +58,7 @@ export default function Tarefas() {
       ppmDosLivros(),
       carregarAulasLite().catch(() => [] as AulaLite[]),
     ]);
+    void carregarEscritos().then(setEscritos).catch(() => {});
     setTarefas(t);
     setPastas((p.data as PastaEstudo[]) ?? []);
     setLivros(b);
@@ -279,7 +282,39 @@ export default function Tarefas() {
               {feitas.map((t) => (
                 <li key={t.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
                   <span className="min-w-0 truncate text-muted line-through decoration-faint">{t.texto}</span>
-                  <button className="btn btn-ghost text-xs py-0.5 shrink-0" onClick={() => trocar(t, { feita_em: null, posicao: proximaPosicao(tarefas ?? []) })}>Desfazer</button>
+                  <span className="flex items-center gap-1 shrink-0">
+                    {!!t.escrito_palavras && (
+                      <button className="btn btn-ghost text-xs py-0.5" title="Abrir o que escreveu" onClick={() => setEscrevendo(t)}><Feather size={12} /> {nf.format(t.escrito_palavras)} palavras</button>
+                    )}
+                    <button className="btn btn-ghost text-xs py-0.5" onClick={() => trocar(t, { feita_em: null, posicao: proximaPosicao(tarefas ?? []) })}>Desfazer</button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        {escritos.length > 0 && (
+          // tudo o que foi escrito nas tarefas, de qualquer data (o texto fica na própria tarefa)
+          <details className="card group">
+            <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2"><Feather size={14} className="text-icon" /><b className="font-medium">Escritos</b>
+                <span className="text-muted">· {escritos.length} {escritos.length === 1 ? "texto" : "textos"} · {nf.format(escritos.reduce((n, t) => n + (t.escrito_palavras ?? 0), 0))} palavras</span></span>
+              <ChevronDown size={15} className="text-muted group-open:rotate-180 transition-transform" />
+            </summary>
+            <ul className="divide-y divide-line border-t border-line text-sm">
+              {escritos.map((t) => (
+                <li key={t.id}>
+                  <button className="w-full px-4 py-2.5 flex items-center justify-between gap-3 text-left hover:bg-sel" onClick={() => setEscrevendo(t)} title="Abrir o texto">
+                    <span className="min-w-0">
+                      <span className="block truncate">{t.texto}</span>
+                      <span className="block truncate text-xs text-muted">{(t.escrito ?? "").replace(/\s+/g, " ").slice(0, 120)}</span>
+                    </span>
+                    <span className="shrink-0 text-right text-xs text-muted tabular-nums">
+                      {nf.format(t.escrito_palavras ?? 0)} palavras
+                      <span className="block">{t.feita_em ? `feita ${new Date(t.feita_em).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}` : "em aberto"}</span>
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -326,6 +361,7 @@ export default function Tarefas() {
       {escrevendo && (
         <FolhaDaTarefa tarefa={escrevendo} onFechar={(escrito, palavras) => {
           setTarefas((l) => l?.map((x) => (x.id === escrevendo.id ? { ...x, escrito, escrito_palavras: palavras } : x)) ?? null);
+          void carregarEscritos().then(setEscritos).catch(() => {});
           setEscrevendo(null);
         }} />
       )}

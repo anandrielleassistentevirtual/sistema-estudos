@@ -55,6 +55,13 @@ export const POR_PAGINA = 15;
 const COLUNAS = "id,texto,descricao,tipo,pasta_id,book_id,link,prazo,aparece_em,posicao,destacada,feita_em,created_at,aula_id,antes_de,escrito,escrito_palavras";
 
 /** Tarefas ainda por fazer + as feitas nos últimos 14 dias. As que "voltam hoje" entram no fim da lista. */
+/** Tudo o que foi escrito nas tarefas de escrever (feitas ou não, de qualquer data), do mais recente ao mais antigo. */
+export async function carregarEscritos(): Promise<Tarefa[]> {
+  const l = await todas<Tarefa>((de, ate) =>
+    supabase().from("estudo_tarefas").select(COLUNAS).gt("escrito_palavras", 0).order("created_at", { ascending: false }).order("id").range(de, ate));
+  return l.filter((t) => (t.escrito_palavras ?? 0) > 0);
+}
+
 export async function carregarTarefas(): Promise<Tarefa[]> {
   const sb = supabase();
   const desde = addDays(new Date(), -14).toISOString();
