@@ -25,7 +25,7 @@ const link = (href: string, texto: string) => (
 );
 
 /** Listening automático do curso do Mairo, em vários aparelhos (cada um com a sua chave). */
-export function ListeningPainel({ idioma, className = "mt-6" }: { idioma: string; className?: string }) {
+export function ListeningPainel({ idioma, className = "mt-6", pequeno }: { idioma: string; className?: string; pequeno?: boolean }) {
   const [chaves, setChaves] = useState<ChaveListening[] | null>(null);
   const [tipo, setTipo] = useState<Tipo>("computador");
   const [aparelho, setAparelho] = useState("");
@@ -85,15 +85,15 @@ export function ListeningPainel({ idioma, className = "mt-6" }: { idioma: string
 
   return (
     <details className={`card group ${className}`} open={!!gerado}>
-      <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-sm">
+      <summary className={`cursor-pointer list-none flex items-center justify-between gap-3 ${pequeno ? "px-3 py-1.5 text-xs" : "px-5 py-4 text-sm"}`}>
         <span className="flex items-center gap-2 flex-wrap">
-          <Headphones size={16} className="text-icon" />
+          <Headphones size={pequeno ? 13 : 16} className="text-icon" />
           <b className="font-medium">Listening automático</b>
           <span className="text-muted">
             · {minhas.length ? `${minhas.length} ${minhas.length === 1 ? "aparelho" : "aparelhos"}${ultimo ? ` · último envio ${haQuanto(ultimo)}` : " · esperando o primeiro áudio"}` : "não ligado"}
           </span>
         </span>
-        <ChevronDown size={15} className="text-muted group-open:rotate-180 transition-transform shrink-0" />
+        <ChevronDown size={pequeno ? 13 : 15} className="text-muted group-open:rotate-180 transition-transform shrink-0" />
       </summary>
       <div className="border-t border-line p-5 space-y-5 text-sm">
         <p className="text-muted">

@@ -82,7 +82,7 @@ export function Conectar({ onConectado }: { onConectado: () => Promise<void> }) 
 }
 
 /** AnkiConnect: opcional, para revisar dentro do sistema com o Anki aberto no computador. */
-export function AnkiNoComputador({ conectado, setConectado, className = "mt-6" }: { conectado: boolean; setConectado: (v: boolean) => void; className?: string }) {
+export function AnkiNoComputador({ conectado, setConectado, className = "mt-6", pequeno }: { conectado: boolean; setConectado: (v: boolean) => void; className?: string; pequeno?: boolean }) {
   const [deck, setDeck] = useState("Leituras");
   const [url, setUrl] = useState("http://127.0.0.1:8765");
   const [origin, setOrigin] = useState("");
@@ -92,12 +92,12 @@ export function AnkiNoComputador({ conectado, setConectado, className = "mt-6" }
   }, []);
   return (
     <details className={`card group ${className}`}>
-      <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between text-sm">
+      <summary className={`cursor-pointer list-none flex items-center justify-between gap-3 ${pequeno ? "px-3 py-1.5 text-xs" : "px-5 py-4 text-sm"}`}>
         <span>
           <b className="font-medium">Revisar dentro do sistema</b>
-          <span className="text-muted"> · opcional, precisa do Anki aberto no computador{conectado ? " — conectado agora" : ""}</span>
+          <span className="text-muted"> · {pequeno ? "opcional" : "opcional, precisa do Anki aberto no computador"}{conectado ? " — conectado agora" : ""}</span>
         </span>
-        <ChevronDown size={15} className="text-muted group-open:rotate-180 transition-transform" />
+        <ChevronDown size={pequeno ? 13 : 15} className="text-muted group-open:rotate-180 transition-transform" />
       </summary>
       <div className="border-t border-line p-5 grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
         <div className="space-y-3">

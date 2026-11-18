@@ -257,24 +257,27 @@ export default function Idiomas() {
             </section>
             {tabela.length > 0 && (
               <section className="card p-4 min-w-0">
-                <h3 className="font-medium mb-1.5 flex items-center gap-1.5"><Layers size={15} className="text-icon" /> Baralhos</h3>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-muted [&>th]:font-normal [&>th]:py-1 [&>th]:text-right">
-                      <th className="!text-left">Baralho</th><th title="Para revisar hoje">Revisar</th><th>Novos</th><th>Cartões</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tabela.map((d) => (
-                      <tr key={d.nome} className="border-t border-line tabular-nums [&>td]:py-1.5 [&>td]:text-right" title={`${d.nome}: ${nf.format(d.aprendendo)} aprendendo`}>
-                        <td className="!text-left truncate max-w-[7rem]" style={{ paddingLeft: (d.nome.split("::").length - 1) * 12 }}>{d.nome.split("::").pop()}</td>
-                        <td className="font-medium">{nf.format(d.revisar)}</td>
-                        <td className="text-muted">{nf.format(d.novos)}</td>
-                        <td className="text-muted">{nf.format(d.total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <h3 className="font-medium mb-1 flex items-center gap-1.5"><Layers size={15} className="text-icon" /> Baralhos</h3>
+                {/* cada baralho: o nome inteiro, o que há para revisar hoje e, embaixo, novos e total */}
+                <ul className="divide-y divide-line -mx-1">
+                  {tabela.map((d) => {
+                    const nivel = d.nome.split("::").length - 1;
+                    const nome = d.nome.split("::").pop()!;
+                    return (
+                      <li key={d.nome} className="px-1 py-2 flex items-start gap-3" title={`${d.nome}: ${nf.format(d.aprendendo)} aprendendo`}
+                        style={{ paddingLeft: 4 + nivel * 12 }}>
+                        <div className="min-w-0 flex-1">
+                          <div className={`text-sm leading-snug ${nivel ? "text-muted" : "font-medium"}`}>{nivel ? "↳ " : ""}{nome}</div>
+                          <div className="text-[11px] text-faint tabular-nums mt-0.5">{nf.format(d.novos)} novos · {nf.format(d.total)} cartões</div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className={`tabular-nums leading-none ${d.revisar ? "text-lg" : "text-lg text-faint"}`} style={d.revisar ? { color: "var(--accent)" } : undefined}>{nf.format(d.revisar)}</div>
+                          <div className="text-[10px] text-muted mt-0.5">revisar</div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
                 {noComputador && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {tabela.filter((d) => !d.nome.includes("::")).map((d) => (
@@ -292,22 +295,22 @@ export default function Idiomas() {
       {conta === null && (
         <div className="mt-4"><Conectar onConectado={async () => { await load(); }} /></div>
       )}
-      {/* configurações, recolhidas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3 items-start">
-        {sel && <ListeningPainel idioma={sel.name} className="" />}
-        <AnkiNoComputador conectado={noComputador} setConectado={setNoComputador} className="" />
+      {/* configurações: etiquetas pequenas numa linha só (abrem em largura total) */}
+      <div className="flex flex-wrap items-center gap-2 mt-3">
+        {sel && <ListeningPainel idioma={sel.name} pequeno className="!rounded-full open:!rounded-xl open:basis-full" />}
+        <AnkiNoComputador conectado={noComputador} setConectado={setNoComputador} pequeno className="!rounded-full open:!rounded-xl open:basis-full" />
+        {conta && (
+          <span className="text-xs text-faint ml-auto">
+            AnkiWeb: {conta.usuario} ·{" "}
+            <button className="underline underline-offset-2 hover:text-ink" onClick={async () => {
+              if (!confirm("Desligar o AnkiWeb deste sistema? O histórico que já está aqui continua.")) return;
+              const { ankiWeb } = await import("@/lib/anki");
+              await ankiWeb("sair").catch(() => {});
+              await load();
+            }}>desligar</button>
+          </span>
+        )}
       </div>
-      {conta && (
-        <p className="text-xs text-faint mt-2">
-          AnkiWeb: {conta.usuario} ·{" "}
-          <button className="underline underline-offset-2 hover:text-ink" onClick={async () => {
-            if (!confirm("Desligar o AnkiWeb deste sistema? O histórico que já está aqui continua.")) return;
-            const { ankiWeb } = await import("@/lib/anki");
-            await ankiWeb("sair").catch(() => {});
-            await load();
-          }}>desligar</button>
-        </p>
-      )}
 
       {(modal === "idioma" || (modal && typeof modal === "object")) && (
         <LanguageModal edit={typeof modal === "object" ? modal.edit : null} existing={(langs ?? []).map((l) => l.name)}
