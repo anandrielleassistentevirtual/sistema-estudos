@@ -82,7 +82,7 @@ export function Conectar({ onConectado }: { onConectado: () => Promise<void> }) 
 }
 
 /** AnkiConnect: opcional, para revisar dentro do sistema com o Anki aberto no computador. */
-export function AnkiNoComputador({ conectado, setConectado }: { conectado: boolean; setConectado: (v: boolean) => void }) {
+export function AnkiNoComputador({ conectado, setConectado, className = "mt-6" }: { conectado: boolean; setConectado: (v: boolean) => void; className?: string }) {
   const [deck, setDeck] = useState("Leituras");
   const [url, setUrl] = useState("http://127.0.0.1:8765");
   const [origin, setOrigin] = useState("");
@@ -91,7 +91,7 @@ export function AnkiNoComputador({ conectado, setConectado }: { conectado: boole
     try { setDeck(localStorage.getItem("anki-deck") || "Leituras"); setUrl(ankiUrl()); } catch {}
   }, []);
   return (
-    <details className="card group mt-6">
+    <details className={`card group ${className}`}>
       <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between text-sm">
         <span>
           <b className="font-medium">Revisar dentro do sistema</b>

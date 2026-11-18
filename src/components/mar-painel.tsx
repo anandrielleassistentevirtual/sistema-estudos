@@ -36,8 +36,13 @@ const COLUNAS: { id: Situacao; nome: string; vazio: string }[] = [
   { id: "visto", nome: "Vistos", vazio: "O que terminar vem para cá." },
 ];
 
-export function MarPainel({ idioma, periodo }: { idioma: string; periodo: Periodo }) {
+export function MarPainel({ idioma, periodo, compacto, className = "mt-3 md:mt-4" }: {
+  idioma: string; periodo: Periodo;
+  /** numa coluna da página: as três colunas viram abas */
+  compacto?: boolean; className?: string;
+}) {
   const [lista, setLista] = useState<Titulo[] | null>(null);
+  const [aba, setAba] = useState<Situacao | null>(null);
   const [form, setForm] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [tipo, setTipo] = useState<Tipo>("serie");
@@ -142,11 +147,11 @@ export function MarPainel({ idioma, periodo }: { idioma: string; periodo: Period
   );
 
   return (
-    <section id="mar" className="card p-4 md:p-5 mt-3 md:mt-4">
+    <section id="mar" className={`card p-4 min-w-0 ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="min-w-0">
           <h3 className="font-medium flex items-center gap-2"><Waves size={16} className="text-icon" /> MAR</h3>
-          <p className="text-xs text-muted mt-0.5">{idioma} de verdade — séries, filmes, canais e podcasts. Comece pelo mais fácil, com boia; depois tire a boia.</p>
+          <p className="text-xs text-muted mt-0.5">{idioma} de verdade — séries, filmes, canais e podcasts. {compacto ? "Do mais fácil, com boia, ao sem boia." : "Comece pelo mais fácil, com boia; depois tire a boia."}</p>
         </div>
         {!form && <button className="btn text-sm" onClick={() => setForm(true)}><Plus size={15} /> Adicionar</button>}
       </div>
@@ -171,12 +176,12 @@ export function MarPainel({ idioma, periodo }: { idioma: string; periodo: Period
       )}
 
       {/* indicadores */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className={`grid gap-2 ${compacto ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 lg:grid-cols-4"}`}>
         <Mini rotulo="Assistindo" valor={col.assistindo.length} hint={col.assistindo[0]?.titulo ?? "nada agora"} />
         <Mini rotulo="Na fila" valor={col.quero.length} hint={col.quero.length ? `${faceis} ${faceis === 1 ? "fácil" : "fáceis"} para começar` : "adicione títulos"} />
         <Mini rotulo={`Vistos · ${periodo.nome.toLowerCase()}`} valor={vistosP} hint={<Variacao atual={vistosP} base={vistosA} vs={periodo.vs} />}
           dica={`Terminados no período. Período anterior: ${vistosA}. No total: ${col.visto.length}.`} />
-        <Mini rotulo="Sem boia" valor={semBoia === null ? "—" : `${Math.round(semBoia * 100)}%`} hint="do que você assiste e já viu, sem legenda"
+        <Mini rotulo="Sem boia" valor={semBoia === null ? "—" : `${Math.round(semBoia * 100)}%`} hint={compacto ? "sem legenda" : "do que você assiste e já viu, sem legenda"}
           dica="Com boia = com legenda em inglês. O objetivo, com o tempo, é tirar a boia." />
       </div>
       {porPlataforma.length > 0 && (
@@ -185,7 +190,26 @@ export function MarPainel({ idioma, periodo }: { idioma: string; periodo: Period
         </div>
       )}
 
-      {/* as três colunas */}
+      {/* compacto: uma coluna por vez, em abas */}
+      {compacto ? (() => {
+        const atual: Situacao = aba ?? (col.assistindo.length ? "assistindo" : "quero");
+        const c = COLUNAS.find((x) => x.id === atual)!;
+        return (
+          <div className="mt-3">
+            <div className="inline-flex rounded-lg bg-surface-2 p-0.5 text-xs mb-2" role="tablist">
+              {COLUNAS.map((x) => (
+                <button key={x.id} role="tab" aria-selected={x.id === atual} onClick={() => setAba(x.id)}
+                  className={`px-2.5 py-1 rounded-md ${x.id === atual ? "bg-seg shadow-sm font-medium" : "text-muted hover:text-ink"}`}>
+                  {x.nome} <span className="tabular-nums text-muted">{col[x.id].length}</span>
+                </button>
+              ))}
+            </div>
+            {lista === null ? <p className="text-sm text-muted">…</p>
+              : col[atual].length === 0 ? <p className="text-xs text-muted">{c.vazio}</p>
+              : <ul className="space-y-2 max-h-[15.5rem] overflow-y-auto pr-0.5">{col[atual].map(cartao)}</ul>}
+          </div>
+        );
+      })() : (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 items-start">
         {COLUNAS.map((c) => (
           <div key={c.id} className="rounded-xl bg-surface-2/40 p-2.5 min-w-0">
@@ -199,6 +223,7 @@ export function MarPainel({ idioma, periodo }: { idioma: string; periodo: Period
           </div>
         ))}
       </div>
+      )}
     </section>
   );
 }

@@ -174,48 +174,73 @@ export default function Idiomas() {
 
       {sel && (
         <>
-          <div className="flex items-center gap-3 mb-4">
-            <Bandeira codigo={sel.bandeira} tamanho={26} />
-            <h2 className="text-xl font-medium">{sel.name}</h2>
-            <button className="btn btn-ghost text-xs" onClick={() => setModal({ edit: sel })}><Settings2 size={14} /> Configurar</button>
+          {/* o idioma e a linha do AnkiWeb, numa linha só */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2.5">
+            <Bandeira codigo={sel.bandeira} tamanho={22} />
+            <h2 className="text-lg font-medium">{sel.name}</h2>
+            <button className="btn btn-ghost text-xs py-0.5" onClick={() => setModal({ edit: sel })}><Settings2 size={14} /> Configurar</button>
+            {conta && <div className="ml-auto"><AnkiWebBarra conta={conta} onMudou={load} /></div>}
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 [&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1">
-            <Stat label="Tempo" value={fmtDuration(timerP + ankiP)} hint={<Variacao atual={timerP + ankiP} base={timerA + ankiA} vs={periodo.vs} />}
+            <Stat compacto label="Tempo" value={fmtDuration(timerP + ankiP)} hint={<Variacao atual={timerP + ankiP} base={timerA + ankiA} vs={periodo.vs} />}
               explica={[`${periodo.nome}:`,
                 escutaP ? `Listening ${fmtDuration(escutaP)}` : null, aulasP ? `Aulas ${fmtDuration(aulasP)}` : null,
                 ankiP ? `Anki ${fmtDuration(ankiP)}` : null, timerP - escutaP - aulasP > 0 ? `Timer ${fmtDuration(timerP - escutaP - aulasP)}` : null,
                 metaP ? `· meta ${fmtDuration(metaP)} (${Math.round(Math.min(1, (timerP + ankiP) / metaP) * 100)}%)` : null,
                 `· período anterior ${fmtDuration(timerA + ankiA)}`].filter(Boolean).join(" ")} />
-            <Stat label="Para revisar hoje" value={baralhos ? nf.format(paraHoje) : "—"} hint={baralhos ? "fila de hoje no Anki" : "conecte o AnkiWeb (no fim da página)"}
+            <Stat compacto label="Para revisar hoje" value={baralhos ? nf.format(paraHoje) : "—"} hint={baralhos ? "fila de hoje no Anki" : "conecte o AnkiWeb (no fim da página)"}
               explica="O que o Anki mostra para revisar hoje nos baralhos deste idioma (não depende do período)." />
-            <Stat label="Listening" value={fmtDuration(escutaP)} hint={<Variacao atual={escutaP} base={escutaA} vs={periodo.vs} />}
+            <Stat compacto label="Listening" value={fmtDuration(escutaP)} hint={<Variacao atual={escutaP} base={escutaA} vs={periodo.vs} />}
               explica={`Áudios do curso (script) — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(escutaA)}.`} />
-            <Stat label="Revisões" value={nf.format(revP)} hint={<Variacao atual={revP} base={revA} vs={periodo.vs} />}
+            <Stat compacto label="Revisões" value={nf.format(revP)} hint={<Variacao atual={revP} base={revA} vs={periodo.vs} />}
               explica={`Revisões no Anki nos baralhos deste idioma — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(revA)}.`} />
-            <Stat label="Cartões criados" value={nf.format(criadosP)} hint={<Variacao atual={criadosP} base={criadosA} vs={periodo.vs} />}
+            <Stat compacto label="Cartões criados" value={nf.format(criadosP)} hint={<Variacao atual={criadosP} base={criadosA} vs={periodo.vs} />}
               explica={`Cartões criados — ${periodo.nome.toLowerCase()}${notasP && notasP !== criadosP ? `, em ${nf.format(notasP)} notas` : ""}. Período anterior: ${nf.format(criadosA)}.`} />
           </div>
 
-          {conta && <div className="mt-3"><AnkiWebBarra conta={conta} onMudou={load} /></div>}
-
           {!sel.anki_baralhos.length && (
-            <p className="text-sm text-muted mt-3">
+            <p className="text-sm text-muted mt-2">
               Nenhum baralho do Anki ligado a {sel.name}. <button className="underline underline-offset-2 hover:text-ink" onClick={() => setModal({ edit: sel })}>Escolher os baralhos</button>
               {conta === null && <> · antes, conecte o AnkiWeb (abaixo)</>}.
             </p>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-4 mt-3 md:mt-4">
-            <section className="card p-4 md:p-5 min-w-0">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3 md:mb-4">
-                <h3 className="font-medium">Minutos por {porQue}</h3>
-                <span className="text-xs text-muted">{periodo.nome.toLowerCase()} · Timer + Anki</span>
-              </div>
-              <BarChart data={barras} unit="min" />
-            </section>
-            <section className="card p-4 md:p-5 min-w-0">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-2 md:mb-3">
+
+          {/* uma tela só: tempo e Anki · MAR · onde foi o tempo */}
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_250px] gap-3 mt-3 items-start">
+            <div className="space-y-3 min-w-0">
+              <section className="card p-4 min-w-0">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-2">
+                  <h3 className="font-medium">Minutos por {porQue}</h3>
+                  <span className="text-xs text-muted">{periodo.nome.toLowerCase()} · Timer + Anki</span>
+                </div>
+                <BarChart data={barras} unit="min" height={110} />
+              </section>
+              {sel.anki_baralhos.length > 0 && (
+                <section className="card p-4 min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <h3 className="font-medium">Anki</h3>
+                    <div className="inline-flex rounded-lg bg-surface-2 p-0.5 text-xs">
+                      {([["revisoes", "Revisões"], ["criados", "Cartões criados"]] as const).map(([k, l]) => (
+                        <button key={k} onClick={() => setVerAnki(k)}
+                          className={`px-2.5 py-1 rounded-md ${verAnki === k ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>{l}</button>
+                      ))}
+                    </div>
+                  </div>
+                  {verAnki === "revisoes"
+                    ? <Heatmap data={revisoes} metric="anki" weeks={semanasDoPeriodo(periodo)} end={parseDay(ate)} inicio={de} fim={ate} />
+                    : <Heatmap data={criados} metric="anki" unidade="cartões criados" paleta="ama" weeks={semanasDoPeriodo(periodo)} end={parseDay(ate)} inicio={de} fim={ate} />}
+                </section>
+              )}
+            </div>
+
+            {/* MAR: inglês de verdade (filmes, séries, canais, podcasts) */}
+            <MarPainel idioma={sel.name} periodo={periodo} compacto className="" />
+
+            <div className="space-y-3 min-w-0">
+            <section className="card p-4 min-w-0">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-2">
                 <h3 className="font-medium">Onde foi o tempo</h3>
                 <span className="text-xs text-muted">{periodo.nome.toLowerCase()}</span>
               </div>
@@ -230,74 +255,50 @@ export default function Idiomas() {
               )}
 
             </section>
-          </div>
-
-          {/* MAR: inglês de verdade (filmes, séries, canais, podcasts) */}
-          <MarPainel idioma={sel.name} periodo={periodo} />
-
-          {sel.anki_baralhos.length > 0 && (
-            <>
-              <section className="card p-4 md:p-5 mt-3 md:mt-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h3 className="font-medium">Anki</h3>
-                  <div className="inline-flex rounded-lg bg-surface-2 p-0.5 sm:p-1 text-[13px] sm:text-sm">
-                    {([["revisoes", "Revisões"], ["criados", "Cartões criados"]] as const).map(([k, l]) => (
-                      <button key={k} onClick={() => setVerAnki(k)}
-                        className={`px-3 py-1 rounded-md ${verAnki === k ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>{l}</button>
+            {tabela.length > 0 && (
+              <section className="card p-4 min-w-0">
+                <h3 className="font-medium mb-1.5 flex items-center gap-1.5"><Layers size={15} className="text-icon" /> Baralhos</h3>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-muted [&>th]:font-normal [&>th]:py-1 [&>th]:text-right">
+                      <th className="!text-left">Baralho</th><th title="Para revisar hoje">Revisar</th><th>Novos</th><th>Cartões</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tabela.map((d) => (
+                      <tr key={d.nome} className="border-t border-line tabular-nums [&>td]:py-1.5 [&>td]:text-right" title={`${d.nome}: ${nf.format(d.aprendendo)} aprendendo`}>
+                        <td className="!text-left truncate max-w-[7rem]" style={{ paddingLeft: (d.nome.split("::").length - 1) * 12 }}>{d.nome.split("::").pop()}</td>
+                        <td className="font-medium">{nf.format(d.revisar)}</td>
+                        <td className="text-muted">{nf.format(d.novos)}</td>
+                        <td className="text-muted">{nf.format(d.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {noComputador && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {tabela.filter((d) => !d.nome.includes("::")).map((d) => (
+                      <Link key={d.nome} className="btn btn-primary text-xs py-1" href={`/idiomas/anki/revisar?deck=${encodeURIComponent(d.nome)}`}><Play size={12} /> Revisar {d.nome}</Link>
                     ))}
                   </div>
-                </div>
-                {verAnki === "revisoes"
-                  ? <Heatmap data={revisoes} metric="anki" weeks={semanasDoPeriodo(periodo)} end={parseDay(ate)} inicio={de} fim={ate} />
-                  : <>
-                      <Heatmap data={criados} metric="anki" unidade="cartões criados" paleta="ama" weeks={semanasDoPeriodo(periodo)} end={parseDay(ate)} inicio={de} fim={ate} />
-                      <p className="text-xs text-faint mt-2">Contagem desde 08/11/2026, só nos baralhos de {sel.name}: {sel.anki_baralhos.join(", ")}.</p>
-                    </>}
+                )}
               </section>
-              {tabela.length > 0 && (
-                <section className="card mt-4 overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-muted border-b border-line">
-                        <th className="p-3 font-medium flex items-center gap-1.5"><Layers size={14} /> Baralho</th>
-                        <th className="p-3 font-medium text-right">Revisar</th>
-                        <th className="p-3 font-medium text-right">Aprendendo</th>
-                        <th className="p-3 font-medium text-right">Novos</th>
-                        <th className="p-3 font-medium text-right hidden sm:table-cell">Cartões</th>
-                        {noComputador && <th className="p-3" />}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tabela.map((d) => (
-                        <tr key={d.nome} className="border-b border-line last:border-0">
-                          <td className="p-3" style={{ paddingLeft: 12 + (d.nome.split("::").length - 1) * 16 }}>{d.nome.split("::").pop()}</td>
-                          <td className="p-3 text-right tabular-nums font-medium">{nf.format(d.revisar)}</td>
-                          <td className="p-3 text-right tabular-nums">{nf.format(d.aprendendo)}</td>
-                          <td className="p-3 text-right tabular-nums text-muted">{nf.format(d.novos)}</td>
-                          <td className="p-3 text-right tabular-nums text-muted hidden sm:table-cell">{nf.format(d.total)}</td>
-                          {noComputador && (
-                            <td className="p-3 text-right">
-                              <Link className="btn btn-primary text-xs py-1" href={`/idiomas/anki/revisar?deck=${encodeURIComponent(d.nome)}`}><Play size={12} /> Revisar</Link>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </section>
-              )}
-            </>
-          )}
+            )}
+            </div>
+          </div>
         </>
       )}
 
       {conta === null && (
-        <div className="mt-6"><Conectar onConectado={async () => { await load(); }} /></div>
+        <div className="mt-4"><Conectar onConectado={async () => { await load(); }} /></div>
       )}
-      {sel && <ListeningPainel idioma={sel.name} />}
-      <AnkiNoComputador conectado={noComputador} setConectado={setNoComputador} />
+      {/* configurações, recolhidas */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3 items-start">
+        {sel && <ListeningPainel idioma={sel.name} className="" />}
+        <AnkiNoComputador conectado={noComputador} setConectado={setNoComputador} className="" />
+      </div>
       {conta && (
-        <p className="text-xs text-faint mt-6">
+        <p className="text-xs text-faint mt-2">
           AnkiWeb: {conta.usuario} ·{" "}
           <button className="underline underline-offset-2 hover:text-ink" onClick={async () => {
             if (!confirm("Desligar o AnkiWeb deste sistema? O histórico que já está aqui continua.")) return;

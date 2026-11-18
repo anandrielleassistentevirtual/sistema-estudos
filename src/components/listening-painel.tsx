@@ -25,7 +25,7 @@ const link = (href: string, texto: string) => (
 );
 
 /** Listening automático do curso do Mairo, em vários aparelhos (cada um com a sua chave). */
-export function ListeningPainel({ idioma }: { idioma: string }) {
+export function ListeningPainel({ idioma, className = "mt-6" }: { idioma: string; className?: string }) {
   const [chaves, setChaves] = useState<ChaveListening[] | null>(null);
   const [tipo, setTipo] = useState<Tipo>("computador");
   const [aparelho, setAparelho] = useState("");
@@ -84,7 +84,7 @@ export function ListeningPainel({ idioma }: { idioma: string }) {
   };
 
   return (
-    <details className="card group mt-6" open={!!gerado}>
+    <details className={`card group ${className}`} open={!!gerado}>
       <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-sm">
         <span className="flex items-center gap-2 flex-wrap">
           <Headphones size={16} className="text-icon" />
