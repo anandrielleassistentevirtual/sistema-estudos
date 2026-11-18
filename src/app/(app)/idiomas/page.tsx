@@ -5,7 +5,7 @@
  */
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock, Layers, Play, Plus, Settings2, Trash2, X, Waves } from "lucide-react";
+import { Clock, Layers, Play, Plus, Settings2, Trash2, X } from "lucide-react";
 import { Empty, Page, Stat } from "@/components/page";
 import { AnkiNoComputador, AnkiWebBarra, Conectar } from "@/components/anki-conta";
 import { ListeningPainel } from "@/components/listening-painel";
@@ -21,6 +21,7 @@ import { emptyDay, type DayStats } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import { FiltroPeriodo } from "@/components/filtro-periodo";
+import { MarPainel } from "@/components/mar-painel";
 import { Variacao } from "@/components/variacao";
 import { semanasDoPeriodo, usePeriodo } from "@/lib/periodo";
 
@@ -155,7 +156,6 @@ export default function Idiomas() {
           <FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />
           <button className="btn" onClick={() => setModal("idioma")}><Plus size={15} /> Cadastrar idioma</button>
           <button className="btn" onClick={() => setModal("tempo")} disabled={!langs?.length}><Clock size={15} /> Registrar tempo</button>
-          <Link href="/idiomas/mar" className="btn" title="Filmes, séries, canais e podcasts em inglês de verdade"><Waves size={15} /> Lista do MAR</Link>
         </>
       }
     >
@@ -231,6 +231,9 @@ export default function Idiomas() {
 
             </section>
           </div>
+
+          {/* MAR: inglês de verdade (filmes, séries, canais, podcasts) */}
+          <MarPainel idioma={sel.name} periodo={periodo} />
 
           {sel.anki_baralhos.length > 0 && (
             <>
