@@ -9,9 +9,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Check, CornerDownRight, Feather, ListChecks, Play, Plus, X } from "lucide-react";
 import { useTimerEstado } from "@/components/timer-context";
+import { FolhaDaTarefa } from "@/components/folha-da-tarefa";
 import { supabase } from "@/lib/supabase/client";
 import {
-  TIPOS, aulasDaPasta, concluirTarefa, criarTarefaNoFim, iniciarTarefa, mudarTarefa, rotaDaFolha, proximaAula, tarefasDaAula, textoDoPrazo,
+  TIPOS, aulasDaPasta, concluirTarefa, criarTarefaNoFim, iniciarTarefa, mudarTarefa, proximaAula, tarefasDaAula, textoDoPrazo,
   type AulaLite, type Tarefa, type TipoTarefa,
 } from "@/lib/tarefas";
 
@@ -28,6 +29,7 @@ export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
   const router = useRouter();
   const timer = useTimerEstado();
   const [tarefas, setTarefas] = useState<Tarefa[] | null>(null);
+  const [escrevendo, setEscrevendo] = useState<Tarefa | null>(null);
   const [aulas, setAulas] = useState<AulaLite[]>([]);
   const [livros, setLivros] = useState<Map<string, Livro>>(new Map());
   const [dispensado, setDispensado] = useState(true);
@@ -65,7 +67,7 @@ export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
 
   async function fazerAgora(t: Tarefa) {
     const ir = iniciarTarefa(t, timer, t.book_id ? livros.get(t.book_id) : null);
-    if (t.tipo === "escrever") { const rota = await rotaDaFolha(t); if (rota) return router.push(rota); }
+    if (t.tipo === "escrever") { setEscrevendo(t); return; }
     if (ir.rota) return router.push(ir.rota);
     if (ir.link) window.open(ir.link, "_blank", "noopener");
     dispensar();
@@ -154,6 +156,12 @@ export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
             <Link href="/estudos/tarefas" className="inline-block text-xs text-muted hover:text-ink">Abrir a lista completa de tarefas →</Link>
           </div>
         </aside>
+      )}
+      {escrevendo && (
+        <FolhaDaTarefa tarefa={escrevendo} onFechar={(escrito, palavras) => {
+          setTarefas((l) => l?.map((x) => (x.id === escrevendo.id ? { ...x, escrito, escrito_palavras: palavras } : x)) ?? null);
+          setEscrevendo(null);
+        }} />
       )}
     </>
   );

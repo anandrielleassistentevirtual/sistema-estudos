@@ -32,8 +32,9 @@ export interface Tarefa {
   aula_id: string | null;
   /** a aula que pede esta tarefa feita antes (avisa ao abrir; não bloqueia) */
   antes_de: string | null;
-  /** tarefa de escrever: a folha dela na sala de Escrita */
-  escrita_doc_id?: string | null;
+  /** tarefa de escrever: o texto escrito na folha da própria tarefa */
+  escrito?: string;
+  escrito_palavras?: number;
 }
 
 /** Aula resumida, para escolher e para achar a próxima. */
@@ -51,7 +52,7 @@ export const TIPOS: { id: TipoTarefa; nome: string; exemplo: string }[] = [
 /** Itens por página, como numa página de caderno. */
 export const POR_PAGINA = 15;
 
-const COLUNAS = "id,texto,descricao,tipo,pasta_id,book_id,link,prazo,aparece_em,posicao,destacada,feita_em,created_at,aula_id,antes_de,escrita_doc_id";
+const COLUNAS = "id,texto,descricao,tipo,pasta_id,book_id,link,prazo,aparece_em,posicao,destacada,feita_em,created_at,aula_id,antes_de,escrito,escrito_palavras";
 
 /** Tarefas ainda por fazer + as feitas nos últimos 14 dias. As que "voltam hoje" entram no fim da lista. */
 export async function carregarTarefas(): Promise<Tarefa[]> {
@@ -163,45 +164,6 @@ export async function criarTarefaNoFim(dados: Partial<Tarefa> & { texto: string 
  * "Fazer agora": liga o Timer na tarefa (o tempo fica somado nela). Devolve para onde ir:
  * o livro no leitor, se a tarefa é de leitura de um livro digital; ou o link (vídeo), se houver.
  */
-const PROJETO_DOS_ESTUDOS = "Escritos dos Estudos";
-
-/**
- * A folha de uma tarefa de escrever, na sala de Escrita: um rascunho no projeto "Escritos dos Estudos"
- * (criado na primeira vez). Escrevendo lá, as palavras e o tempo contam como escrita, como qualquer texto.
- */
-export async function folhaDaTarefa(t: Tarefa): Promise<{ projeto: string; doc: string } | null> {
-  const sb = supabase();
-  if (t.escrita_doc_id) {
-    const { data } = await sb.from("escrita_docs").select("id,projeto_id").eq("id", t.escrita_doc_id).maybeSingle();
-    if (data) return { projeto: (data as { projeto_id: string }).projeto_id, doc: t.escrita_doc_id };
-  }
-  let { data: proj } = await sb.from("escrita_projetos").select("id").eq("titulo", PROJETO_DOS_ESTUDOS).limit(1).maybeSingle();
-  if (!proj) {
-    const r = await sb.from("escrita_projetos").insert({ titulo: PROJETO_DOS_ESTUDOS, tipo: "ensaio" }).select("id").single();
-    if (r.error || !r.data) return null;
-    proj = r.data;
-  }
-  const projeto = (proj as { id: string }).id;
-  const { count } = await sb.from("escrita_docs").select("id", { count: "exact", head: true }).eq("projeto_id", projeto).eq("secao", "rascunhos");
-  const { data: doc, error } = await sb.from("escrita_docs").insert({
-    projeto_id: projeto, tipo: "nota", secao: "rascunhos", titulo: t.texto, posicao: count ?? 0,
-    conteudo: t.descricao?.trim() ? t.descricao.trim().split("\n").map((l) => `% ${l}`).join("\n") + "\n\n" : "",
-  }).select("id").single();
-  if (error || !doc) return null;
-  const id = (doc as { id: string }).id;
-  await mudarTarefa(t.id, { escrita_doc_id: id });
-  t.escrita_doc_id = id;
-  return { projeto, doc: id };
-}
-
-/** Abre a folha da tarefa na sala de Escrita (já no texto dela). Devolve a rota. */
-export async function rotaDaFolha(t: Tarefa): Promise<string | null> {
-  const f = await folhaDaTarefa(t);
-  if (!f) return null;
-  try { localStorage.setItem(`escrita-ultimo-${f.projeto}`, f.doc); } catch {}
-  return `/escrita/${f.projeto}`;
-}
-
 export function iniciarTarefa(
   t: Tarefa,
   timer: { set: (p: Record<string, unknown>) => void; start: () => void },

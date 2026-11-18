@@ -9,6 +9,7 @@ import { Page } from "@/components/page";
 import { EstudosTabs } from "@/components/estudos-tabs";
 import { RowMenu } from "@/components/row-menu";
 import { useTimerEstado } from "@/components/timer-context";
+import { FolhaDaTarefa } from "@/components/folha-da-tarefa";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import { arvoreDePastas, caminhoDaPasta, porOrdem, subarvore, type PastaEstudo } from "@/lib/estudos";
@@ -16,7 +17,7 @@ import { ppmDosLivros } from "@/lib/books";
 import { fmtDuration, nf } from "@/lib/dates";
 import { progressoDoLivro, type Book } from "@/lib/types";
 import {
-  POR_PAGINA, TIPOS, carregarAulasLite, carregarTarefas, concluirTarefa, criarTarefa, iniciarTarefa, mudarTarefa, rotaDaFolha, proximaAula, proximaPosicao,
+  POR_PAGINA, TIPOS, carregarAulasLite, carregarTarefas, concluirTarefa, criarTarefa, iniciarTarefa, mudarTarefa, proximaAula, proximaPosicao,
   tempoPorTarefa, textoDoPrazo, type AulaLite, type Tarefa, type TipoTarefa,
 } from "@/lib/tarefas";
 
@@ -30,6 +31,8 @@ export default function Tarefas() {
   const router = useRouter();
   const timer = useTimerEstado();
   const [tarefas, setTarefas] = useState<Tarefa[] | null>(null);
+  /** tarefa de escrever aberta na folha */
+  const [escrevendo, setEscrevendo] = useState<Tarefa | null>(null);
   const [pastas, setPastas] = useState<PastaEstudo[]>([]);
   const [livros, setLivros] = useState<Livro[]>([]);
   const [aulas, setAulas] = useState<AulaLite[]>([]);
@@ -96,11 +99,8 @@ export default function Tarefas() {
 
   async function fazerAgora(t: Tarefa) {
     const ir = iniciarTarefa(t, timer, t.book_id ? livroDe.get(t.book_id) : null);
-    // tarefa de escrever: abre a folha dela na sala de Escrita
-    if (t.tipo === "escrever") {
-      const rota = await rotaDaFolha(t);
-      if (rota) { setTarefas((l) => l?.map((x) => (x.id === t.id ? { ...x, escrita_doc_id: t.escrita_doc_id } : x)) ?? null); router.push(rota); return; }
-    }
+    // tarefa de escrever: abre a folha dela aqui mesmo
+    if (t.tipo === "escrever") { setEscrevendo(t); return; }
     if (ir.rota) router.push(ir.rota);
     else if (ir.link) window.open(ir.link, "_blank", "noopener");
   }
@@ -153,6 +153,9 @@ export default function Tarefas() {
               </span>
             )}
             {secs >= 60 && <span title="Tempo de foco dedicado no Timer">⏱ {fmtDuration(secs)}</span>}
+            {t.tipo === "escrever" && !!t.escrito_palavras && (
+              <button className="inline-flex items-center gap-1 hover:text-ink" title="Abrir o que já escreveu" onClick={() => setEscrevendo(t)}><Feather size={11} /> {nf.format(t.escrito_palavras)} palavras</button>
+            )}
           </div>
           {/* celular: as ações principais com nome, embaixo do texto (o texto fica com a largura toda) */}
           <div className="flex gap-2 mt-2.5 sm:hidden">
@@ -165,7 +168,7 @@ export default function Tarefas() {
         <div className="flex items-center gap-0.5 shrink-0 -mt-1 sm:mt-0">
           {t.tipo === "escrever" ? (
             <button className="btn px-2.5 py-1 text-xs hidden sm:inline-flex mr-1" title="Abre a folha desta tarefa na sala de Escrita e liga o Timer" onClick={() => void fazerAgora(t)}>
-              <Feather size={14} /> {t.escrita_doc_id ? "Continuar" : "Escrever"}
+              <Feather size={14} /> {t.escrito_palavras ? "Continuar" : "Escrever"}
             </button>
           ) : (
             <button className="btn btn-ghost px-2 py-1 hidden sm:inline-flex" title="Fazer agora: liga o Timer nesta tarefa" onClick={() => void fazerAgora(t)}><Play size={15} /></button>
@@ -319,6 +322,12 @@ export default function Tarefas() {
           <FormTarefa ordem={ordem} filhos={filhos} porId={porId} livros={livros} aulas={aulas} inicial={editando} rotulo="Salvar"
             onSalvar={async (dados) => { trocar(editando, dados); setEditando(null); }} />
         </Janela>
+      )}
+      {escrevendo && (
+        <FolhaDaTarefa tarefa={escrevendo} onFechar={(escrito, palavras) => {
+          setTarefas((l) => l?.map((x) => (x.id === escrevendo.id ? { ...x, escrito, escrito_palavras: palavras } : x)) ?? null);
+          setEscrevendo(null);
+        }} />
       )}
     </Page>
   );
