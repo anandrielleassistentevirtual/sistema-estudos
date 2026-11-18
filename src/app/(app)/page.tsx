@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { ChevronRight, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Page, Stat } from "@/components/page";
 import { CalendarPanel } from "@/components/calendar-panel";
@@ -128,16 +129,18 @@ export default function Dashboard() {
   return (
     // tudo numa tela: indicadores no topo; calendário e tempo lado a lado; escrita, leitura e biblioteca embaixo
     <Page denso title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={<>{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · <TemporadaLinha /></>}
-      actions={<>
-        <FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />
-        <button className="text-xs text-faint hover:text-ink self-center" title="Como você quer ser chamado" onClick={async () => {
+      titleExtra={
+        <button className="text-faint hover:text-ink p-1 -m-1 rounded-md" title={nome ? "Trocar o nome" : "Como quer ser chamado?"} aria-label="Trocar o nome" onClick={async () => {
           const n = prompt("Seu nome:", nome)?.trim();
           if (n === undefined || n === null) return;
           await supabase().auth.updateUser({ data: { nome: n } });
           setNome(n);
-        }}>{nome ? "trocar nome" : "Como quer ser chamado?"}</button>
-      </>}>
-      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-2 sm:gap-3">
+        }}><Pencil size={14} /></button>
+      }
+      actions={<FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />}>
+      {/* um só ritmo vertical entre os blocos (o mesmo vão das grades) */}
+      <div className="flex flex-col gap-3 md:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3 md:gap-4">
         {/* tudo no período do filtro; legendas: uma linha curta comparando com o período anterior (o tooltip explica) */}
         <Stat compacto label="Tempo" value={fmtDuration(s.tempo)} hint={<Variacao atual={s.tempo} base={s.tempoAnt} vs={periodo.vs} />}
           explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(s.tempoAnt)}.`} />
@@ -160,15 +163,17 @@ export default function Dashboard() {
 
       <ConfissaoAviso />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-3 md:gap-4 mt-3 md:mt-4">
+      {/* o calendário fica com a maior parte da largura: os quadradinhos do ano continuam legíveis */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-3 md:gap-4">
         <CalendarPanel compacto periodo={periodo} />
         <TimeBreakdown compacto periodo={periodo} />
       </div>
 
-      <section className="mt-3 md:mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
-        <WritingPanel compacto periodo={periodo} />
+      {/* tablet: a Escrita ocupa a linha toda e os outros dois dividem a de baixo; computador largo: três colunas */}
+      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
+        <WritingPanel compacto periodo={periodo} className="md:col-span-2 xl:col-span-1" />
         <div className="card p-4 min-w-0">
-          <h2 className="font-medium mb-2">Continuar lendo</h2>
+          <h2 className="font-medium mb-3">Continuar lendo</h2>
           {reading.length === 0 ? (
             <p className="text-sm text-muted">
               Nada em andamento. Escolha algo na <Link className="text-accent" href="/biblioteca">fila de leitura</Link>.
@@ -198,12 +203,16 @@ export default function Dashboard() {
           )}
         </div>
         <div className="card p-4 min-w-0">
-          <h2 className="font-medium mb-2">Biblioteca</h2>
-          <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-medium">Biblioteca</h2>
+            <Link href="/biblioteca" className="text-sm text-accent flex items-center gap-0.5">Abrir <ChevronRight size={15} /></Link>
+          </div>
+          {/* 2 × 2: o nome inteiro de cada situação cabe em qualquer largura */}
+          <div className="grid grid-cols-2 gap-2">
             {(["aguardando", "lendo", "pausado", "lido"] as const).map((st) => (
-              <div key={st} className="rounded-lg bg-surface-2 py-2 min-w-0">
-                <div className="text-lg font-medium tabular-nums">{count(st)}</div>
-                <div className="text-[10.5px] sm:text-[11px] text-muted capitalize truncate px-0.5">{st}</div>
+              <div key={st} className="rounded-lg bg-surface-2 px-3 py-2 min-w-0 flex items-baseline justify-between gap-2">
+                <span className="text-xs text-muted capitalize truncate">{st}</span>
+                <span className="text-lg font-medium tabular-nums leading-tight">{count(st)}</span>
               </div>
             ))}
           </div>
@@ -218,6 +227,7 @@ export default function Dashboard() {
           )}
         </div>
       </section>
+      </div>
     </Page>
   );
 }

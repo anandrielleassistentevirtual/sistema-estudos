@@ -105,23 +105,25 @@ export function TimeBreakdown({ compacto = false, periodo }: { compacto?: boolea
       {rows.length === 0 ? (
         <p className="text-sm text-muted py-6 text-center">Use o Timer (ou leia no leitor, faça lições e revisões) para ver aqui como seu tempo se divide.</p>
       ) : (
-        <ul className={compacto ? "space-y-2.5 sm:space-y-1.5" : "space-y-2.5"}>
+        <ul className="space-y-2.5">
           {visiveis.map((r) => {
             const pct = r.seconds / total;
             return (
-              <li key={r.key} className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(110px,180px)_1fr_auto] items-center gap-x-3 gap-y-1 text-sm"
+              // compacto (painel ao lado do calendário): nome e valor numa linha, barra embaixo na largura toda;
+              // assim toda barra começa e termina no mesmo ponto, em qualquer largura
+              <li key={r.key} className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-sm ${compacto ? "" : "sm:grid-cols-[minmax(110px,180px)_minmax(0,1fr)_6.75rem]"}`}
                 onMouseEnter={() => setHover(r.key)} onMouseLeave={() => setHover(null)}>
                 <span className="truncate min-w-0" title={r.label}>
                   {r.label}
                   {r.kind !== r.label && <span className={compacto ? "text-[11px] text-faint ml-1.5" : "text-[11px] text-faint ml-1.5 sm:ml-0 sm:block"}>{r.kind}</span>}
                 </span>
-                <span className="order-last col-span-2 sm:order-none sm:col-span-1 h-1.5 sm:h-2.5 rounded-full bg-surface-2 overflow-hidden" title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round(pct * 100)}%)`}>
+                <span className={`order-last col-span-2 h-1.5 rounded-full ${compacto ? "" : "sm:order-none sm:col-span-1 sm:h-2.5"} bg-surface-2 overflow-hidden`} title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round(pct * 100)}%)`}>
                   <span className="block h-full rounded-full transition-opacity"
                     style={{ width: `${(r.seconds / max) * 100}%`, background: "var(--chart)", opacity: hover && hover !== r.key ? 0.55 : 1 }} />
                 </span>
-                <span className="tabular-nums text-right whitespace-nowrap">
+                <span className="tabular-nums text-right whitespace-nowrap flex items-baseline justify-end">
                   <span className="font-medium">{fmtDuration(r.seconds)}</span>
-                  <span className="text-xs text-muted ml-1.5">{Math.round(pct * 100)}%</span>
+                  <span className="text-xs text-muted ml-1.5 w-8 inline-block">{Math.round(pct * 100)}%</span>
                 </span>
               </li>
             );

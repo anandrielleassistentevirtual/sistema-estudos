@@ -11,7 +11,7 @@ interface S { projeto_id: string; dia: string; palavras: number; segundos: numbe
 
 /** Escrita no Dashboard: só os indicadores principais (o resto fica nas Estatísticas de cada projeto). */
 /** Com `periodo` (filtro do painel), os quatro números são do período: palavras, tempo, dias escrevendo e ritmo. */
-export function WritingPanel({ compacto = false, periodo }: { compacto?: boolean; periodo?: Periodo } = {}) {
+export function WritingPanel({ compacto = false, periodo, className = "" }: { compacto?: boolean; periodo?: Periodo; className?: string } = {}) {
   const [dados, setDados] = useState<{ projetos: Projeto[]; sessoes: S[]; totais: Record<string, number> } | null>(null);
 
   const padrao = dayKey(addDays(new Date(), -60));
@@ -33,7 +33,7 @@ export function WritingPanel({ compacto = false, periodo }: { compacto?: boolean
   if (!dados) return null;
   if (!dados.projetos.length) {
     return (
-      <section className={`card ${compacto ? "p-4" : "p-5 mt-4"} flex items-center justify-between gap-4`}>
+      <section className={`card ${compacto ? "p-4" : "p-5 mt-4"} flex items-center justify-between gap-4 ${className}`}>
         <div>
           <h2 className="font-medium flex items-center gap-2"><Feather size={16} className="text-icon" /> Escrita</h2>
           <p className="text-sm text-muted mt-1">Nenhum projeto ainda. As palavras escritas por dia, a sequência e o ritmo aparecem aqui.</p>
@@ -69,29 +69,30 @@ export function WritingPanel({ compacto = false, periodo }: { compacto?: boolean
   const pRitmo = pTempo > 600 ? Math.round(pPalavras / (pTempo / 3600)) : 0;
 
   return (
-    <section className={compacto ? "card p-4 min-w-0" : "card p-5 mt-4"}>
+    <section className={`${compacto ? "card p-4 min-w-0" : "card p-5 mt-4"} ${className}`}>
       <div className={`flex items-center justify-between ${compacto ? "mb-3" : "mb-4"}`}>
         <h2 className="font-medium flex items-center gap-2"><Feather size={16} className="text-icon" /> Escrita</h2>
         <Link href="/escrita" className="text-sm text-accent flex items-center gap-0.5">Abrir <ChevronRight size={15} /></Link>
       </div>
-      <div className={compacto ? "space-y-3" : "grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-3 md:gap-6"}>
+      <div className={compacto ? "space-y-4" : "grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-3 md:gap-6"}>
         {periodo ? (
-          <div className={`grid min-w-0 ${compacto ? "grid-cols-4 gap-x-2 sm:gap-x-3" : "grid-cols-4 md:grid-cols-2 gap-x-2 sm:gap-x-6 gap-y-4"}`}>
+          <div className={`grid min-w-0 ${compacto ? "grid-cols-2 md:grid-cols-4 xl:grid-cols-2 gap-x-4 gap-y-3" : "grid-cols-4 md:grid-cols-2 gap-x-2 sm:gap-x-6 gap-y-4"}`}>
+            {/* compacto: o rótulo já diz o que é (sem a linha de dica), para o cartão ter a altura dos vizinhos */}
             {([
-              ["Palavras", nf.format(pPalavras), "escritas"],
-              ["Tempo", pTempo ? fmtDuration(pTempo) : "0 min", "escrevendo"],
-              ["Dias", `${pDias}`, pDias === 1 ? "dia escrevendo" : "dias escrevendo"],
-              ["Ritmo", pRitmo ? nf.format(pRitmo) : "—", "palavras por hora"],
-            ] as const).map(([rot, val, dica]) => (
-              <div key={rot}>
-                <div className="text-[11.5px] sm:text-[13px] text-muted truncate">{rot}</div>
+              ["Palavras", "Palavras escritas", nf.format(pPalavras), "escritas"],
+              ["Tempo", "Tempo escrevendo", pTempo ? fmtDuration(pTempo) : "0 min", "escrevendo"],
+              ["Dias", "Dias escrevendo", `${pDias}`, pDias === 1 ? "dia escrevendo" : "dias escrevendo"],
+              ["Ritmo", "Palavras por hora", pRitmo ? nf.format(pRitmo) : "—", "palavras por hora"],
+            ] as const).map(([rot, rotCompacto, val, dica]) => (
+              <div key={rot} className="min-w-0">
+                <div className="text-[11.5px] sm:text-[13px] text-muted truncate">{compacto ? rotCompacto : rot}</div>
                 <div className={`${compacto ? "text-[1.15rem] min-[400px]:text-[1.3rem]" : "text-[1.15rem] min-[400px]:text-[1.3rem] md:text-[1.6rem]"} tracking-tight tabular-nums leading-tight`}>{val}</div>
-                <div className="text-[10.5px] sm:text-xs text-faint leading-snug truncate">{dica}</div>
+                {!compacto && <div className="text-[10.5px] sm:text-xs text-faint leading-snug truncate">{dica}</div>}
               </div>
             ))}
           </div>
         ) : (
-        <div className={`grid min-w-0 ${compacto ? "grid-cols-4 gap-x-2 sm:gap-x-3" : "grid-cols-4 md:grid-cols-2 gap-x-2 sm:gap-x-6 gap-y-4"}`}>
+        <div className={`grid min-w-0 ${compacto ? "grid-cols-2 md:grid-cols-4 xl:grid-cols-2 gap-x-4 gap-y-3" : "grid-cols-4 md:grid-cols-2 gap-x-2 sm:gap-x-6 gap-y-4"}`}>
           <div>
             <div className="text-[11.5px] sm:text-[13px] text-muted truncate">Hoje</div>
             <div className={`${compacto ? "text-[1.15rem] min-[400px]:text-[1.3rem]" : "text-[1.15rem] min-[400px]:text-[1.3rem] md:text-[1.6rem]"} tracking-tight tabular-nums leading-tight`}>{nf.format(hoje)}</div>
@@ -126,10 +127,10 @@ export function WritingPanel({ compacto = false, periodo }: { compacto?: boolean
             const h = hojePorProjeto(p.id);
             return (
               <li key={p.id}>
-                <Link href={`/escrita/${p.id}`} className="block rounded-lg px-3 py-2 -mx-3 sm:-mx-1 hover:bg-surface-2">
-                  <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-x-3 gap-y-0.5">
-                    <span className="truncate">{p.titulo} <span className="text-xs text-faint">· {tipoDe(p.tipo).label}</span></span>
-                    <span className="text-xs text-muted tabular-nums sm:shrink-0">
+                <Link href={`/escrita/${p.id}`} className={`block rounded-lg px-2 -mx-2 hover:bg-surface-2 ${compacto ? "py-1.5" : "py-2"}`}>
+                  <div className={`flex flex-col gap-x-3 gap-y-0.5 ${compacto ? "" : "sm:flex-row sm:items-baseline sm:justify-between"}`}>
+                    <span className="truncate min-w-0" title={p.titulo}>{p.titulo} <span className="text-xs text-faint">· {tipoDe(p.tipo).label}</span></span>
+                    <span className={`text-xs text-muted tabular-nums ${compacto ? "" : "sm:shrink-0"}`}>
                       {nf.format(total)}{p.meta_palavras ? ` / ${nf.format(p.meta_palavras)}` : ""} pal.{h > 0 ? ` · hoje +${nf.format(h)}` : ""}
                     </span>
                   </div>

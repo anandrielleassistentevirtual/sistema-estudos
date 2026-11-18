@@ -147,7 +147,7 @@ export function MarPainel({ idioma, periodo, compacto, className = "mt-3 md:mt-4
   );
 
   return (
-    <section id="mar" className={`card p-4 min-w-0 ${className}`}>
+    <section id="mar" className={`card p-4 min-w-0 flex flex-col ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="min-w-0">
           <h3 className="font-medium flex items-center gap-2"><Waves size={16} className="text-icon" /> MAR</h3>

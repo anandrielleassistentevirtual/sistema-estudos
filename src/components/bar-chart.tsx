@@ -13,11 +13,14 @@ export function BarChart({
   unit,
   height: alturaPedida = 160,
   average,
+  alturaExata,
 }: {
   data: { label: string; value: number; detail?: string }[];
   unit: string;
   height?: number;
   average?: number;
+  /** usa a altura pedida em qualquer largura (quando quem chama já calculou o espaço disponível) */
+  alturaExata?: boolean;
 }) {
   const [sel, setSel] = useState<number | null>(null);
   const [largura, setLargura] = useState(0);
@@ -43,7 +46,7 @@ export function BarChart({
   }, [sel]);
 
   // no celular o gráfico fica mais baixo (a tela é estreita: barras altas só gastam rolagem)
-  const height = largura && largura < 480 ? Math.round(alturaPedida * 0.62) : alturaPedida;
+  const height = !alturaExata && largura && largura < 480 ? Math.round(alturaPedida * 0.62) : alturaPedida;
   const max = Math.max(1, ...data.map((d) => d.value), average ?? 0);
   const nice = niceMax(max);
   const n = data.length;

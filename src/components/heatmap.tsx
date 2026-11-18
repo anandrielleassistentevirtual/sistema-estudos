@@ -189,13 +189,14 @@ export function Heatmap({
       setHover({ day: dia, x: r.left - p.left + r.width / 2, y: r.top - p.top });
     };
     const nomes = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"];
-    // quadrados grandes numa semana; menores com 5–6 semanas, para o painel continuar cabendo na tela
-    const maximo = weeks <= 2 ? 46 : weeks <= 4 ? 36 : 30;
+    // as 7 colunas ocupam a largura toda do quadro (sem sobra à direita); a altura tem teto
+    // (mais alta numa semana, mais baixa com 5–6 semanas) para o painel continuar cabendo na tela
+    const maximo = weeks <= 2 ? 46 : weeks <= 4 ? 40 : 34;
     const lado = largura ? Math.min(maximo, (largura - 6 * 5) / 7) : maximo;
     const linhas = Array.from({ length: weeks }, (_, w) => cells.filter((c) => c.w === w));
     return (
       <div ref={raiz} className="relative select-none">
-        <div className="grid gap-[5px]" style={{ gridTemplateColumns: `repeat(7, ${lado}px)` }}>
+        <div className="grid gap-[5px]" style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
           {nomes.map((n) => <div key={n} className="text-[10px] text-muted text-center">{n}</div>)}
           {linhas.flat().map((c) => {
             const dia = Number(c.day.slice(8));
@@ -235,6 +236,8 @@ export function Heatmap({
 
   return (
     <div ref={raiz} className="relative select-none">
+      {/* calendário e legenda centrados juntos: quando o quadradinho chega ao tamanho máximo, a sobra fica dos dois lados */}
+      <div className="mx-auto max-w-full" style={largura > 0 ? { width: largSvg } : undefined}>
       {largura > 0 && (
         <svg width={largSvg} height={altura} role="img" aria-label={`Calendário de ${unit}, ${weeks} semanas`} className="block max-w-full"
           style={{ cursor: onSelect ? "pointer" : "default" }}
@@ -283,6 +286,7 @@ export function Heatmap({
             title={l === 0 ? `nada` : l === 1 ? `até ${nf.format(thresholds[0])} ${unit}` : l === 5 ? `mais de ${nf.format(thresholds[3])} ${unit}` : `${nf.format(thresholds[l - 2])} a ${nf.format(thresholds[l - 1])} ${unit}`} />
         ))}
         mais
+      </div>
       </div>
     </div>
   );

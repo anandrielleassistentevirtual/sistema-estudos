@@ -32,7 +32,7 @@ export function CalendarPanel({ compacto = false, periodo }: { compacto?: boolea
 
   return (
     // tudo num cartão só (título, filtros e calendário); o calendário sempre cabe na largura, sem rolar
-    <section id="calendario" className={`card scroll-mt-4 min-w-0 ${compacto ? "p-4" : "mt-4 p-4 md:p-5"}`}>
+    <section id="calendario" className={`card scroll-mt-4 min-w-0 flex flex-col ${compacto ? "p-4" : "mt-4 p-4 md:p-5"}`}>
       <div className={`flex flex-wrap items-center gap-2 ${compacto ? "mb-2" : "mb-3"}`}>
         <h2 className="font-medium mr-auto">Calendário</h2>
         {/* celular: as métricas ganham a linha toda, embaixo do título */}
@@ -51,7 +51,9 @@ export function CalendarPanel({ compacto = false, periodo }: { compacto?: boolea
           </select>
         )}
       </div>
-      <Heatmap data={daily} metric={metric} weeks={weeks} end={end} inicio={periodo?.de} fim={periodo?.ate} />
+      <div className="flex-1 flex flex-col justify-center min-w-0">
+        <Heatmap data={daily} metric={metric} weeks={weeks} end={end} inicio={periodo?.de} fim={periodo?.ate} />
+      </div>
     </section>
   );
 }
