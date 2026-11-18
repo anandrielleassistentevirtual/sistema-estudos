@@ -5,7 +5,7 @@
  */
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock, Layers, Play, Plus, Settings2, Trash2, X } from "lucide-react";
+import { Clock, Layers, Play, Plus, Settings2, Trash2, X, Waves } from "lucide-react";
 import { Empty, Page, Stat } from "@/components/page";
 import { AnkiNoComputador, AnkiWebBarra, Conectar } from "@/components/anki-conta";
 import { ListeningPainel } from "@/components/listening-painel";
@@ -155,6 +155,7 @@ export default function Idiomas() {
           <FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />
           <button className="btn" onClick={() => setModal("idioma")}><Plus size={15} /> Cadastrar idioma</button>
           <button className="btn" onClick={() => setModal("tempo")} disabled={!langs?.length}><Clock size={15} /> Registrar tempo</button>
+          <Link href="/idiomas/mar" className="btn" title="Filmes, séries, canais e podcasts em inglês de verdade"><Waves size={15} /> Lista do MAR</Link>
         </>
       }
     >
