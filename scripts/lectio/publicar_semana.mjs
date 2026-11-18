@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Grava (ou atualiza) os dias montados por montar_semana.py na tabela lectio_dias.
+ * Grava (ou atualiza) os dias montados por montar_semana.py na tabela lectio_dias
+ * e apaga os dias que já passaram (só a Catena; o diário de oração fica).
  *   npm run lectio:publicar -- dias.json
  * Usa NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e DONO_EMAIL (.env.local).
  */
@@ -26,3 +27,9 @@ const rows = dias.map((d) => ({ user_id: uid, ...d }));
 const r = await sb.from("lectio_dias").upsert(rows, { onConflict: "user_id,dia" });
 if (r.error) throw r.error;
 for (const d of dias) console.log(`  ✓ ${d.dia} ${d.referencia} — ${d.comentarios.length} comentários`);
+
+// a Catena dos dias que já passaram sai do banco (libera espaço); o diário de oração (lectio_registros) não é tocado
+const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+const apagados = await sb.from("lectio_dias").delete({ count: "exact" }).eq("user_id", uid).lt("dia", hoje);
+if (apagados.error) throw apagados.error;
+console.log(`  ✗ ${apagados.count ?? 0} dias anteriores a ${hoje} apagados`);
