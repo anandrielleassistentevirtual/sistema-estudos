@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Check, Clapperboard, Mic, Play, Plus, RotateCcw, SquarePlay, Trash2, Tv, Waves, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
-import { nf } from "@/lib/dates";
+import { fmtDuration, nf } from "@/lib/dates";
 import type { Periodo } from "@/lib/periodo";
 import { RowMenu } from "./row-menu";
 import { useTimerEstado } from "./timer-context";
@@ -108,6 +108,9 @@ export function MarPainel({ idioma, periodo, compacto, className = "mt-3 md:mt-4
   const faceis = col.quero.filter((t) => t.nivel === 1).length;
   const epsNo = (de: string, ate: string) => Math.max(0, log.filter((l) => l.dia >= de && l.dia <= ate).reduce((n, l) => n + l.episodios, 0));
   const epsP = epsNo(periodo.de, periodo.ate), epsA = epsNo(periodo.antDe, periodo.antAte);
+  // o tempo desses episódios (a duração de cada série)
+  const minDe = (id?: string) => (lista ?? []).find((x) => x.id === id)?.min_ep ?? 25;
+  const minEpsP = Math.max(0, log.filter((l) => l.dia >= periodo.de && l.dia <= periodo.ate).reduce((n, l) => n + l.episodios * minDe(l.titulo_id), 0));
   const porPlataforma = useMemo(() => {
     const m = new Map<string, number>();
     for (const t of lista ?? []) { const p = plataformaDe(t.onde); if (p) m.set(t.onde, (m.get(t.onde) ?? 0) + 1); }
@@ -211,9 +214,9 @@ export function MarPainel({ idioma, periodo, compacto, className = "mt-3 md:mt-4
                 <div className="mt-2">
                   <div className="flex items-center justify-between gap-2 text-[11px] tabular-nums">
                     <span>
-                      {vistos === 0 ? <span className="text-muted">não começou · {ts.length} temp. · {total} ep.</span>
+                      {vistos === 0 ? <span className="text-muted">não começou · {ts.length} temp. · {total} ep. · {fmtDuration(total * (t.min_ep ?? 25) * 60)}</span>
                         : vistos >= total ? <span className="text-muted">todas as {ts.length} temporadas · {total} ep.</span>
-                        : <><b className="font-medium text-ink">T{temp} · E{ep}</b><span className="text-muted"> de {ts[temp - 1]} · {vistos}/{total} ep. · {t.min_ep ?? 25} min cada</span></>}
+                        : <><b className="font-medium text-ink">T{temp} · E{ep}</b><span className="text-muted"> de {ts[temp - 1]} · {vistos}/{total} ep.</span></>}
                     </span>
                     {t.situacao === "assistindo" && vistos < total && (
                       <span className="flex items-center gap-1 shrink-0">
@@ -234,6 +237,12 @@ export function MarPainel({ idioma, periodo, compacto, className = "mt-3 md:mt-4
                       );
                     })}
                   </div>
+                  {vistos > 0 && (
+                    <div className="mt-1 flex justify-between text-[10.5px] text-faint tabular-nums">
+                      <span>{t.min_ep ?? 25} min/ep. · assistido {fmtDuration(vistos * (t.min_ep ?? 25) * 60)}</span>
+                      {vistos < total && <span>faltam {fmtDuration((total - vistos) * (t.min_ep ?? 25) * 60)}</span>}
+                    </div>
+                  )}
                 </div>
               );
             })() : t.tipo === "serie" ? (
@@ -245,7 +254,15 @@ export function MarPainel({ idioma, periodo, compacto, className = "mt-3 md:mt-4
           </div>
           <div className="flex items-center shrink-0 -mr-1">
             {t.situacao === "quero" && <button className="btn btn-ghost px-1.5 py-1" title="Começar a assistir" onClick={() => mudar(t, { situacao: "assistindo" })}><Play size={14} /></button>}
-            {t.situacao === "assistindo" && <button className="btn btn-ghost px-1.5 py-1" title="Terminei" onClick={() => mudar(t, { situacao: "visto", visto_em: new Date().toISOString() })}><Check size={15} /></button>}
+            {t.situacao === "assistindo" && (
+              <button className="btn btn-ghost px-1.5 py-1" title={t.tipo === "serie" && totalEps(t) ? "Terminei a série (vai sozinha para Vistos no último episódio)" : "Terminei"}
+                onClick={() => {
+                  // série com episódios: só termina de uma vez se você confirmar (o normal é ir pelo “+ episódio”)
+                  const faltam = totalEps(t) - (t.ep_vistos ?? 0);
+                  if (t.tipo === "serie" && faltam > 0 && !confirm(`Marcar “${t.titulo}” como vista? Ainda faltam ${faltam} de ${totalEps(t)} episódios.`)) return;
+                  mudar(t, { situacao: "visto", visto_em: new Date().toISOString() });
+                }}><Check size={15} /></button>
+            )}
             <RowMenu items={[
               ...(t.situacao !== "quero" ? [{ label: "Voltar para “Quero ver”", icon: RotateCcw, onClick: () => mudar(t, { situacao: "quero", visto_em: null }) }] : []),
               ...(t.situacao === "visto" ? [{ label: "Assistir de novo", icon: Play, onClick: () => mudar(t, { situacao: "assistindo", visto_em: null, ...(t.tipo === "serie" ? { ep_vistos: 0 } : {}) }) }] : []),
@@ -303,7 +320,8 @@ export function MarPainel({ idioma, periodo, compacto, className = "mt-3 md:mt-4
       {/* indicadores */}
       <div className={`grid gap-2 ${compacto ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 lg:grid-cols-4"}`}>
         <Mini rotulo="Assistindo" valor={col.assistindo.length} hint={col.assistindo[0]?.titulo ?? "nada agora"} />
-        <Mini rotulo={`Episódios · ${periodo.nome.toLowerCase()}`} valor={nf.format(epsP)} hint={<Variacao atual={epsP} base={epsA} vs={periodo.vs} />}
+        <Mini rotulo={`Episódios · ${periodo.nome.toLowerCase()}`} valor={nf.format(epsP)}
+          hint={<>{minEpsP > 0 && <>{fmtDuration(minEpsP * 60)} · </>}<Variacao atual={epsP} base={epsA} vs={periodo.vs} /></>}
           dica={`Episódios vistos no período (pelo “+ episódio”; cada um soma a duração dele no tempo de estudo). Período anterior: ${epsA}. Na fila: ${col.quero.length} títulos, ${faceis} ${faceis === 1 ? "fácil" : "fáceis"}.`} />
         <Mini rotulo={`Vistos · ${periodo.nome.toLowerCase()}`} valor={vistosP} hint={<Variacao atual={vistosP} base={vistosA} vs={periodo.vs} />}
           dica={`Terminados no período. Período anterior: ${vistosA}. No total: ${col.visto.length}.`} />
