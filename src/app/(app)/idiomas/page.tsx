@@ -137,7 +137,7 @@ export default function Idiomas() {
     const m = new Map<string, number>();
     for (const s of minhasSessoes) {
       if (s.day < de || s.day > ate) continue;
-      const k = s.label.startsWith("Lição") ? "Lições" : s.label.startsWith("Anki") ? "Anki" : s.label.startsWith("Listening") ? "Listening" : s.label || "Timer";
+      const k = s.label.startsWith("Lição") ? "Lições" : s.label.startsWith("Anki") ? "Anki" : s.label.startsWith("Listening") ? "Listening" : s.label.startsWith("MAR") ? "MAR" : s.label || "Timer";
       m.set(k, (m.get(k) ?? 0) + s.seconds);
     }
     const anki = soma(meusDias.filter((d) => d.day >= de && d.day <= ate), (d) => d.segundos);
@@ -276,7 +276,7 @@ export default function Idiomas() {
           {/* MAR (o mais rico, na coluna larga) e os baralhos, lado a lado e da mesma altura */}
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-3 md:gap-4">
             {/* MAR: inglês de verdade (filmes, séries, canais, podcasts) */}
-            <MarPainel idioma={sel.name} periodo={periodo} compacto className={tabela.length ? "" : "xl:col-span-2"} />
+            <MarPainel idioma={sel.name} periodo={periodo} compacto className={tabela.length ? "" : "xl:col-span-2"} onTempo={() => void load()} />
 
             {tabela.length > 0 && (
               <section className="card p-4 min-w-0 flex flex-col">
