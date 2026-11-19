@@ -288,9 +288,11 @@ function CampoMin({ valor, set, onEnter, min, max, rotulo, autoFocus }: {
 }
 
 /** "▶ Cronometrar com o Timer" — com o Timer ocupado, pergunta antes "Encerrar e cronometrar". */
-function Cronometrar({ t, idioma, onFeito }: { t: Titulo; idioma: string; onFeito: () => void }) {
+function Cronometrar({ t, idioma, onFeito, onPerguntando }: { t: Titulo; idioma: string; onFeito: () => void; onPerguntando?: (sim: boolean) => void }) {
   const timer = useTimerEstado();
-  const [pergunta, setPergunta] = useState<string | null>(null);
+  const [pergunta, setPerguntaBruta] = useState<string | null>(null);
+  // avisa quem abriu (o ▾ do vídeo esconde o "Somar" enquanto pergunta: um botão principal só)
+  const setPergunta = (v: string | null) => { setPerguntaBruta(v); onPerguntando?.(v !== null); };
   const [encerrando, setEncerrando] = useState(false);
   const ocupadoAgora = () => {
     const st = timer.ver();
@@ -631,7 +633,7 @@ function DuracaoInline({ t, acoes }: { t: Titulo; acoes: AcoesCartao }) {
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-2 sm:pl-[30px] text-[12px] text-muted">
       <span className="w-full sm:w-auto">Quanto dura o filme? (min ou 1h52)</span>
-      <input className="input py-1 px-2 w-28 text-right tabular-nums" inputMode="numeric" placeholder="ex.: 1h52" aria-label="Duração do filme"
+      <input className="input py-1 px-2 w-28 tabular-nums" inputMode="numeric" placeholder="ex.: 1h52" aria-label="Duração do filme"
         value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") salvar(); }} />
       <button type="button" className="btn py-1.5 sm:py-1 min-h-9 sm:min-h-0 px-2.5 text-[13px]" disabled={!ok} onClick={salvar}>Salvar</button>
     </div>
@@ -691,6 +693,7 @@ function MenuSerie({ t, idioma, ancora, onFechar, acoes }: { t: Titulo; idioma: 
 function MenuMin({ t, idioma, ancora, onFechar, acoes, padrao }: { t: Titulo; idioma: string; ancora: HTMLElement | null; onFechar: () => void; acoes: AcoesCartao; padrao: number }) {
   const [v, setV] = useState(String(padrao));
   const [ontem, setOntem] = useState(false);
+  const [perguntando, setPerguntando] = useState(false);
   const m = lerMinutos(v);
   const ok = !!m && m <= MAR_LIMITES.min;
   const somar = () => { if (!ok) return; onFechar(); acoes.lembrarMin(t, m!); acoes.marcar(t, "min", { valor: m!, ontem }); };
@@ -708,10 +711,12 @@ function MenuMin({ t, idioma, ancora, onFechar, acoes, padrao }: { t: Titulo; id
         {v && !ok && <span className="text-[12px] text-critical">de 1 a {MAR_LIMITES.min}</span>}
       </div>
       <FoiOntem v={ontem} set={setOntem} />
-      <Cronometrar t={t} idioma={idioma} onFeito={onFechar} />
-      <button type="button" className="btn btn-primary w-full justify-center mt-1 py-2 sm:py-1.5" disabled={!ok} onClick={somar}>
-        {ok ? `Somar ${duracao(m! * 60)}` : "Somar"}
-      </button>
+      <Cronometrar t={t} idioma={idioma} onFeito={onFechar} onPerguntando={setPerguntando} />
+      {!perguntando && (
+        <button type="button" className="btn btn-primary w-full justify-center mt-1 py-2 sm:py-1.5" disabled={!ok} onClick={somar}>
+          {ok ? `Somar ${duracao(m! * 60)}` : "Somar"}
+        </button>
+      )}
     </Pop>
   );
 }

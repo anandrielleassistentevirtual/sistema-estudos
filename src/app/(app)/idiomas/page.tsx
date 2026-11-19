@@ -375,8 +375,9 @@ export default function Idiomas() {
       <div className="flex flex-wrap items-center gap-2 mt-3 md:mt-4">
         {sel && <ListeningPainel idioma={sel.name} pequeno className="!rounded-full open:!rounded-xl open:basis-full" />}
         <AnkiNoComputador conectado={noComputador} setConectado={setNoComputador} pequeno className="!rounded-full open:!rounded-xl open:basis-full" />
+        {/* sm:mr-24: o botão flutuante do Timer fica no canto e cobriria o texto */}
         {conta && (
-          <span className="text-xs text-faint ml-auto">
+          <span className="text-xs text-faint ml-auto sm:mr-24">
             AnkiWeb: {conta.usuario} ·{" "}
             <button className="underline underline-offset-2 hover:text-ink" onClick={async () => {
               if (!confirm("Desligar o AnkiWeb deste sistema? O histórico que já está aqui continua.")) return;

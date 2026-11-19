@@ -683,7 +683,8 @@ export function candidataPergunta(
   let melhor: Pergunta | null = null, melhorFim = 0;
   for (const s of sessoes) {
     if (s.language !== idioma || s.mar_titulo_id || /^MAR\b/.test(s.label ?? "") || s.seconds < MAR_LIMITES.perguntaMinSeg) continue;
-    const rotulo = s.label || idioma;
+    // o Timer grava "Inglês · Netflix"; um rótulo sem o idioma (registro antigo ou manual) ganha o prefixo
+    const rotulo = !s.label ? idioma : s.label === idioma || s.label.startsWith(`${idioma} · `) ? s.label : `${idioma} · ${s.label}`;
     if (foraDaPergunta(rotulo, idioma) || !s.started_at) continue;
     const fim = Date.parse(s.started_at) + s.seconds * 1000;
     if (!Number.isFinite(fim) || fim < agora - MAR_LIMITES.sobraHoras * 3600e3 || fim > agora + 60e3) continue;

@@ -114,10 +114,10 @@ export function MarEditor({ t, onFechar, onSalvo }: {
               <li key={i} className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 ${grade === i ? "bg-surface-2 ring-1 ring-line" : "bg-surface-2/60"}`}>
                 <button type="button" className="inline-flex items-center gap-1 rounded-md px-1 py-1 text-muted hover:text-ink hover:bg-sel w-14 shrink-0" title={`Minutagem de cada episódio da T${i + 1} (toque para abrir)`}
                   onClick={() => setGrade(grade === i ? null : i)}>T{i + 1}<Grid3x3 size={12} /></button>
-                <input className="input py-0.5 px-1.5 w-12 text-right tabular-nums" inputMode="numeric" aria-label={`Episódios da T${i + 1}`} value={n}
+                <input className="input py-1 px-1.5 w-12 text-right tabular-nums" inputMode="numeric" aria-label={`Episódios da T${i + 1}`} value={n}
                   onChange={(e) => setTs((l) => l.map((x, j) => (j === i ? Math.max(1, Math.min(999, Number(e.target.value.replace(/\D/g, "")) || 1)) : x)))} />
                 <span className="text-xs text-muted">ep.</span>
-                <input className="input py-0.5 px-1.5 w-12 text-right tabular-nums" inputMode="numeric" aria-label={`Minutos dos episódios da T${i + 1}`}
+                <input className="input py-1 px-1.5 w-12 text-right tabular-nums" inputMode="numeric" aria-label={`Minutos dos episódios da T${i + 1}`}
                   placeholder={String(padrao)} value={mm[String(i + 1)] ?? ""}
                   onChange={(e) => mudarMin(String(i + 1), Number(e.target.value.replace(/\D/g, "").slice(0, 3)) || null, padrao)} />
                 <span className="text-xs text-muted mr-1">min</span>
@@ -208,7 +208,7 @@ function Grade({ temp, eps, padrao, mm, onMudar, onAplicar, onColar, onFechar }:
           const ex = mm[`${temp}.${e}`];
           if (editando === e) {
             return (
-              <input key={e} ref={campo} autoFocus className="input w-[4.5rem] py-0.5 px-1.5 text-xs text-right tabular-nums" inputMode="numeric" value={valor}
+              <input key={e} ref={campo} autoFocus className="input w-[4.5rem] py-1 px-1.5 text-[13px] text-right tabular-nums" inputMode="numeric" value={valor}
                 aria-label={`Minutos do E${e}`} onChange={(x) => setValor(x.target.value)} onBlur={() => { gravar(); setEditando(null); }}
                 onKeyDown={(x) => {
                   if (x.key === "Enter") { x.preventDefault(); gravar(); if (e < eps) abrir(e + 1); else setEditando(null); }
@@ -218,7 +218,7 @@ function Grade({ temp, eps, padrao, mm, onMudar, onAplicar, onColar, onFechar }:
           }
           return (
             <button key={e} type="button" onClick={() => abrir(e)} title={ex ? "Minutagem própria (apague ou ponha o padrão para voltar)" : "O padrão"}
-              className={`rounded-md px-1.5 py-0.5 text-xs tabular-nums border ${ex ? "font-medium" : "border-transparent bg-surface-2 text-muted"}`}
+              className={`rounded-md px-2 py-1 text-[13px] tabular-nums border ${ex ? "font-medium" : "border-transparent bg-surface-2 text-muted"}`}
               style={ex ? { borderColor: COR_MAR } : undefined}>
               E{e} <span className={ex ? "" : "text-faint"}>{ex ?? padrao}</span>
             </button>

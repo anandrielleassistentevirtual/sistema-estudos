@@ -229,8 +229,9 @@ export function MarPainel({
   const trocar = (novo: Titulo) => setLista((l) => l?.map((x) => (x.id === novo.id ? novo : x)) ?? null);
 
   /** Manda a ação ao banco, troca o título pelo que voltou, mostra a faixa e avisa a página. */
-  const executar = useCallback(async (t: Titulo, acao: Acao, opts: OpcoesRegistrar = {}) => {
-    const noTimer = timer.ver().marTituloId === t.id && acao !== "ajuste";
+  const executar = useCallback(async (t: Titulo, acao: Acao, opts: OpcoesRegistrar = {}, ligouAgora = false) => {
+    // (ligouAgora: "Sim, é do MAR" acabou de ligar o Timer; o estado dele ainda não chegou ao ver())
+    const noTimer = (ligouAgora || timer.ver().marTituloId === t.id) && acao !== "ajuste";
     ocupar(t.id, true);
     const r: RespostaMar = await registrar(t, acao, opts);
     ocupar(t.id, false);
@@ -318,7 +319,7 @@ export function MarPainel({
     if (q.p.tipo === "rodando") {
       // o Timer que está contando passa a ser deste título (desde o começo deste foco)
       timer.ligarMar({ id: t.id, titulo: t.titulo });
-      void executar(t, q.acao, q.opts);
+      void executar(t, q.acao, q.opts, true);
       return;
     }
     // a sessão já salva vira uma corrida deste título; a marcação usa esse tempo
@@ -413,7 +414,7 @@ export function MarPainel({
           <Waves size={16} style={{ color: COR_MAR }} className="shrink-0" />
           <span className="shrink-0">MAR</span>
           <span className="text-sm font-normal text-muted truncate">
-            · {idioma.toLowerCase()} de verdade ·{" "}
+            <span className="hidden sm:inline">· {idioma.toLowerCase()} de verdade </span>·{" "}
             {onConfigurar
               ? <button type="button" className="hover:text-ink underline-offset-2 hover:underline" title="Mudar a meta por dia (Configurar)" onClick={onConfigurar}>{metaTxt}</button>
               : metaTxt}
@@ -471,7 +472,7 @@ export function MarPainel({
         <div className="inline-flex rounded-lg bg-surface-2 p-0.5 text-[13px]" role="tablist" aria-label="Listas do MAR">
           {ABAS.map((x) => (
             <button key={x.id} type="button" role="tab" aria-selected={x.id === atual} onClick={() => setAba(x.id)}
-              className={`px-2.5 py-2 sm:py-1 rounded-md whitespace-nowrap ${x.id === atual ? "bg-seg shadow-sm font-medium" : "text-muted hover:text-ink"}`}>
+              className={`px-2.5 py-2 sm:py-1 min-h-9 sm:min-h-0 rounded-md whitespace-nowrap ${x.id === atual ? "bg-seg shadow-sm font-medium" : "text-muted hover:text-ink"}`}>
               {x.nome} <span className="tabular-nums text-muted font-normal">{col[x.id].length}</span>
             </button>
           ))}
@@ -494,7 +495,7 @@ export function MarPainel({
                   sem boia <b className="font-medium text-ink tabular-nums">{semBoia}%</b>
                 </span>
               )}
-              <button type="button" className="btn btn-ghost py-2 sm:py-1 px-2 text-xs shrink-0" onClick={() => setRegistros(true)} title="O que contou em cada dia (últimos 30 dias)">
+              <button type="button" className="btn btn-ghost py-2 sm:py-1 px-2 text-xs shrink-0 min-h-9 sm:min-h-0" onClick={() => setRegistros(true)} title="O que contou em cada dia (últimos 30 dias)">
                 <ListChecks size={14} /> Registros
               </button>
             </div>
@@ -627,7 +628,7 @@ function FormAdicionar({ idioma, posicao, onAdicionado }: { idioma: string; posi
   return (
     <form onSubmit={salvar} className="space-y-3 text-sm">
       <label className={campo}>
-        <span className="label">Título</span>
+        <span className="label block">Título</span>
         <input className="input" autoFocus value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="ex.: Friends" />
       </label>
       <div className="grid grid-cols-5 gap-1" role="radiogroup" aria-label="Tipo">
@@ -641,7 +642,7 @@ function FormAdicionar({ idioma, posicao, onAdicionado }: { idioma: string; posi
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
         <label className={campo}>
-          <span className="label">Onde</span>
+          <span className="label block">Onde</span>
           <span className="relative flex items-center">
             {plataformaDe(onde) && <span className="absolute left-2.5 pointer-events-none"><PlataformaIcone onde={onde} tamanho={16} /></span>}
             <input className={`input ${plataformaDe(onde) ? "pl-9" : ""}`} list="mar-plataformas" value={onde} onChange={(e) => setOnde(e.target.value)} placeholder="Netflix, YouTube…" />
@@ -649,7 +650,7 @@ function FormAdicionar({ idioma, posicao, onAdicionado }: { idioma: string; posi
           <datalist id="mar-plataformas">{PLATAFORMAS.map((p) => <option key={p.id} value={p.nome} />)}</datalist>
         </label>
         <label className={campo}>
-          <span className="label">Nível</span>
+          <span className="label block">Nível</span>
           <select className="input w-auto" value={nivel} onChange={(e) => setNivel(Number(e.target.value) as 1 | 2 | 3)}>
             {([1, 2, 3] as const).map((n) => <option key={n} value={n}>{NIVEIS[n]}</option>)}
           </select>
@@ -658,25 +659,25 @@ function FormAdicionar({ idioma, posicao, onAdicionado }: { idioma: string; posi
       {tipo === "serie" && (
         <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-2">
           <label className={campo}>
-            <span className="label">Episódios por temporada</span>
+            <span className="label block">Episódios por temporada</span>
             <input className="input" value={eps} onChange={(e) => setEps(e.target.value)} placeholder="10, 12, 8 ou 3x10" />
           </label>
           <label className={campo}>
-            <span className="label">Min/ep.</span>
+            <span className="label block">Min/ep.</span>
             <input className="input text-right tabular-nums" inputMode="numeric" value={minEp} onChange={(e) => setMinEp(e.target.value)} />
           </label>
         </div>
       )}
       {tipo === "filme" && (
         <label className={campo}>
-          <span className="label">Duração (min ou 1h52)</span>
+          <span className="label block">Duração (min ou 1h52)</span>
           <input className="input" inputMode="numeric" value={dur} onChange={(e) => setDur(e.target.value)} placeholder="ex.: 1h52" />
           {dur && !ok && titulo.trim() && <span className="text-xs text-critical">Não entendi. Use minutos (ex.: 112) ou 1h52.</span>}
         </label>
       )}
       {(tipo === "youtube" || tipo === "podcast" || tipo === "livro") && (
         <label className={campo}>
-          <span className="label">Minutos por vez (o botão “+” usa este valor)</span>
+          <span className="label block">Minutos por vez (o botão “+” usa este valor)</span>
           <input className="input w-28 text-right tabular-nums" inputMode="numeric" value={porVez} onChange={(e) => setPorVez(e.target.value)} />
         </label>
       )}
