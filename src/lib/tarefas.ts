@@ -170,16 +170,18 @@ export async function criarTarefaNoFim(dados: Partial<Tarefa> & { texto: string 
 /**
  * "Fazer agora": liga o Timer na tarefa (o tempo fica somado nela). Devolve para onde ir:
  * o livro no leitor, se a tarefa é de leitura de um livro digital; ou o link (vídeo), se houver.
+ * Devolve null se o Timer estava ligado ao MAR e a pessoa não quis encerrar antes (nada mudou).
  */
-export function iniciarTarefa(
+export async function iniciarTarefa(
   t: Tarefa,
-  timer: { set: (p: Record<string, unknown>) => void; start: () => void },
+  timer: { trocar: (p: Record<string, unknown>) => Promise<boolean>; start: () => void },
   livro?: { id: string; title: string; format: string } | null,
-): { rota?: string; link?: string } {
-  timer.set({
+): Promise<{ rota?: string; link?: string } | null> {
+  const trocou = await timer.trocar({
     category: livro ? "Leitura" : t.tipo === "escrever" ? "Escrita" : "Estudos", label: t.texto, tarefaId: t.id, tarefaTexto: t.texto,
     ...(livro ? { bookId: livro.id, bookTitle: livro.title, bookPhysical: livro.format === "fisico" } : { noteId: "", noteTitle: "" }),
   });
+  if (!trocou) return null;
   timer.start();
   if (livro && livro.format !== "fisico") return { rota: `/ler/${livro.id}` };
   if (t.link) return { link: t.link };

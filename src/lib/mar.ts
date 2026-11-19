@@ -676,13 +676,13 @@ export function candidataPergunta(
   const fora = new Set(dispensadas);
   const hoje = dayKey(new Date(agora));
   if (timer && timer.category === "Idiomas" && timer.language === idioma && !timer.marTituloId && timer.phase === "foco"
-    && timer.segundos > 0 && !/^MAR\b/.test(timer.rotulo) && !foraDaPergunta(timer.rotulo, idioma)) {
+    && timer.segundos > 0 && !foraDaPergunta(timer.rotulo, idioma)) {
     const chave = chaveTimer(idioma, timer.rotulo, hoje);
     if (!fora.has(chave)) return { tipo: "rodando", chave, rotulo: timer.rotulo, segundos: Math.round(timer.segundos) };
   }
   let melhor: Pergunta | null = null, melhorFim = 0;
   for (const s of sessoes) {
-    if (s.language !== idioma || s.mar_titulo_id || /^MAR\b/.test(s.label ?? "") || s.seconds < MAR_LIMITES.perguntaMinSeg) continue;
+    if (s.language !== idioma || s.mar_titulo_id || s.seconds < MAR_LIMITES.perguntaMinSeg) continue;
     // o Timer grava "Inglês · Netflix"; um rótulo sem o idioma (registro antigo ou manual) ganha o prefixo
     const rotulo = !s.label ? idioma : s.label === idioma || s.label.startsWith(`${idioma} · `) ? s.label : `${idioma} · ${s.label}`;
     if (foraDaPergunta(rotulo, idioma) || !s.started_at) continue;

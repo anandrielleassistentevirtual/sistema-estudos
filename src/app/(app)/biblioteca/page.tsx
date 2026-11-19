@@ -49,9 +49,10 @@ export default function Biblioteca() {
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (toast) { const x = setTimeout(() => setToast(null), toast.length > 60 ? 6000 : 3000); return () => clearTimeout(x); } }, [toast]);
 
-  function readPhysical(b: Book) {
-    timer.set({ category: "Leitura", bookId: b.id, bookTitle: b.title, bookPhysical: true });
-    if (!timer.running) timer.start();
+  async function readPhysical(b: Book) {
+    // ligado ao MAR com tempo contado: pergunta se encerra antes (não → nada muda)
+    if (!(await timer.trocar({ category: "Leitura", bookId: b.id, bookTitle: b.title, bookPhysical: true }))) return;
+    timer.start(); // (já rodando: continua como está)
     setToast(`Timer ligado para “${b.title}”. Ao encerrar, informe a página onde parou.`);
   }
 
@@ -194,7 +195,7 @@ export default function Biblioteca() {
     const pasta = b.folder_id ? folderById.get(b.folder_id) : undefined;
     return (
       <div key={b.id} className="group relative flex items-center gap-1 sm:gap-2 pr-1.5 sm:pr-2 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
-        <Link href={b.format === "fisico" ? "#" : `/ler/${b.id}`} onClick={(e) => { if (b.format === "fisico") { e.preventDefault(); readPhysical(b); } }}
+        <Link href={b.format === "fisico" ? "#" : `/ler/${b.id}`} onClick={(e) => { if (b.format === "fisico") { e.preventDefault(); void readPhysical(b); } }}
           title={b.format === "fisico" ? "Ler (liga o timer)" : "Abrir no leitor"}
           className="flex items-start sm:items-center gap-3 min-w-0 flex-1 p-3">
           <Cover book={b} url={covers[b.id]} className="w-10 h-14 shrink-0" />
@@ -247,7 +248,7 @@ export default function Biblioteca() {
         <RowMenu items={[
           // livro físico de consulta: sem "ler com timer" (consulta não conta nos indicadores)
           ...(b.format === "fisico"
-            ? (b.status === "consulta" ? [] : [{ label: "Ler (liga o timer)", icon: Timer, onClick: () => readPhysical(b) }])
+            ? (b.status === "consulta" ? [] : [{ label: "Ler (liga o timer)", icon: Timer, onClick: () => void readPhysical(b) }])
             : [{ label: "Abrir no leitor", icon: BookOpen, onClick: () => router.push(`/ler/${b.id}`) }]),
           ...(b.format !== "fisico" ? [{
             label: `Baixar o arquivo (${b.format.toUpperCase()})`, icon: Download,

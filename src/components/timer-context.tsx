@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { supabase } from "@/lib/supabase/client";
 import { dayKey } from "@/lib/dates";
 import { ehMar } from "@/lib/tempo";
-import { enviarTrecho, fuso, novoId, type TrechoTimer } from "@/lib/mar";
+import { duracao, enviarTrecho, fuso, novoId, type TrechoTimer } from "@/lib/mar";
 
 export type TimerMode = "pomodoro" | "livre";
 export type Phase = "foco" | "pausa";
@@ -62,6 +62,8 @@ export interface FocoAnterior {
   feito: number; contouCiclo: boolean; pausaLonga: boolean;
   /** o foco estava ligado ao MAR: continuar volta à mesma corrida */
   mar?: MarVinculo;
+  /** quando esse foco terminou (ms): continuar muito depois começa outra corrida */
+  fim?: number;
 }
 
 /** Sessão de livro físico esperando a página onde você parou. */
@@ -87,6 +89,8 @@ interface TimerApi extends TimerState {
   stop: () => Promise<void>;
   reset: () => void;
   set: (p: Partial<TimerState>) => void;
+  /** troca categoria, idioma, rótulo, livro, tarefa…: ligado ao MAR com tempo contado, pergunta se encerra antes */
+  trocar: (p: Partial<TimerState>) => Promise<boolean>;
   lastSaved: number;
   pending: PendingPages | null;
   resolvePending: (page: number | null) => Promise<void>;
@@ -136,6 +140,9 @@ const semMar = (p: TimerState): Partial<TimerState> => ({
 });
 const vinculoDe = (p: TimerState): MarVinculo | undefined =>
   p.marTituloId && p.marCorrida ? { id: p.marTituloId, titulo: p.marTitulo, corrida: p.marCorrida, desde: p.marDesde } : undefined;
+
+/** "Continuar" um foco ligado ao MAR volta à mesma corrida só se ele terminou há pouco. */
+const CONTINUAR_MESMA_CORRIDA_MS = 15 * 60e3;
 
 /** Gravações do Timer ligado ao MAR que não chegaram ao banco (sem conexão): reenviadas com o mesmo trecho. */
 const PENDENTES = "timer-mar-pendentes";
@@ -337,14 +344,14 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       // continuação de um foco que já contou: volta à mesma pausa, sem somar outro ciclo
       const longa = p.anterior?.pausaLonga ?? false;
       return { ...p, phase: "pausa", elapsed: 0, startedAt: agora, running: true, ajuste: 0, pausaLonga: longa, salvo: 0, jaContou: false,
-        anterior: { feito, contouCiclo: true, pausaLonga: longa, mar: vinculoDe(p) } };
+        anterior: { feito, contouCiclo: true, pausaLonga: longa, mar: vinculoDe(p), fim: agora } };
     }
     const hoje = dayKey();
     const serie = (p.ciclosDia === hoje ? p.serie : 0) + 1;
     const longa = serie >= Math.max(1, p.ciclosAteLonga);
     return {
       ...p, phase: "pausa", elapsed: 0, startedAt: agora, running: true, ajuste: 0, pausaLonga: longa, salvo: 0,
-      anterior: { feito, contouCiclo: true, pausaLonga: longa, mar: vinculoDe(p) },
+      anterior: { feito, contouCiclo: true, pausaLonga: longa, mar: vinculoDe(p), fim: agora },
       serie: longa ? 0 : serie, cycles: (p.ciclosDia === hoje ? p.cycles : 0) + 1, ciclosDia: hoje,
     };
   }), []);
@@ -364,11 +371,15 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
 
   const start = useCallback(() => {
     if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
-    setNow(Date.now());
+    const agora = Date.now();
+    setNow(agora);
     setS((p) => (p.running ? p : {
-      ...p, running: true, startedAt: Date.now(),
-      // começar um foco novo (do zero) esquece o anterior
-      ...(p.phase === "foco" && p.elapsed === 0 ? { anterior: null, salvo: 0, jaContou: false } : {}),
+      ...p, running: true, startedAt: agora,
+      // começar um foco novo (do zero) esquece o anterior; ligado ao MAR, é outra corrida (que começa agora):
+      // o pomodoro não fica com uma corrida aberta por horas (a sobra do foco anterior continua valendo)
+      ...(p.phase === "foco" && p.elapsed === 0
+        ? { anterior: null, salvo: 0, jaContou: false, ...(p.marTituloId ? { marCorrida: novoId(), marDesde: agora } : {}) }
+        : {}),
     }));
   }, []);
   const set = useCallback((patch: Partial<TimerState>) => setS((p) => ({ ...p, ...patch })), []);
@@ -387,22 +398,45 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       marTituloId: t.id, marTitulo: t.titulo, marCorrida: corrida, marDesde: agora,
     }));
   }, []);
-  // MAR: "Sim, é do MAR" com o Timer contando — o tempo desde o começo deste foco passa a ser deste título
-  const ligarMar = useCallback((t: { id: string; titulo: string }) => {
+  // MAR: "Sim, é do MAR" com o Timer contando — o tempo desde o começo deste foco passa a ser deste título.
+  // salvoVinculado: a parte deste foco que já foi salva (Continuar) já virou MAR (mar_vincular_sessao); a corrida
+  // nova começa onde ela terminou. Só liga um foco de Idiomas com tempo contado e ainda sem título.
+  const ligarMar = useCallback((t: { id: string; titulo: string }, opcoes: { salvoVinculado?: boolean } = {}) => {
     setS((p) => {
       const agora = Date.now();
       const segs = p.elapsed + (p.running && p.startedAt ? (agora - p.startedAt) / 1000 : 0);
-      return { ...p, label: `MAR · ${t.titulo}`, marTituloId: t.id, marTitulo: t.titulo, marCorrida: novoId(), marDesde: agora - Math.round(segs * 1000) };
+      if (p.phase !== "foco" || p.category !== "Idiomas" || p.marTituloId || segs <= 0) return p;
+      const novo = Math.max(0, segs - (opcoes.salvoVinculado ? p.salvo : 0));
+      return { ...p, label: `MAR · ${t.titulo}`, marTituloId: t.id, marTitulo: t.titulo, marCorrida: novoId(), marDesde: agora - Math.round(novo * 1000) };
     });
   }, []);
   // stop estável (o de api muda a cada tique): para quem só precisa encerrar num clique
   const stopRef = useRef<() => Promise<void>>(async () => {});
   const stopEstavel = useCallback(() => stopRef.current(), []);
 
+  /**
+   * Troca de categoria, idioma, rótulo, livro, tarefa ou modo — de qualquer tela. Ligado ao MAR com tempo contado:
+   * pergunta se encerra e salva antes (trocar no meio da corrida contaria em dobro); não → nada muda (false).
+   * Com o Timer zerado, a troca também desliga do MAR.
+   */
+  const trocar = useCallback(async (patch: Partial<TimerState>): Promise<boolean> => {
+    const p = atual.current;
+    if (!p.marTituloId) { set(patch); return true; }
+    const segs = p.elapsed + (p.running && p.startedAt ? (Date.now() - p.startedAt) / 1000 : 0);
+    if (segs > 0) {
+      if (!confirm(`O Timer está ligado ao MAR (${p.marTitulo}, ${duracao(segs)}). Encerrar e salvar antes de trocar?`)) return false;
+      await stopRef.current();   // salva e já desliga do MAR
+      set(patch);
+      return true;
+    }
+    setS((q) => ({ ...q, ...semMar(q), ...patch }));
+    return true;
+  }, [set]);
+
   // estado sem o relógio: só muda quando o timer liga, pausa, troca de fase ou salva
   const estado = useMemo<TimerEstado>(
-    () => ({ running: s.running, phase: s.phase, set, start, ver, lastSaved, cronometrarMar, ligarMar, stop: stopEstavel }),
-    [s.running, s.phase, set, start, ver, lastSaved, cronometrarMar, ligarMar, stopEstavel],
+    () => ({ running: s.running, phase: s.phase, set, trocar, start, ver, lastSaved, cronometrarMar, ligarMar, stop: stopEstavel }),
+    [s.running, s.phase, set, trocar, start, ver, lastSaved, cronometrarMar, ligarMar, stopEstavel],
   );
 
   const api: TimerApi = {
@@ -426,7 +460,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         // encerrou um foco: ainda dá para voltar a ele e continuar (ligado ao MAR: na mesma corrida)
         jaContou: false,
         anterior: p.phase === "foco" && secs >= 30
-          ? { feito: secs, contouCiclo: p.jaContou, pausaLonga: p.anterior?.pausaLonga ?? false, mar: vinculoDe(p) }
+          ? { feito: secs, contouCiclo: p.jaContou, pausaLonga: p.anterior?.pausaLonga ?? false, mar: vinculoDe(p), fim: Date.now() }
           : p.anterior,
         // a gravação (abaixo) usa o snapshot, que ainda tem o vínculo; o Timer zerado fica livre
         ...semMar(p),
@@ -435,6 +469,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     },
     reset: () => setS((p) => ({ ...p, running: false, startedAt: null, elapsed: 0, phase: "foco", ajuste: 0, pausaLonga: false, salvo: 0, ...semMar(p) })),
     set,
+    trocar,
     alvo: target,
     ajustar: (minutos: number) => setS((p) => {
       const base = (p.phase === "foco" ? p.focusMin : p.pausaLonga ? p.longBreakMin : p.breakMin) * 60;
@@ -456,9 +491,12 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         // aquele foco já contou como ciclo: ao terminar de novo, não conta outra vez
         jaContou: a.contouCiclo,
         anterior: { ...a },
-        // estava ligado ao MAR: volta à mesma corrida (o mesmo começo), se o Timer ainda está em Idiomas
+        // estava ligado ao MAR: volta à mesma corrida (o mesmo começo), se o Timer ainda está em Idiomas e o foco
+        // terminou há pouco; muito depois, é outra corrida, que começa agora (não puxa o que foi marcado no meio)
         ...(a.mar && p.category === "Idiomas" && !p.marTituloId
-          ? { marTituloId: a.mar.id, marTitulo: a.mar.titulo, marCorrida: a.mar.corrida, marDesde: a.mar.desde, label: `MAR · ${a.mar.titulo}` }
+          ? (agora - (a.fim ?? 0) <= CONTINUAR_MESMA_CORRIDA_MS
+            ? { marTituloId: a.mar.id, marTitulo: a.mar.titulo, marCorrida: a.mar.corrida, marDesde: a.mar.desde, label: `MAR · ${a.mar.titulo}` }
+            : { marTituloId: a.mar.id, marTitulo: a.mar.titulo, marCorrida: novoId(), marDesde: agora, label: `MAR · ${a.mar.titulo}` })
           : {}),
       };
     }); },
@@ -480,6 +518,8 @@ export interface TimerEstado {
   running: boolean;
   phase: TimerState["phase"];
   set: (patch: Partial<TimerState>) => void;
+  /** troca categoria, livro, tarefa…: ligado ao MAR com tempo contado, pergunta "Encerrar e salvar antes?" (não → false) */
+  trocar: (patch: Partial<TimerState>) => Promise<boolean>;
   start: () => void;
   /** o estado completo de agora (categoria, idioma, rótulo…), lido na hora — não redesenha a tela */
   ver: () => Readonly<TimerState>;
@@ -487,8 +527,11 @@ export interface TimerEstado {
   lastSaved: number;
   /** MAR "▶ Cronometrar": com o Timer parado e zerado, liga em Cronômetro, Idiomas, no idioma, rótulo "MAR · título" */
   cronometrarMar: (t: { id: string; titulo: string }, idioma: string) => void;
-  /** MAR "Sim, é do MAR" com o Timer contando: liga o foco atual ao título (desde o começo deste foco) */
-  ligarMar: (t: { id: string; titulo: string }) => void;
+  /**
+   * MAR "Sim, é do MAR" com o Timer contando: liga o foco atual ao título (desde o começo deste foco; com
+   * salvoVinculado, só a parte ainda não salva). Só age num foco de Idiomas com tempo e sem título.
+   */
+  ligarMar: (t: { id: string; titulo: string }, opcoes?: { salvoVinculado?: boolean }) => void;
   /** Encerrar e salvar (estável: não muda a cada tique) */
   stop: () => Promise<void>;
 }

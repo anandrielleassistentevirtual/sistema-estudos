@@ -101,6 +101,8 @@ declare
   declarado int;
   excesso int;
   consumido int;
+  acum int;
+  ov int;
   sess uuid;
   m record;
 begin
@@ -115,19 +117,26 @@ begin
   -- a parte de cada marcação que o Timer pode ter medido: no máximo o tempo da corrida que já tinha passado
   -- quando ela foi marcada (um episódio de ontem marcado aos 5 min da corrida só tira 5 min do Timer).
   -- Só conta a minutagem que ainda está no estudo (sessão apagada à mão não conta).
-  declarado := 0;
+  -- Parte de uma marcação pode já ter vindo da sobra DESTA corrida (crédito: pomodoro, Continuar): esse
+  -- pedaço já está dentro da sessão da corrida. Ele ocupa o tempo decorrido primeiro e não é descontado de novo.
+  declarado := 0; acum := 0;
   for m in
-    select l.created_at, s.seconds
-      from public.mar_log l join public.study_sessions s on s.id = l.sessao_id
+    select l.created_at, coalesce(s.seconds, 0) as seconds,
+           (select coalesce(sum((e ->> 'seg')::int), 0) from jsonb_array_elements(l.credito) e
+             where (e ->> 'log')::uuid = r.id) as cred
+      from public.mar_log l left join public.study_sessions s on s.id = l.sessao_id
      where l.corrida = r.corrida and l.tipo <> 'timer'
      order by l.created_at, l.id
   loop
-    declarado := declarado + least(m.seconds, greatest(0, floor(extract(epoch from m.created_at - r.inicio))::int - declarado));
+    ov := least(m.seconds + m.cred, greatest(0, floor(extract(epoch from m.created_at - r.inicio))::int - acum));
+    declarado := declarado + greatest(0, ov - m.cred);
+    acum := acum + ov;
   end loop;
-  excesso := greatest(0, r.medido_seg - declarado);
   select coalesce(sum((e ->> 'seg')::int), 0) into consumido
     from public.mar_log l, jsonb_array_elements(l.credito) e
    where l.titulo_id = r.titulo_id and (e ->> 'log')::uuid = r.id;
+  -- a sessão da corrida nunca fica abaixo do que ela já emprestou a episódios (nenhum minuto some)
+  excesso := greatest(0, r.medido_seg - declarado, consumido);
   sess := r.sessao_id;
   if excesso > 0 and sess is null then
     insert into public.study_sessions (day, started_at, seconds, category, label, language, mar_titulo_id)
@@ -284,10 +293,12 @@ begin
 
   -- tempo do Timer deste título que ainda não virou episódio: cobre primeiro (não conta duas vezes)
   resto := d;
+  -- "foi ontem" só usa a sobra de uma corrida que começou ontem (Timer de ontem à noite marcado depois da meia-noite)
   if resto > 0 and not p_sem_timer then
     for c in
       select l.id, l.sobra_seg from public.mar_log l
        where l.titulo_id = t.id and l.tipo = 'timer' and l.sobra_seg > 0 and l.sessao_id is not null and l.sobra_ate >= now()
+         and (not p_ontem or l.dia = hoje - 1)
        order by l.created_at desc
          for update
     loop
@@ -453,7 +464,10 @@ begin
         perform public.mar_corrida_acertar((select id from public.mar_log where corrida = c.corrida and tipo = 'timer'));
       end if;
     end loop;
-    update public.mar_log set medido_seg = 0, segundos = 0, sobra_seg = 0 where id = r.id;
+    -- a corrida recomeça do zero: as marcações já contadas saem dela (contam pela própria sessão) e a janela
+    -- passa a começar agora, para o próximo trecho do Timer não as puxar de volta nem descontá-las
+    update public.mar_log set corrida = null where corrida = r.corrida and tipo <> 'timer';
+    update public.mar_log set medido_seg = 0, segundos = 0, sobra_seg = 0, sessao_id = null, inicio = now() where id = r.id;
   else
     update public.mar_log set segundos = 0 where id = r.id;
     if r.corrida is not null then

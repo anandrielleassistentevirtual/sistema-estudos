@@ -60,7 +60,7 @@ interface EstadoFaixa extends Faixa {
   chave?: string;
 }
 
-interface PerguntaPendente { tituloId: string; p: Pergunta; acao: Acao; opts: OpcoesRegistrar; seg: number }
+interface PerguntaPendente { tituloId: string; p: Pergunta; acao: Acao; opts: OpcoesRegistrar; seg: number; em: number }
 
 export function MarPainel({
   idioma, periodo, className = "", sessoesMar, sessoesIdioma, meta, inicio, onTempo, onConfigurar,
@@ -279,10 +279,24 @@ export function MarPainel({
   }, [meuLog, mostrar, carregarLog, onTempo]);
 
   // ─── a pergunta única (Timer de Idiomas sem vínculo) ───
+  // (depois de "Continuar", a parte do foco já salva é outra sessão: a pergunta fala só do trecho novo)
   const timerParaPergunta = () => {
     const s = timer.ver();
-    const segundos = s.elapsed + (s.running && s.startedAt ? (Date.now() - s.startedAt) / 1000 : 0);
+    const segundos = Math.max(0, s.elapsed + (s.running && s.startedAt ? (Date.now() - s.startedAt) / 1000 : 0) - s.salvo);
     return { category: s.category, language: s.language, label: s.label, marTituloId: s.marTituloId, phase: s.phase, segundos, rotulo: describe(s) };
+  };
+  /**
+   * As sessões que ESTE foco já salvou (Continuar): do idioma, sem título, com o mesmo rótulo do Timer, começadas
+   * depois do começo do foco. "Sim, é do MAR" as vincula antes de ligar o Timer (senão contariam em dobro).
+   */
+  const salvasDoFoco = (): SessaoIdioma[] => {
+    const s = timer.ver();
+    if (!(s.salvo > 0)) return [];
+    const agora = Date.now();
+    const comeco = agora - (s.elapsed + (s.running && s.startedAt ? (agora - s.startedAt) / 1000 : 0)) * 1000;
+    const rotulo = describe(s);
+    return sessoesIdioma.filter((x) => x.language === idioma && !x.mar_titulo_id && x.label === rotulo && !!x.started_at
+      && Date.parse(x.started_at) >= comeco - 120e3 && Date.parse(x.started_at) <= agora);
   };
   const segDaAcao = (t: Titulo, acao: Acao, opts: OpcoesRegistrar) => {
     if (acao === "min") return (opts.valor ?? 0) * 60;
@@ -298,7 +312,7 @@ export function MarPainel({
     const o: OpcoesRegistrar = sobra?.descartada && !sobra.seg ? { ...opts, semTimer: true } : opts;
     if (!o.ontem && !o.semTimer && timer.ver().marTituloId !== t.id) {
       const p = candidataPergunta(sessoesIdioma, idioma, Date.now(), Object.keys(dispensadas), timerParaPergunta());
-      if (p) { setPergunta({ tituloId: t.id, p, acao, opts: o, seg: segDaAcao(t, acao, o) }); return; }
+      if (p) { setPergunta({ tituloId: t.id, p, acao, opts: o, seg: segDaAcao(t, acao, o), em: Date.now() }); return; }
     }
     setPergunta(null);
     void executar(t, acao, o);
@@ -316,9 +330,32 @@ export function MarPainel({
       void executar(t, q.acao, { ...q.opts, semTimer: true });
       return;
     }
+    // a pergunta pode estar velha (o Timer parou, trocou de categoria ou salvou): confere de novo na hora
+    const agora = candidataPergunta(sessoesIdioma, idioma, Date.now(), Object.keys(dispensadas), timerParaPergunta());
+    if (agora?.chave !== q.p.chave) {
+      if (q.p.tipo === "rodando" && !agora && timer.lastSaved >= q.em) {
+        // o Timer acabou de salvar e a sessão ainda não chegou à tela: não somar às cegas
+        mostrar({ texto: "O Timer acabou de salvar. Marque de novo para escolher.", tom: "aviso", desfazer: false, somarMesmo: false, tentar: false });
+        return;
+      }
+      marcar(t, q.acao, q.opts);
+      return;
+    }
     if (q.p.tipo === "rodando") {
-      // o Timer que está contando passa a ser deste título (desde o começo deste foco)
-      timer.ligarMar({ id: t.id, titulo: t.titulo });
+      // a parte deste foco que já foi salva (Continuar) vira MAR primeiro; o Timer liga só no trecho novo
+      const salvas = salvasDoFoco();
+      let vinculadas = salvas.length > 0;
+      if (salvas.length) {
+        ocupar(t.id, true);
+        for (const x of salvas) {
+          const v = await vincularSessao(x.id, t);
+          if (!v.ok) { vinculadas = false; break; }
+        }
+        ocupar(t.id, false);
+        onTempo({ recarregar: true });
+      }
+      // o Timer que está contando passa a ser deste título (desde o começo deste foco, ou do trecho novo)
+      timer.ligarMar({ id: t.id, titulo: t.titulo }, { salvoVinculado: vinculadas });
       void executar(t, q.acao, q.opts, true);
       return;
     }
@@ -329,7 +366,7 @@ export function MarPainel({
     if (!v.ok) { mostrar({ texto: v.msg, tom: "erro", desfazer: false, somarMesmo: false, tentar: false }); return; }
     onTempo({ recarregar: true });
     void executar(t, q.acao, q.opts);
-  }, [pergunta, lista, dispensadas, executar, timer, mostrar, onTempo]);
+  }, [pergunta, lista, dispensadas, executar, timer, mostrar, onTempo, sessoesIdioma, idioma, marcar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── outras ações dos cartões ───
   const mudar = useCallback(async (t: Titulo, campos: Partial<Titulo>) => {
@@ -506,7 +543,10 @@ export function MarPainel({
       {/* 4) a lista: rola por dentro no computador */}
       <div className="mt-2 xl:flex-1 xl:min-h-0 xl:overflow-y-auto -mx-1 px-1 pb-0.5">
         {lista === null ? <p className="text-sm text-muted py-2">Carregando…</p>
-          : col[atual].length === 0 ? <p className="text-sm text-muted py-2">{ABAS.find((x) => x.id === atual)!.vazio}</p>
+          : col[atual].length === 0 ? <p className="text-sm text-muted py-2">{lista.length === 0
+            ? "Sua lista está vazia. Use “+ Adicionar” para pôr uma série, um filme, um canal ou um podcast."
+            : atual === "assistindo" && col.quero.length === 0 ? ABAS.find((x) => x.id === "quero")!.vazio
+            : ABAS.find((x) => x.id === atual)!.vazio}</p>
           : (
             <ul className="space-y-2">
               {col[atual].map((t) => (
@@ -606,6 +646,12 @@ function FormAdicionar({ idioma, posicao, onAdicionado }: { idioma: string; posi
   const [porVez, setPorVez] = useState("15");
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // (autoFocus não funciona: o Pop nasce invisível até se posicionar)
+  const campoTitulo = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const x = setTimeout(() => campoTitulo.current?.focus({ preventScroll: true }), 30);
+    return () => clearTimeout(x);
+  }, []);
 
   const durMin = lerMinutos(dur);
   const ok = !!titulo.trim() && (tipo !== "filme" || (!!durMin && durMin <= MAR_LIMITES.min));
@@ -629,7 +675,7 @@ function FormAdicionar({ idioma, posicao, onAdicionado }: { idioma: string; posi
     <form onSubmit={salvar} className="space-y-3 text-sm">
       <label className={campo}>
         <span className="label block">Título</span>
-        <input className="input" autoFocus value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="ex.: Friends" />
+        <input ref={campoTitulo} className="input" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="ex.: Friends" />
       </label>
       <div className="grid grid-cols-5 gap-1" role="radiogroup" aria-label="Tipo">
         {TIPOS.map((x) => (

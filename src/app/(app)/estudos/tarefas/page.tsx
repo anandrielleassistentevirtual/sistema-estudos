@@ -101,7 +101,8 @@ export default function Tarefas() {
   const fizUmaParte = (t: Tarefa) => trocar(t, { posicao: proximaPosicao(tarefas ?? []), destacada: false });
 
   async function fazerAgora(t: Tarefa) {
-    const ir = iniciarTarefa(t, timer, t.book_id ? livroDe.get(t.book_id) : null);
+    const ir = await iniciarTarefa(t, timer, t.book_id ? livroDe.get(t.book_id) : null);
+    if (!ir) return;
     // tarefa de escrever: abre a folha dela aqui mesmo
     if (t.tipo === "escrever") { setEscrevendo(t); return; }
     if (ir.rota) router.push(ir.rota);

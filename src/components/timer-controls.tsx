@@ -10,7 +10,7 @@ import { todas } from "@/lib/supabase/todas";
 import { Language, loadLanguages } from "@/lib/languages";
 import { bookName } from "@/lib/folders";
 import { porOrdem } from "@/lib/estudos";
-import { COR_MAR, duracao } from "@/lib/mar";
+import { COR_MAR } from "@/lib/mar";
 import { Combobox } from "./combobox";
 
 interface BookOpt { id: string; title: string; author: string | null; format: string; status: string; current_page: number | null; total_pages: number | null }
@@ -35,20 +35,10 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
   });
 
   /**
-   * Troca de categoria, idioma, rótulo ou modo. Ligado ao MAR com tempo contado: pergunta se encerra
-   * e salva antes (desligar no meio da corrida contaria em dobro); não → nada muda.
-   * Com o Timer zerado, a troca também desliga do MAR.
+   * Troca de categoria, idioma, rótulo ou modo (a regra é do provider, a mesma da Biblioteca e das Tarefas):
+   * ligado ao MAR com tempo contado, pergunta se encerra e salva antes; com o Timer zerado, desliga do MAR.
    */
-  async function trocar(patch: Partial<TimerState>) {
-    if (!t.marTituloId) { t.set(patch); return; }
-    if (t.seconds > 0) {
-      if (!confirm(`O Timer está ligado ao MAR (${t.marTitulo}, ${duracao(t.seconds)}). Encerrar e salvar antes de trocar?`)) return;
-      await t.stop();   // salva e já desliga do MAR
-      t.set(patch);
-      return;
-    }
-    t.set({ ...semMar(), ...patch });
-  }
+  const trocar = (patch: Partial<TimerState>) => t.trocar(patch);
 
   const [books, setBooks] = useState<BookOpt[]>([]);
   const [notes, setNotes] = useState<NoteOpt[]>([]);

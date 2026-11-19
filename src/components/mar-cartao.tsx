@@ -88,17 +88,31 @@ export function Pop({ ancora, onFechar, titulo, largura = 300, children }: {
 }) {
   const celular = useCelular();
   const caixa = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
+  const conteudo = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
   const fechar = useRef(onFechar);
   fechar.current = onFechar;
 
+  // posiciona ao abrir e de novo sempre que o conteúdo muda de tamanho (chip "Vários episódios", a pergunta do
+  // Cronometrar…): abre para baixo se couber, senão para cima; nunca passa da janela (rola por dentro)
   useLayoutEffect(() => {
     if (celular || !ancora) return;
-    const r = ancora.getBoundingClientRect();
-    const h = caixa.current?.offsetHeight ?? 260;
-    const left = Math.max(8, Math.min(window.innerWidth - largura - 8, r.right - largura));
-    const embaixo = window.innerHeight - r.bottom;
-    setPos(embaixo >= h + 12 || embaixo >= r.top ? { left, top: r.bottom + 6 } : { left, bottom: window.innerHeight - r.top + 6 });
+    const posicionar = () => {
+      const r = ancora.getBoundingClientRect();
+      // altura do conteúdo inteiro (sem o limite), mais o p-3 da caixa
+      const h = (conteudo.current?.scrollHeight ?? 236) + 24;
+      const left = Math.max(8, Math.min(window.innerWidth - largura - 8, r.right - largura));
+      const embaixo = window.innerHeight - r.bottom - 12;
+      const emcima = r.top - 12;
+      const desce = embaixo >= h || embaixo >= emcima;
+      setPos(desce
+        ? { left, top: r.bottom + 6, maxHeight: Math.max(120, embaixo) }
+        : { left, bottom: window.innerHeight - r.top + 6, maxHeight: Math.max(120, emcima) });
+    };
+    posicionar();
+    const ro = typeof ResizeObserver !== "undefined" && conteudo.current ? new ResizeObserver(posicionar) : null;
+    if (ro && conteudo.current) ro.observe(conteudo.current);
+    return () => ro?.disconnect();
   }, [ancora, celular, largura]);
 
   useEffect(() => {
@@ -141,9 +155,9 @@ export function Pop({ ancora, onFechar, titulo, largura = 300, children }: {
     );
   }
   return createPortal(
-    <div ref={caixa} role="dialog" aria-label={titulo} className="fixed z-[80] card shadow-xl p-3"
-      style={{ width: largura, left: pos?.left ?? 0, top: pos?.top, bottom: pos?.bottom, visibility: pos ? "visible" : "hidden" }}>
-      {children}
+    <div ref={caixa} role="dialog" aria-label={titulo} className="fixed z-[80] card shadow-xl p-3 overflow-y-auto overscroll-contain"
+      style={{ width: largura, left: pos?.left ?? 0, top: pos?.top, bottom: pos?.bottom, maxHeight: pos?.maxHeight, visibility: pos ? "visible" : "hidden" }}>
+      <div ref={conteudo}>{children}</div>
     </div>,
     document.body,
   );
@@ -474,6 +488,12 @@ export function MarCartao(props: PropsCartao) {
         <button type="button" className={`btn px-2 py-1.5 sm:py-1 min-h-9 min-w-9 sm:min-h-0 sm:min-w-0 justify-center ${pop === "mais" ? "bg-surface-2" : ""}`} aria-label="Outras formas de marcar" title="Vários episódios, parei em…, foi ontem, cronometrar"
           aria-expanded={pop === "mais"} disabled={ocupado} onClick={(e) => abrir("mais", e.currentTarget)}><ChevronDown size={15} /></button>
       </>
+    ) : total > 0 ? (
+      // viu tudo (ex.: posição salva no último episódio pelo editor): falta só mover para Vistos
+      <button type="button" className={`btn py-1.5 sm:py-1 min-h-9 sm:min-h-0 px-2.5 text-[13px] ${celular ? "flex-1 justify-center" : ""}`} disabled={ocupado}
+        title="Todos os episódios estão vistos. Não soma tempo." onClick={() => acoes.ajustar(t, { situacao: "visto" })}>
+        <Check size={14} style={{ color: COR_MAR }} /> Terminei · mover para Vistos
+      </button>
     ) : (
       <button type="button" className={`btn py-1.5 sm:py-1 min-h-9 sm:min-h-0 px-2.5 text-[13px] ${celular ? "flex-1 justify-center" : ""}`} onClick={() => acoes.editar(t)}>
         <ListPlus size={14} style={{ color: COR_MAR }} /> episódios por temporada
@@ -484,8 +504,9 @@ export function MarCartao(props: PropsCartao) {
         c.desfazer,
         { label: "Temporadas e minutagem…", icon: Tv, onClick: () => acoes.editar(t) },
         ...(total === 0 ? [{ label: "+ min…", icon: Plus, onClick: () => { setAncora(raiz.current?.querySelector<HTMLElement>("[data-ancora]") ?? null); setPop("min"); } }] : []),
-        ...(total > 0 && vistos < total ? [{ label: "Marcar como vista…", icon: Check, onClick: () => {
+        ...(total > 0 ? [{ label: vistos < total ? "Marcar como vista…" : "Marcar como vista", icon: Check, onClick: () => {
           const faltam = total - vistos;
+          if (faltam <= 0) { acoes.ajustar(t, { situacao: "visto" }); return; }
           if (confirm(`Marcar ${t.titulo} como vista? Faltam ${faltam} ${faltam === 1 ? "episódio" : "episódios"} (${duracao(segundosFalta(t))}). Não soma tempo.`)) acoes.ajustar(t, { situacao: "visto" });
         } }] : []),
         c.quero, ...c.nivel, c.boia, ...c.tipos, c.apagar,
