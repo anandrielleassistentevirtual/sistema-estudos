@@ -2,14 +2,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookHeart, BookOpen, Feather, ListChecks, Pause, Play, RotateCcw, Square, X } from "lucide-react";
-import { CATEGORIAS, useTimer } from "./timer-context";
+import { BookHeart, BookOpen, Feather, ListChecks, Pause, Play, RotateCcw, Square, Waves, X } from "lucide-react";
+import { CATEGORIAS, TimerState, useTimer } from "./timer-context";
 import { dayKey, fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import { Language, loadLanguages } from "@/lib/languages";
 import { bookName } from "@/lib/folders";
 import { porOrdem } from "@/lib/estudos";
+import { COR_MAR, duracao } from "@/lib/mar";
 import { Combobox } from "./combobox";
 
 interface BookOpt { id: string; title: string; author: string | null; format: string; status: string; current_page: number | null; total_pages: number | null }
@@ -27,6 +28,28 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
     if (!t.running) t.start();
     if (path) router.push(path);
   }
+  /** Os campos do MAR vazios (o rótulo "MAR · título" posto pelo vínculo também sai). */
+  const semMar = (): Partial<TimerState> => ({
+    marTituloId: "", marTitulo: "", marCorrida: "", marDesde: 0,
+    ...(t.label === `MAR · ${t.marTitulo}` ? { label: "" } : {}),
+  });
+
+  /**
+   * Troca de categoria, idioma, rótulo ou modo. Ligado ao MAR com tempo contado: pergunta se encerra
+   * e salva antes (desligar no meio da corrida contaria em dobro); não → nada muda.
+   * Com o Timer zerado, a troca também desliga do MAR.
+   */
+  async function trocar(patch: Partial<TimerState>) {
+    if (!t.marTituloId) { t.set(patch); return; }
+    if (t.seconds > 0) {
+      if (!confirm(`O Timer está ligado ao MAR (${t.marTitulo}, ${duracao(t.seconds)}). Encerrar e salvar antes de trocar?`)) return;
+      await t.stop();   // salva e já desliga do MAR
+      t.set(patch);
+      return;
+    }
+    t.set({ ...semMar(), ...patch });
+  }
+
   const [books, setBooks] = useState<BookOpt[]>([]);
   const [notes, setNotes] = useState<NoteOpt[]>([]);
   const [langs, setLangs] = useState<Language[]>([]);
@@ -63,7 +86,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
     <div className="flex flex-col items-center min-w-0">
       <div className={`inline-flex rounded-lg bg-surface-2 p-1 text-sm ${compact ? "mb-3" : "mb-4"}`}>
         {(["pomodoro", "livre"] as const).map((m) => (
-          <button key={m} disabled={t.running} onClick={() => t.set({ mode: m, phase: "foco", elapsed: 0 })}
+          <button key={m} disabled={t.running} onClick={() => { if (m !== t.mode) void trocar({ mode: m, phase: "foco", elapsed: 0 }); }}
             className={`px-3 py-1 rounded-md ${t.mode === m ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
             {m === "pomodoro" ? "Pomodoro" : "Cronômetro"}
           </button>
@@ -138,7 +161,19 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
     </div>
 
     <div className={compact ? "contents" : "flex flex-col w-full"}>
-      {t.tarefaId && (
+      {t.marTituloId ? (
+        // ligado a um título do MAR: o tempo gravado vai para ele (os episódios marcados não somam de novo)
+        <div className={`flex items-center gap-2 rounded-full bg-surface-2 pl-3 pr-1.5 py-1 text-xs max-w-full ${compact ? "mt-3" : "mb-4 self-start"}`}
+          title="O tempo deste Timer conta no MAR deste título">
+          <Waves size={13} className="shrink-0" style={{ color: COR_MAR }} />
+          <span className="truncate">MAR · {t.marTitulo}</span>
+          {/* aria-disabled (e não disabled) para o title aparecer ao passar o mouse */}
+          <button className={`shrink-0 ${t.seconds > 0 ? "text-faint opacity-40 cursor-not-allowed" : "text-faint hover:text-ink"}`}
+            aria-disabled={t.seconds > 0} aria-label="Desligar do MAR"
+            title={t.seconds > 0 ? "Encerre o Timer para desligar do MAR" : "Desligar do MAR"}
+            onClick={() => { if (t.seconds === 0) t.set(semMar()); }}><X size={13} /></button>
+        </div>
+      ) : t.tarefaId && (
         // o foco está ligado a uma tarefa dos Estudos: o tempo fica somado nela
         <div className={`flex items-center gap-2 rounded-full bg-surface-2 pl-3 pr-1.5 py-1 text-xs max-w-full ${compact ? "mt-3" : "mb-4 self-start"}`}>
           <ListChecks size={13} className="text-icon shrink-0" />
@@ -150,7 +185,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
       <div className={`grid grid-cols-1 gap-3 w-full ${compact ? "mt-4" : "sm:grid-cols-2"}`}>
         <label className="space-y-1">
           <span className="label">Categoria</span>
-          <select className="input" value={t.category} onChange={(e) => t.set({ category: e.target.value, tarefaId: "", tarefaTexto: "" })}>
+          <select className="input" value={t.category} onChange={(e) => void trocar({ category: e.target.value, tarefaId: "", tarefaTexto: "" })}>
             {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}
           </select>
         </label>
@@ -215,14 +250,16 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
           <>
             <label className="space-y-1">
               <span className="label">Idioma</span>
-              <select className="input" value={t.language} onChange={(e) => t.set({ language: e.target.value })}>
+              <select className="input" value={t.language} onChange={(e) => void trocar({ language: e.target.value })}>
                 <option value="">Escolha o idioma…</option>
                 {langs.map((l) => <option key={l.id} value={l.name}>{l.name}</option>)}
               </select>
             </label>
             <label className="space-y-1">
               <span className="label">Onde / o quê</span>
-              <input className="input" value={t.label} placeholder="ex.: Plataforma do Mairo" onChange={(e) => t.set({ label: e.target.value })} />
+              <input className="input" value={t.label} placeholder="ex.: Plataforma do Mairo" list="rotulos-idiomas" onChange={(e) => void trocar({ label: e.target.value })} />
+              {/* "MAR" no começo do rótulo conta no MAR do idioma (sem título ligado, só pelo rótulo) */}
+              <datalist id="rotulos-idiomas"><option value="MAR" /></datalist>
             </label>
           </>
         )}

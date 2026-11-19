@@ -7,8 +7,9 @@ import { TimerControls } from "@/components/timer-controls";
 import { dayKey, fmtDuration } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { ankiPorIdioma, contaComoEstudo } from "@/lib/tempo";
+import { apagarSessaoMar } from "@/lib/mar";
 
-interface Session { id: string; started_at: string; seconds: number; category: string; label: string }
+interface Session { id: string; started_at: string; seconds: number; category: string; label: string; mar_titulo_id?: string | null }
 
 export default function TimerPage() {
   const t = useTimer();
@@ -35,6 +36,18 @@ export default function TimerPage() {
       ankiWeb: a.ankiWeb,
     });
   };
+  /** Tempo do MAR sai pelo banco (os episódios que ele cobria voltam a contar pela minutagem); o resto, delete comum. */
+  async function apagar(s: Session) {
+    if (s.mar_titulo_id) {
+      if (!confirm("Apagar este tempo do MAR? Se ele cobria episódios, eles voltam a contar pela minutagem.")) return;
+      const r = await apagarSessaoMar(s.id);
+      if (!r.ok) { alert(r.msg); return; }
+    } else {
+      await supabase().from("study_sessions").delete().eq("id", s.id);
+    }
+    void load();
+  }
+
   useEffect(() => {
     void load();
   }, [t.lastSaved]);
@@ -95,7 +108,7 @@ export default function TimerPage() {
                 <span className="flex items-center gap-2 shrink-0">
                   <span className="tabular-nums text-muted">{fmtDuration(s.seconds)}</span>
                   <button className="p-1 -m-1 sm:opacity-0 sm:group-hover:opacity-100 text-faint hover:text-critical" title="Apagar"
-                    onClick={async () => { await supabase().from("study_sessions").delete().eq("id", s.id); void load(); }}>
+                    onClick={() => void apagar(s)}>
                     <Trash2 size={14} />
                   </button>
                 </span>

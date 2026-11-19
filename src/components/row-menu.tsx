@@ -17,7 +17,11 @@ export interface MenuItem {
  * Botão "•••" com as ações secundárias de uma linha (como nos apps da Apple).
  * O menu abre por cima de tudo (fora da linha), para não ser cortado por listas com rolagem ou cartões.
  */
-export function RowMenu({ items, label = "Mais ações" }: { items: MenuItem[]; label?: string }) {
+export function RowMenu({ items, label = "Mais ações", botaoClass = "p-2 sm:p-1.5" }: {
+  items: MenuItem[]; label?: string;
+  /** espaçamento do botão (área de toque): padrão "p-2 sm:p-1.5" */
+  botaoClass?: string;
+}) {
   const [pos, setPos] = useState<{ right: number; top?: number; bottom?: number } | null>(null);
   const botao = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -56,7 +60,7 @@ export function RowMenu({ items, label = "Mais ações" }: { items: MenuItem[]; 
   return (
     <div className="relative">
       <button ref={botao} type="button" aria-label={label} title={label} aria-haspopup="menu" aria-expanded={aberto}
-        className={`p-2 sm:p-1.5 rounded-full transition-colors ${aberto ? "bg-sel text-ink" : "text-muted hover:text-ink hover:bg-sel"}`}
+        className={`${botaoClass} rounded-full transition-colors ${aberto ? "bg-sel text-ink" : "text-muted hover:text-ink hover:bg-sel"}`}
         onClick={abrir}>
         <MoreHorizontal size={17} />
       </button>
