@@ -38,8 +38,8 @@ export function Heatmap({
   selected?: string | null;
   /** nome da quantidade na dica (padrão: o da métrica) */
   unidade?: string;
-  /** escala de cores (padrão: azul; "escritas" usa laranja) */
-  paleta?: "heat" | "out" | "ama";
+  /** escala de cores (padrão: azul; "escritas" usa laranja e o Anki verde, as cores das áreas) */
+  paleta?: "heat" | "out" | "ama" | "verde";
   /** (o calendário já cabe sempre na largura; mantido por compatibilidade) */
   encaixar?: boolean;
   /** período escolhido no filtro (aaaa-mm-dd): os dias de fora ficam apagados e as cores se calculam só com os de dentro */
@@ -141,8 +141,8 @@ export function Heatmap({
     for (const t of ts) if (v > t) l++;
     return Math.min(5, l);
   };
-  /** escrita (saída) em laranja; o resto em azul */
-  const escala = paleta ?? (metric === "escritas" ? "out" : "heat");
+  /** as cores das áreas: escrita em laranja, Anki (Idiomas) em verde; tempo e leitura em azul */
+  const escala = paleta ?? (metric === "escritas" ? "out" : metric === "anki" ? "verde" : "heat");
   const cor = (v: number) => `var(--${v > 0 ? escala : "heat"}-${nivel(v, thresholds)})`;
   const x = (c: number) => rotulo + c * passo;
   const y = (f: number, d: number) => f * (alturaFaixa + ENTRE_FAIXAS) + TOPO + d * passo;
@@ -200,7 +200,8 @@ export function Heatmap({
           {nomes.map((n) => <div key={n} className="text-[10px] text-muted text-center">{n}</div>)}
           {linhas.flat().map((c) => {
             const dia = Number(c.day.slice(8));
-            const fundo = c.future || c.fora ? "var(--heat-0)" : cor(c.v);
+            // fora do período: a cor do dia, bem apagada (contexto); futuro: vazio
+            const fundo = c.future ? "var(--heat-0)" : cor(c.v);
             const forte = !c.future && !c.fora && nivel(c.v, thresholds) >= 3;
             return (
               <div key={c.day}
@@ -214,7 +215,7 @@ export function Heatmap({
                   onSelect?.(c.day);
                 }}
                 className={`rounded-md grid place-items-center text-[11px] tabular-nums ${onSelect && !c.future ? "cursor-pointer" : ""}`}
-                style={{ height: lado, background: fundo, opacity: c.future ? 0.25 : c.fora ? 0.35 : 1, color: forte ? "#fff" : "var(--muted)",
+                style={{ height: lado, background: fundo, opacity: c.future ? 0.25 : c.fora ? 0.3 : 1, color: forte ? "#fff" : "var(--muted)",
                   outline: c.day === today ? "1.5px solid var(--muted)" : selected === c.day ? "2px solid var(--text)" : undefined }}>
                 {dia}
               </div>

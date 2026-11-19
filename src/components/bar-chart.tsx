@@ -15,6 +15,7 @@ export function BarChart({
   average,
   meta,
   alturaExata,
+  cor = "var(--chart)",
 }: {
   data: { label: string; value: number; detail?: string }[];
   unit: string;
@@ -24,6 +25,8 @@ export function BarChart({
   meta?: number;
   /** usa a altura pedida em qualquer largura (quando quem chama já calculou o espaço disponível) */
   alturaExata?: boolean;
+  /** cor das barras: a da área do dado (ex.: Idiomas em verde); sem área, o grafite dos gráficos */
+  cor?: string;
 }) {
   const [sel, setSel] = useState<number | null>(null);
   const [largura, setLargura] = useState(0);
@@ -126,9 +129,13 @@ export function BarChart({
                 width: "62%",
                 maxWidth: 40,
                 height: d.value > 0 ? `max(2px, ${(d.value / nice) * 100}%)` : 0,
-                background: meta && d.value >= meta
-                  ? "linear-gradient(to top, color-mix(in srgb, var(--good) 35%, transparent), var(--good))"
-                  : "linear-gradient(to top, color-mix(in srgb, var(--chart) 35%, transparent), var(--chart))",
+                // com linha de meta, a cor diz se a barra chegou nela (verde) ou não (grafite);
+                // sem meta, as barras ficam na cor da área do dado
+                background: meta && meta > 0
+                  ? d.value >= meta
+                    ? "linear-gradient(to top, color-mix(in srgb, var(--good) 35%, transparent), var(--good))"
+                    : "linear-gradient(to top, color-mix(in srgb, var(--chart) 35%, transparent), var(--chart))"
+                  : `linear-gradient(to top, color-mix(in srgb, ${cor} 45%, transparent), ${cor})`,
                 opacity: sel === null || sel === i ? 1 : 0.45,
               }}
             />

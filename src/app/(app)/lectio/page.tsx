@@ -229,10 +229,10 @@ export default function Lectio() {
           <div className="relative w-16 h-16 shrink-0">
             <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
               <circle cx="32" cy="32" r="28" fill="none" stroke="var(--surface-2)" strokeWidth="5" />
-              <circle cx="32" cy="32" r="28" fill="none" stroke="var(--accent)" strokeWidth="5" strokeLinecap="round"
+              <circle cx="32" cy="32" r="28" fill="none" stroke="var(--area-oracao)" strokeWidth="5" strokeLinecap="round"
                 strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - (fim ? 1 : pct))} style={{ transition: "stroke-dashoffset .25s linear" }} />
             </svg>
-            <span className="absolute inset-0 grid place-items-center text-xs font-mono tabular-nums">{fim ? "✓" : fmtClock(Math.max(0, restante))}</span>
+            <span className="absolute inset-0 grid place-items-center text-[13px] tabular-nums">{fim ? "✓" : fmtClock(Math.max(0, restante))}</span>
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-medium">{fim ? "Lectio concluída" : `${atual.nome} — ${atual.pergunta}`}</div>
@@ -268,7 +268,7 @@ export default function Lectio() {
                 <div className="inline-block text-left leading-[1.8] text-[1.08em]">
                   {VENI.map(([r, t], i) => (
                     <p key={i} className={r === "" ? "pl-[1.6em]" : ""}>
-                      {r && <span className="text-accent inline-block w-[1.6em]">{r}</span>}{t}
+                      {r && <span className="text-rubrica inline-block w-[1.6em]">{r}</span>}{t}
                     </p>
                   ))}
                 </div>
@@ -284,7 +284,7 @@ export default function Lectio() {
                 <p className="text-[0.85em] text-muted mb-3 text-left">{dado.titulo}</p>
                 {dado.introducao && <span>{dado.introducao} </span>}
                 {dado.versiculos.map((v) => (
-                  <span key={v.n}><sup className="text-[0.65em] text-accent font-sans mr-0.5">{v.n}</sup>{v.texto} </span>
+                  <span key={v.n}><sup className="text-[0.65em] text-rubrica font-sans mr-0.5">{v.n}</sup>{v.texto} </span>
                 ))}
               </article>
             )}

@@ -80,7 +80,7 @@ export function Combobox({
         )}
       </div>
       {open && (
-        <ul ref={list} className="absolute z-[80] mt-1 w-full max-h-64 overflow-y-auto card shadow-xl py-1 text-sm">
+        <ul ref={list} className="absolute z-[80] mt-1 w-full max-h-64 overflow-y-auto popover py-1 text-sm">
           {filtered.length === 0 && <li className="px-3 py-2 text-muted">{emptyText}</li>}
           {filtered.map((o, i) => (
             <li key={o.value} data-i={i}

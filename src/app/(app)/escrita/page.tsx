@@ -5,10 +5,18 @@ import { useEffect, useState } from "react";
 import { BookOpen, BookText, Feather, PenTool, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { supabase } from "@/lib/supabase/client";
-import { dayKey, nf } from "@/lib/dates";
+import { addDays, dayKey, nf, parseDay } from "@/lib/dates";
+import { MiniBarras } from "@/components/mini-barras";
 import { TIPOS, tipoDe, type Projeto, type TipoProjeto } from "@/lib/escrita";
 
-interface Resumo { palavras: number; hoje: number }
+interface Resumo { palavras: number; hoje: number; dias: Map<string, number> }
+/** os últimos 14 dias (do mais antigo a hoje), para o mini-gráfico de cada projeto */
+const QUINZENA = () => Array.from({ length: 14 }, (_, i) => dayKey(addDays(new Date(), i - 13)));
+/** "hoje", "ontem", "há 5 dias", "12/10" */
+function quando(iso: string) {
+  const d = Math.round((parseDay(dayKey()).getTime() - parseDay(dayKey(new Date(iso))).getTime()) / 864e5);
+  return d <= 0 ? "hoje" : d === 1 ? "ontem" : d < 30 ? `há ${d} dias` : new Date(iso).toLocaleDateString("pt-BR", { day: "numeric", month: "numeric" });
+}
 
 const ICONE: Record<TipoProjeto, typeof BookOpen> = { conto: Feather, novela: BookText, romance: BookOpen, ensaio: PenTool };
 
@@ -24,15 +32,21 @@ export default function Escrita() {
     const [p, d, s] = await Promise.all([
       sb.from("escrita_projetos").select("*").order("updated_at", { ascending: false }),
       sb.from("escrita_docs").select("projeto_id,palavras,secao"),
-      sb.from("escrita_sessoes").select("projeto_id,palavras").eq("dia", dayKey()),
+      sb.from("escrita_sessoes").select("projeto_id,palavras,dia").gte("dia", QUINZENA()[0]),
     ]);
     setProjetos((p.data as Projeto[]) ?? []);
     const r: Record<string, Resumo> = {};
+    const novo = (): Resumo => ({ palavras: 0, hoje: 0, dias: new Map() });
     for (const x of (d.data as { projeto_id: string; palavras: number; secao: string }[]) ?? []) {
       if (x.secao !== "manuscrito") continue;
-      (r[x.projeto_id] ??= { palavras: 0, hoje: 0 }).palavras += x.palavras;
+      (r[x.projeto_id] ??= novo()).palavras += x.palavras;
     }
-    for (const x of (s.data as { projeto_id: string; palavras: number }[]) ?? []) (r[x.projeto_id] ??= { palavras: 0, hoje: 0 }).hoje += x.palavras;
+    const hoje = dayKey();
+    for (const x of (s.data as { projeto_id: string; palavras: number; dia: string }[]) ?? []) {
+      const p = (r[x.projeto_id] ??= novo());
+      p.dias.set(x.dia, (p.dias.get(x.dia) ?? 0) + x.palavras);
+      if (x.dia === hoje) p.hoje += x.palavras;
+    }
     setResumo(r);
   }
   useEffect(() => { void load(); }, []);
@@ -47,11 +61,12 @@ export default function Escrita() {
     <Page title="Escrita" subtitle="Contos, novelas, romances e ensaios em produção."
       actions={<button className="btn btn-primary" onClick={() => setNovo(true)}><Plus size={15} /> Novo projeto</button>}>
       {projetos && projetos.length === 0 && (
-        <Empty>Nenhum projeto ainda. Crie um conto, novela, romance ou ensaio para começar a escrever.</Empty>
+        <Empty icone={Feather}>Nenhum projeto ainda. Crie um conto, novela, romance ou ensaio para começar a escrever.</Empty>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {projetos?.map((p) => {
-          const r = resumo[p.id] ?? { palavras: 0, hoje: 0 };
+          const r = resumo[p.id] ?? { palavras: 0, hoje: 0, dias: new Map<string, number>() };
+          const serie = QUINZENA().map((k) => Math.max(0, r.dias.get(k) ?? 0));
           const pct = p.meta_palavras ? Math.min(1, r.palavras / p.meta_palavras) : 0;
           const tipo = tipoDe(p.tipo);
           const Icone = ICONE[p.tipo] ?? BookOpen;
@@ -65,17 +80,30 @@ export default function Escrita() {
                   <button className="p-1 text-faint hover:text-critical" title="Apagar projeto" onClick={() => apagar(p)}><Trash2 size={14} /></button>
                 </span>
               </div>
-              <h2 className="mt-4 text-lg leading-snug">{p.titulo}</h2>
+              {/* o título da obra em serifa, como nas capas da Biblioteca */}
+              <h2 className="mt-4 text-[1.2rem] leading-snug font-serif">{p.titulo}</h2>
               <p className="text-sm text-muted">{p.autor || " "}</p>
-              <div className="mt-5 flex items-baseline justify-between text-sm">
-                <span className="tabular-nums">{nf.format(r.palavras)} <span className="text-muted">palavras</span></span>
-                {r.hoje > 0 && <span className="text-xs text-muted">hoje +{nf.format(r.hoje)}</span>}
+              {/* o total (e a meta), com as palavras de cada dia das últimas duas semanas ao lado */}
+              <div className="mt-5 flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[1.35rem] font-medium tracking-[-0.02em] tabular-nums leading-none">{nf.format(r.palavras)}</div>
+                  <div className="text-xs text-muted mt-1 truncate">
+                    {p.meta_palavras > 0 ? <>de {nf.format(p.meta_palavras)} palavras · <span className="tabular-nums">{Math.round(pct * 100)}%</span></> : "palavras"}
+                  </div>
+                </div>
+                {serie.some((v) => v > 0) && (
+                  <MiniBarras valores={serie} cor="var(--area-escrita)" largura={84} altura={26} titulo="Palavras escritas por dia nas últimas duas semanas" />
+                )}
               </div>
               {p.meta_palavras > 0 && (
-                <div className="mt-2 h-1.5 rounded-full bg-surface-2 overflow-hidden" title={`Meta: ${nf.format(p.meta_palavras)} palavras`}>
-                  <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--chart)" }} />
+                <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden" title={`Meta: ${nf.format(p.meta_palavras)} palavras`}>
+                  <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--area-escrita)" }} />
                 </div>
               )}
+              <div className="mt-2 flex items-baseline justify-between gap-2 text-[11px] text-faint">
+                <span>editado {quando(p.updated_at)}</span>
+                {r.hoje > 0 && <span className="text-muted tabular-nums">hoje +{nf.format(r.hoje)}</span>}
+              </div>
             </div>
           );
         })}
@@ -108,8 +136,8 @@ function Modal({ titulo, onClose, children }: { titulo: string; onClose: () => v
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div className="card p-6 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg">{titulo}</h2>
-          <button className="text-muted hover:text-ink" onClick={onClose}><X size={18} /></button>
+          <h2 className="modal-title">{titulo}</h2>
+          <button onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         {children}
       </div>

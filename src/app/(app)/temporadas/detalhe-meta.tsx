@@ -154,7 +154,7 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
                   <li key={it.id} className="py-2 text-sm">
                     <div className="flex items-baseline justify-between gap-3">
                       <span className={`min-w-0 line-clamp-2 break-words ${it.feito ? "text-muted line-through" : ""}`}>{it.titulo}</span>
-                      <span className="shrink-0 text-xs tabular-nums" style={{ color: it.feito ? "var(--good)" : it.ok ? "var(--muted)" : "#c98a1a" }}>{it.feito ? "✓ feito" : it.quando ?? "—"}</span>
+                      <span className="shrink-0 text-xs tabular-nums" style={{ color: it.feito ? "var(--good)" : it.ok ? "var(--muted)" : "var(--warn)" }}>{it.feito ? "✓ feito" : it.quando ?? "—"}</span>
                     </div>
                     <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted tabular-nums">
                       <span className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${pct * 100}%`, background: cor }} /></span>
@@ -196,7 +196,7 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
                           {x?.palavras ? `${nf.format(x.palavras)} pal.` : "—"}{x?.segundos ? ` · ${fmtDuration(x.segundos)}` : ""}
                         </td>
                         <td className="text-muted text-xs">{it.feito ? "—" : `${nf.format(Math.round(it.falta))} pal.`}</td>
-                        <td className="!pr-0 text-xs" style={{ color: it.feito ? "var(--good)" : it.ok ? "var(--muted)" : "#c98a1a" }}>{it.feito ? "✓ feito" : it.quando ?? "—"}</td>
+                        <td className="!pr-0 text-xs" style={{ color: it.feito ? "var(--good)" : it.ok ? "var(--muted)" : "var(--warn)" }}>{it.feito ? "✓ feito" : it.quando ?? "—"}</td>
                       </tr>
                     );
                   })}

@@ -155,7 +155,7 @@ export default function Mesa() {
           <span className="text-sm text-muted">{palavrasCurto(prog.lidas)} de {palavrasCurto(prog.total)} palavras · {prog.livrosLidos} de {prog.livros} {prog.livros === 1 ? "livro" : "livros"}</span>
         </div>
         <div className="mt-2 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-          <div className="h-full rounded-full bg-chart" style={{ width: `${prog.pct * 100}%` }} />
+          <div className="h-full rounded-full bg-area-leitura" style={{ width: `${prog.pct * 100}%` }} />
         </div>
         <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-muted">
           <span>{proximo ? <>Próximo: <span className="text-ink">{titulo(proximo)}</span></> : itens.length ? "Mesa concluída." : "Nenhum livro ainda."}</span>
@@ -258,8 +258,8 @@ function Janela({ titulo, onClose, children }: { titulo: string; onClose: () => 
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div className="card w-full max-w-md p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg">{titulo}</h2>
-          <button className="text-muted hover:text-ink" onClick={onClose}><X size={18} /></button>
+          <h2 className="modal-title">{titulo}</h2>
+          <button onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         {children}
       </div>

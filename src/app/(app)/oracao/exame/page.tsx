@@ -14,7 +14,7 @@ import { corrigirUltimaConfissao, dataBr, ultimaConfissao } from "@/lib/confissa
 const TRANCAR_PARADO = 10 * 60_000;    // 10 min sem mexer
 const TRANCAR_FORA = 60_000;           // 1 min com o app em segundo plano
 const ROTULO: Record<string, string> = { cp: "Anterior", m1: "1º", m2: "2º", m3: "3º", m4: "4º", m5: "5º", m6: "6º/9º", m7: "7º/10º", m8: "8º" };
-const vermelho = { color: "var(--bad, #d33)" };
+const vermelho = { color: "var(--critical)" };
 
 export default function ExameDeConsciencia() {
   const { cofre, chave, dados, gravacao, aviso, setAviso, mudar, abrir, criar, apagarTudo, trancar, confessar } = useCofre();
@@ -105,7 +105,7 @@ export default function ExameDeConsciencia() {
       actions={
         <>
           {gravacao === "sem-conexao" ? (
-            <span className="text-xs flex items-center gap-1" style={{ color: "#c98a1a" }} title="As mudanças estão guardadas, cifradas, neste aparelho; o envio é tentado de novo sozinho">
+            <span className="text-xs flex items-center gap-1" style={{ color: "var(--warn)" }} title="As mudanças estão guardadas, cifradas, neste aparelho; o envio é tentado de novo sozinho">
               <CloudOff size={13} /> Sem conexão: guardado neste aparelho
             </span>
           ) : (
@@ -125,7 +125,7 @@ export default function ExameDeConsciencia() {
         )}
 
         {dados.penitencia && (
-          <section className="card p-5 flex flex-wrap items-start gap-3 justify-between" style={{ borderColor: "color-mix(in srgb, #c98a1a 50%, transparent)" }}>
+          <section className="card p-5 flex flex-wrap items-start gap-3 justify-between" style={{ borderColor: "color-mix(in srgb, var(--warn) 50%, transparent)" }}>
             <div className="min-w-0">
               <div className="label">Penitência a cumprir · confissão de {dataBr(dados.penitencia.desde)}</div>
               <p className="mt-1 whitespace-pre-wrap">{dados.penitencia.texto}</p>
@@ -169,7 +169,7 @@ export default function ExameDeConsciencia() {
               }}>
               <summary className="cursor-pointer list-none p-5 flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="font-medium flex items-center gap-2">
+                  <h2 className="card-title flex items-center gap-2">
                     {m.titulo}
                     {feito && <span className="text-xs font-normal text-muted inline-flex items-center gap-1"><CircleCheck size={13} /> examinado</span>}
                   </h2>
@@ -184,7 +184,7 @@ export default function ExameDeConsciencia() {
                 <div className="px-5 pb-4 -mt-2">
                   <UltimaConfissao key={ultima ?? "nenhuma"} ultima={ultima} onMudar={async (d) => { await corrigirUltimaConfissao(d); setUltima(d); }} />
                   {dias !== null && dias > PRAZO_CONFISSAO && (
-                    <p className="mt-2 text-sm" style={{ color: "#c98a1a" }}>Já passou de {PRAZO_CONFISSAO} dias: está na hora da confissão.</p>
+                    <p className="mt-2 text-sm" style={{ color: "var(--warn)" }}>Já passou de {PRAZO_CONFISSAO} dias: está na hora da confissão.</p>
                   )}
                 </div>
               )}

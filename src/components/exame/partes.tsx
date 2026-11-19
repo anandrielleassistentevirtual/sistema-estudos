@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { ANTES_DO_EXAME, ATO_DE_CONTRICAO, CONTRICAO_PERFEITA, QUANTIDADES, diasDesde, quantidadeValida, tempoDesde } from "@/lib/exame";
 import { dataBr, hojeIso } from "@/lib/confissao";
 
-const vermelho = { color: "var(--bad, #d33)" };
+const vermelho = { color: "var(--critical)" };
 
 /** Quantas vezes (obrigatório) e, quando o pecado pede, a circunstância. */
 export function Quantidade({ valor, dica, nota, cobrar, onMudar, onNota }: {
@@ -15,7 +15,7 @@ export function Quantidade({ valor, dica, nota, cobrar, onMudar, onNota }: {
     <div className="mt-2 ml-8 space-y-1.5">
       <div className="text-xs text-muted">Quantas vezes?</div>
       <div className={`flex flex-wrap gap-1.5 rounded-lg ${falta && cobrar ? "ring-2 ring-offset-2 ring-offset-surface p-0.5" : ""}`}
-        style={falta && cobrar ? { ["--tw-ring-color" as string]: "var(--bad, #d33)" } : undefined}>
+        style={falta && cobrar ? { ["--tw-ring-color" as string]: "var(--critical)" } : undefined}>
         {QUANTIDADES.map((q) => (
           <button key={q} type="button" onClick={() => onMudar(q)}
             className={`text-sm rounded-full px-3 py-1 border transition-colors ${valor === q ? "bg-chart border-chart text-bg font-medium" : "border-line text-muted hover:text-ink"}`}>{q}</button>
@@ -80,7 +80,7 @@ export function Contricao() {
   return (
     <section className="card p-5 space-y-4">
       <div>
-        <h2 className="font-medium mb-2">Ato de Contrição</h2>
+        <h2 className="card-title mb-2">Ato de Contrição</h2>
         <p className="font-serif text-[17px] leading-relaxed">{ATO_DE_CONTRICAO}</p>
       </div>
       <details className="group">
@@ -90,7 +90,7 @@ export function Contricao() {
         <div className="mt-3 space-y-3 text-[15px] leading-relaxed">
           {CONTRICAO_PERFEITA.map((b, i) => (
             <div key={i} className="space-y-2">
-              {b.titulo && <h3 className="font-medium">{b.titulo}</h3>}
+              {b.titulo && <h3 className="card-title">{b.titulo}</h3>}
               {b.paragrafos.map((p, j) => <p key={j}>{p}</p>)}
             </div>
           ))}

@@ -19,7 +19,10 @@ import { supabase } from "@/lib/supabase/client";
 import { ppmDosLivros } from "@/lib/books";
 import { sincronizarAnkiSeAntigo } from "@/lib/anki";
 import { todas } from "@/lib/supabase/todas";
-import { progressoDoLivro, type Book } from "@/lib/types";
+import { progressoDoLivro, STATUS_LABEL, type Book } from "@/lib/types";
+import { OPCOES_LIVRO } from "@/components/status-pill";
+import { agrupar } from "@/components/mini-barras";
+import { COR_AREA } from "@/lib/cores";
 
 
 export default function Dashboard() {
@@ -100,7 +103,14 @@ export default function Dashboard() {
       else if (dayKey(d) !== dayKey()) break;
       if (streak > 400) break;
     }
+    // a dinâmica de cada número no período (um valor por dia; em períodos longos, por semana)
+    const serie = (f: (d: DayStats) => number) => {
+      const out: number[] = [];
+      for (let d = parseDay(de); dayKey(d) <= ate; d = addDays(d, 1)) { const v = daily.get(dayKey(d)); out.push(v ? f(v) : 0); }
+      return agrupar(out);
+    };
     return {
+      series: { tempo: serie(time), lidas: serie((d) => d.words), escritas: serie((d) => d.written), anki: serie((d) => d.anki) },
       tempo, tempoAnt,
       media: dU ? tempo / dU : 0, mediaAnt: dUAnt ? tempoAnt / dUAnt : 0,
       // dias do período desde o primeiro registro (os dias antes de começar a usar o sistema não contam)
@@ -142,21 +152,21 @@ export default function Dashboard() {
       <div className="flex flex-col gap-3 md:gap-4">
       <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3 md:gap-4">
         {/* tudo no período do filtro; legendas: uma linha curta comparando com o período anterior (o tooltip explica) */}
-        <Stat compacto label="Tempo" value={fmtDuration(s.tempo)} hint={<Variacao atual={s.tempo} base={s.tempoAnt} vs={periodo.vs} />}
+        <Stat compacto label="Tempo" value={fmtDuration(s.tempo)} serie={s.series.tempo} hint={<Variacao atual={s.tempo} base={s.tempoAnt} vs={periodo.vs} />}
           explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(s.tempoAnt)}.`} />
         <Stat compacto label="Média por dia" value={fmtDuration(s.media)} hint={<Variacao atual={s.media} base={s.mediaAnt} vs={periodo.vs} />}
           explica={`Tempo dividido pelos dias do período (os dias antes do seu primeiro registro não contam). Período anterior: ${fmtDuration(s.mediaAnt)} por dia.`} />
         <Stat compacto label="Dias de estudo" value={`${s.diasAtivos} de ${s.dias}`} hint={`sequência atual: ${s.streak} ${s.streak === 1 ? "dia" : "dias"}`}
           explica="Dias do período com algum estudo, leitura, revisão ou escrita (contando a partir do seu primeiro registro). A sequência é de dias seguidos até hoje." />
-        <Stat compacto label="Velocidade" value={s.ppm ? `${s.ppm} ppm` : "—"} hint={<Variacao atual={s.ppm} base={s.ppmAnt} vs={periodo.vs} />}
+        <Stat compacto label="Velocidade" cor={COR_AREA.leitura} value={s.ppm ? `${s.ppm} ppm` : "—"} hint={<Variacao atual={s.ppm} base={s.ppmAnt} vs={periodo.vs} />}
           explica={`Palavras por minuto no leitor (livros e aulas) — ${periodo.nome.toLowerCase()}. Período anterior: ${s.ppmAnt || "—"} ppm.`} />
-        <Stat compacto label="Palavras lidas" value={nf.format(s.lidas)} hint={<Variacao atual={s.lidas} base={s.lidasAnt} vs={periodo.vs} />}
+        <Stat compacto label="Palavras lidas" cor={COR_AREA.leitura} serie={s.series.lidas} value={nf.format(s.lidas)} hint={<Variacao atual={s.lidas} base={s.lidasAnt} vs={periodo.vs} />}
           explica={`Palavras lidas no leitor — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.lidasAnt)}.`} />
-        <Stat compacto label="Palavras escritas" value={nf.format(s.escritas)} hint={<Variacao atual={s.escritas} base={s.escritasAnt} vs={periodo.vs} />}
+        <Stat compacto label="Palavras escritas" cor={COR_AREA.escrita} serie={s.series.escritas} value={nf.format(s.escritas)} hint={<Variacao atual={s.escritas} base={s.escritasAnt} vs={periodo.vs} />}
           explica={`Palavras escritas na sala de escrita — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.escritasAnt)}.`} />
-        <Stat compacto label="Revisões Anki" value={nf.format(s.anki)} hint={<Variacao atual={s.anki} base={s.ankiAnt} vs={periodo.vs} />}
+        <Stat compacto label="Revisões Anki" cor={COR_AREA.idiomas} serie={s.series.anki} value={nf.format(s.anki)} hint={<Variacao atual={s.anki} base={s.ankiAnt} vs={periodo.vs} />}
           explica={`Revisões nos baralhos dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.ankiAnt)}.`} />
-        <Stat compacto label="Livros concluídos" value={nf.format(concluidos)}
+        <Stat compacto label="Livros concluídos" cor={COR_AREA.leitura} value={nf.format(concluidos)}
           hint={concluidos || concluidosAnt ? <Variacao atual={concluidos} base={concluidosAnt} vs={periodo.vs} /> : `${count("aguardando")} aguardando na fila`}
           explica={`Livros terminados — ${periodo.nome.toLowerCase()}. Na fila: ${count("aguardando")} aguardando${ppmLivros && remainingWords ? `, ≈ ${Math.round(remainingWords / ppmLivros / 60)} h de leitura pela frente` : ""}.`} />
       </div>
@@ -173,7 +183,7 @@ export default function Dashboard() {
       <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
         <WritingPanel compacto periodo={periodo} className="md:col-span-2 xl:col-span-1" />
         <div className="card p-4 min-w-0">
-          <h2 className="font-medium mb-3">Continuar lendo</h2>
+          <h2 className="card-title mb-3">Continuar lendo</h2>
           {reading.length === 0 ? (
             <p className="text-sm text-muted">
               Nada em andamento. Escolha algo na <Link className="text-accent" href="/biblioteca">fila de leitura</Link>.
@@ -187,7 +197,7 @@ export default function Dashboard() {
                     <div className="min-w-0 flex-1">
                       <div className="text-sm truncate font-medium" title={`${b.author ? `${b.author} — ` : ""}${b.title}`}>{b.title}</div>
                       <div className="h-1 rounded-full bg-surface-2 mt-1 overflow-hidden">
-                        <div className="h-full bg-chart rounded-full" style={{ width: `${Math.round(progressoDoLivro(b) * 100)}%` }} />
+                        <div className="h-full bg-area-leitura rounded-full" style={{ width: `${Math.round(progressoDoLivro(b) * 100)}%` }} />
                       </div>
                       {b.word_count && ppmLivros ? (
                         <div className="text-[11px] text-muted mt-0.5 tabular-nums truncate">
@@ -204,16 +214,20 @@ export default function Dashboard() {
         </div>
         <div className="card p-4 min-w-0">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-medium">Biblioteca</h2>
+            <h2 className="card-title">Biblioteca</h2>
             <Link href="/biblioteca" className="text-sm text-accent flex items-center gap-0.5">Abrir <ChevronRight size={15} /></Link>
           </div>
           {/* 2 × 2: o nome inteiro de cada situação cabe em qualquer largura */}
           <div className="grid grid-cols-2 gap-2">
+            {/* a bolinha de cada situação tem a cor da etiqueta na Biblioteca */}
             {(["aguardando", "lendo", "pausado", "lido"] as const).map((st) => (
-              <div key={st} className="rounded-lg bg-surface-2 px-3 py-2 min-w-0 flex items-baseline justify-between gap-2">
-                <span className="text-xs text-muted capitalize truncate">{st}</span>
+              <Link key={st} href="/biblioteca" className="rounded-lg bg-surface-2 hover:bg-sel px-3 py-2 min-w-0 flex items-baseline justify-between gap-2 transition-colors">
+                <span className="text-xs text-muted truncate flex items-center gap-1.5">
+                  <span className="dot !w-1.5 !h-1.5 self-center" style={{ background: OPCOES_LIVRO.find((o) => o.value === st)?.cor }} aria-hidden />
+                  {STATUS_LABEL[st]}
+                </span>
                 <span className="text-lg font-medium tabular-nums leading-tight">{count(st)}</span>
-              </div>
+              </Link>
             ))}
           </div>
           {count("consulta") > 0 && (

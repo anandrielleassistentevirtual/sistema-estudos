@@ -7,6 +7,7 @@ import {
 } from "@/lib/temporadas";
 import { addDays } from "@/lib/dates";
 import { EstacaoIcone } from "./estacao-icone";
+import { corDaNota } from "@/lib/cores";
 
 /** "Primavera 2026 · semana 2 de 5 · esta semana 78%" — uma linha discreta no Dashboard, que leva às Temporadas. */
 export function TemporadaLinha() {
@@ -30,7 +31,7 @@ export function TemporadaLinha() {
     })().catch(() => {});
   }, []);
   if (!texto) return null;
-  const cor = texto.exec === null ? undefined : texto.exec >= 0.85 ? "var(--good)" : texto.exec >= 0.6 ? "#c98a1a" : "var(--critical)";
+  const cor = texto.exec === null ? undefined : corDaNota(texto.exec);
   return (
     <Link href="/temporadas" className="hover:text-ink" title="Abrir as Temporadas">
       {texto.estacao && <EstacaoIcone estacao={texto.estacao} size={14} className="mr-1" />}{texto.base}

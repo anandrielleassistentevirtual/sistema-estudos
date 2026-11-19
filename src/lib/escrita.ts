@@ -82,7 +82,7 @@ export const tipoDe = (t: string) => TIPOS[(t in TIPOS ? t : "romance") as TipoP
 
 export const STATUS: { id: string; label: string; cor: string }[] = [
   { id: "rascunho", label: "Rascunho", cor: "var(--faint)" },
-  { id: "escrevendo", label: "Escrevendo", cor: "#d0a24a" },
+  { id: "escrevendo", label: "Escrevendo", cor: "var(--area-escrita)" },
   { id: "revisao", label: "Em revisão", cor: "#7a9cc6" },
   { id: "pronto", label: "Pronto", cor: "var(--good)" },
 ];

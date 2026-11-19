@@ -474,10 +474,10 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
                     <button className="p-1.5 text-muted hover:text-ink disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, 1))} disabled={zoom >= ZOOM[ZOOM.length - 1]} aria-label="Aumentar"><ZoomIn size={15} /></button>
                   </div>
                 )}
-                <div className="inline-flex rounded-lg bg-surface-2 p-0.5">
+                <div className="seg">
                   {([["editar", Pencil], ["dividir", LinkIcon], ["ler", Eye]] as const).map(([v, Icon]) => (
                     <button key={v} title={v === "dividir" ? "Editor + visualização" : v === "editar" ? "Só editor" : "Só leitura"}
-                      onClick={() => setView(v)} className={`px-2 py-1 rounded-md ${view === v ? "bg-seg shadow-sm" : "text-muted"}`}>
+                      onClick={() => setView(v)} aria-pressed={view === v} className="px-2">
                       <Icon size={14} />
                     </button>
                   ))}
@@ -572,7 +572,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
       <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={() => setPreview(null)}>
         <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-center">
-            <h2 className="font-medium">Importar {preview.files.length} aulas</h2>
+            <h2 className="modal-title">Importar {preview.files.length} aulas</h2>
             <button onClick={() => setPreview(null)}><X size={18} /></button>
           </div>
           <div className="grid grid-cols-2 gap-1.5">

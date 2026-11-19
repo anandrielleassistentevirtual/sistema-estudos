@@ -346,9 +346,9 @@ export default function SalaDeEscrita() {
             onChange={(e) => setProjeto({ ...projeto, titulo: e.target.value })}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             onBlur={(e) => { const t = e.target.value.trim() || "Sem título"; setProjeto({ ...projeto, titulo: t }); fire(supabase().from("escrita_projetos").update({ titulo: t }).eq("id", id)); }} />
-          <nav className="flex items-center gap-0.5 rounded-lg bg-surface-2 p-0.5 text-sm mx-auto">
+          <nav className="seg seg-md flex items-center mx-auto">
             {([["escrever", "Escrever", PenLine], ["livro", "Texto inteiro", BookOpenText], ...(E.escaleta ? [["escaleta", "Escaleta", Table2] as const] : []), ...(E.referencias ? [["referencias", "Referências", Library] as const] : []), ["estatisticas", "Estatísticas", BarChart3]] as const).map(([k, l, I]) => (
-              <button key={k} onClick={() => setAba(k)} title={l} aria-label={l} className={`flex items-center gap-1.5 px-2 min-[400px]:px-2.5 sm:px-3 py-1.5 sm:py-1 rounded-md ${aba === k ? "bg-seg shadow-sm text-ink" : "text-muted hover:text-ink"}`}>
+              <button key={k} onClick={() => setAba(k)} title={l} aria-label={l} aria-pressed={aba === k} className="flex items-center gap-1.5 px-2 min-[400px]:px-2.5 sm:px-3 py-1.5 sm:py-1">
                 <I size={14} /> <span className="hidden sm:inline">{l}</span>
               </button>
             ))}
@@ -457,9 +457,9 @@ export default function SalaDeEscrita() {
           <aside className="fixed md:static inset-y-0 right-0 z-30 w-[86vw] max-w-80 md:w-80 shrink-0 border-l border-line bg-bg flex flex-col text-sm min-h-0 shadow-2xl md:shadow-none pt-safe md:pt-0">
             {E.escaleta && doc.tipo === "cena" && (
               <div className="shrink-0 p-3 pb-0">
-                <div className="grid grid-cols-2 rounded-lg bg-surface-2 p-0.5 text-[13px]">
+                <div className="seg grid grid-cols-2 w-full text-[13px]">
                   {(["escaleta", "consulta"] as const).map((k) => (
-                    <button key={k} onClick={() => setLado(k)} className={`py-1 rounded-md ${lado === k ? "bg-seg shadow-sm" : "text-muted"}`}>{k === "escaleta" ? "Escaleta" : "Consulta"}</button>
+                    <button key={k} onClick={() => setLado(k)} aria-pressed={lado === k}>{k === "escaleta" ? "Escaleta" : "Consulta"}</button>
                   ))}
                 </div>
               </div>
@@ -814,16 +814,16 @@ function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
           <Card l={E.Unidade === "Parte" ? "Partes" : "Cenas"} v={`${cenas.filter((c) => c.status === "pronto").length}/${cenas.length}`} h="prontas" />
         </div>
         {projeto.meta_palavras > 0 && (
-          <div className="h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--chart)" }} /></div>
+          <div className="h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--area-escrita)" }} /></div>
         )}
         <div className="card p-4 md:p-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3 md:mb-4"><h3>Palavras por dia</h3><span className="text-xs text-muted">últimas 3 semanas</span></div>
-          <BarChart unit="palavras" height={140}
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3 md:mb-4"><h3 className="card-title">Palavras por dia</h3><span className="text-xs text-muted">últimas 3 semanas</span></div>
+          <BarChart unit="palavras" height={140} cor="var(--area-escrita)"
             data={dias.map((d) => ({ label: parseDay(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), value: Math.max(0, porDia.get(d)?.palavras ?? 0), detail: fmtDuration(porDia.get(d)?.segundos ?? 0) }))} />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="card p-5">
-            <h3 className="mb-3">Sessões</h3>
+            <h3 className="card-title mb-3">Sessões</h3>
             {sessoes.length === 0 && <p className="text-sm text-muted">As sessões aparecem aqui quando você escreve.</p>}
             <table className="w-full text-sm tabular-nums">
               <tbody>
@@ -839,7 +839,7 @@ function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
             </table>
           </div>
           <div className="card p-5 space-y-3">
-            <h3>Metas</h3>
+            <h3 className="card-title">Metas</h3>
             <label className="block"><span className="label">Meta do livro (palavras)</span>
               <input className="input mt-1" inputMode="numeric" defaultValue={projeto.meta_palavras || ""} onBlur={(e) => onMeta({ meta_palavras: Number(e.target.value.replace(/\D/g, "")) || 0 })} /></label>
             <label className="block"><span className="label">Meta por dia (palavras)</span>
@@ -851,7 +851,7 @@ function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
           </div>
         </div>
         {E.comCap && <div className="card p-5">
-          <h3 className="mb-3">Capítulos</h3>
+          <h3 className="card-title mb-3">Capítulos</h3>
           <table className="w-full text-sm tabular-nums">
             <tbody>
               {ms.map(({ cap, n, cenas: cs }) => {
