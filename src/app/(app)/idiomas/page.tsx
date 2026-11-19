@@ -140,7 +140,7 @@ export default function Idiomas() {
   const escuta = minhasSessoes.filter((s) => s.label === ROTULO_LISTENING);
   const escutaP = soma(noP(escuta), (s) => s.seconds), escutaA = soma(noP(escuta, antDe, antAte), (s) => s.seconds);
   const aulasP = soma(noP(minhasSessoes.filter((s) => s.label === "Aulas")), (s) => s.seconds);
-  const marP = soma(noP(sessoesMar), (s) => s.seconds);
+  const marP = soma(noP(sessoesMar), (s) => s.seconds), marA = soma(noP(sessoesMar, antDe, antAte), (s) => s.seconds);
   // o "Timer" é o resto: o que não é Listening, Aulas nem MAR
   const restoTimerP = timerP - escutaP - aulasP - marP;
   // meta semanal proporcional ao período (ex.: 5 h por semana → 10 h em duas semanas)
@@ -252,23 +252,25 @@ export default function Idiomas() {
             {conta && <div className="w-full sm:w-auto sm:ml-auto"><AnkiWebBarra conta={conta} onMudou={load} /></div>}
           </div>
 
-          {/* celular: 2 por linha (o último ocupa a linha); tablet: 2 + 3; computador: os 5 numa linha */}
-          <div className="grid grid-cols-2 md:grid-cols-6 xl:grid-cols-5 gap-3 md:gap-4">
-            <Stat compacto className="md:col-span-3 xl:col-span-1" label="Tempo" cor={COR_AREA.idiomas} serie={serieTempo} value={fmtDuration(timerP + ankiP)} hint={<Variacao atual={timerP + ankiP} base={timerA + ankiA} vs={periodo.vs} />}
+          {/* celular: 2 por linha; tablet: 3; computador: os 6 numa linha */}
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
+            <Stat compacto label="Tempo" cor={COR_AREA.idiomas} serie={serieTempo} value={fmtDuration(timerP + ankiP)} hint={<Variacao atual={timerP + ankiP} base={timerA + ankiA} vs={periodo.vs} />}
               explica={`${periodo.nome}: ${[
                 escutaP ? `Listening ${fmtDuration(escutaP)}` : null, aulasP ? `Aulas ${fmtDuration(aulasP)}` : null,
                 ankiP ? `Anki ${fmtDuration(ankiP)}` : null, marP ? `MAR ${fmtDuration(marP)}` : null,
                 restoTimerP > 0 ? `Timer ${fmtDuration(restoTimerP)}` : null,
                 metaP ? `meta ${fmtDuration(metaP)} (${Math.round(Math.min(1, (timerP + ankiP) / metaP) * 100)}%)` : null,
                 `período anterior ${fmtDuration(timerA + ankiA)}`].filter(Boolean).join(" · ")}`} />
-            <Stat compacto className="md:col-span-3 xl:col-span-1" label="Para revisar hoje" value={baralhos ? nf.format(paraHoje) : "—"} hint={baralhos ? "fila de hoje no Anki" : "conecte o AnkiWeb (no fim da página)"}
-              explica="O que o Anki mostra para revisar hoje nos baralhos deste idioma (não depende do período)." />
-            <Stat compacto className="md:col-span-2 xl:col-span-1" label="Listening" cor={COR_AREA.idiomas} serie={serie(escuta, (x) => x.seconds)} value={fmtDuration(escutaP)} hint={<Variacao atual={escutaP} base={escutaA} vs={periodo.vs} />}
-              explica={`Áudios do curso (script) — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(escutaA)}.`} />
-            <Stat compacto className="md:col-span-2 xl:col-span-1" label="Revisões" cor={COR_AREA.idiomas} serie={serie(meusDias, (x) => x.reviews)} value={nf.format(revP)} hint={<Variacao atual={revP} base={revA} vs={periodo.vs} />}
+            <Stat compacto label="Revisões" cor={COR_AREA.idiomas} serie={serie(meusDias, (x) => x.reviews)} value={nf.format(revP)} hint={<Variacao atual={revP} base={revA} vs={periodo.vs} />}
               explica={`Revisões no Anki nos baralhos deste idioma — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(revA)}.`} />
-            <Stat compacto className="col-span-2 xl:col-span-1" label="Cartões criados" cor="var(--ama-4)" serie={serie(meusDias, (x) => x.criados)} value={nf.format(criadosP)} hint={<Variacao atual={criadosP} base={criadosA} vs={periodo.vs} />}
+            <Stat compacto label="Para revisar hoje" value={baralhos ? nf.format(paraHoje) : "—"} hint={baralhos ? "fila de hoje no Anki" : "conecte o AnkiWeb (no fim da página)"}
+              explica="O que o Anki mostra para revisar hoje nos baralhos deste idioma (não depende do período)." />
+            <Stat compacto label="Cartões criados" cor="var(--ama-4)" serie={serie(meusDias, (x) => x.criados)} value={nf.format(criadosP)} hint={<Variacao atual={criadosP} base={criadosA} vs={periodo.vs} />}
               explica={`Cartões criados — ${periodo.nome.toLowerCase()}${notasP && notasP !== criadosP ? `, em ${nf.format(notasP)} notas` : ""}. Período anterior: ${nf.format(criadosA)}.`} />
+            <Stat compacto label="Listening" cor={COR_AREA.idiomas} serie={serie(escuta, (x) => x.seconds)} value={fmtDuration(escutaP)} hint={<Variacao atual={escutaP} base={escutaA} vs={periodo.vs} />}
+              explica={`Áudios do curso (script) — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(escutaA)}.`} />
+            <Stat compacto label="MAR" cor={COR_AREA.idiomas} serie={serie(sessoesMar, (x) => x.seconds)} value={fmtDuration(marP)} hint={<Variacao atual={marP} base={marA} vs={periodo.vs} />}
+              explica={`Séries, filmes, vídeos e podcasts em ${sel.name.toLowerCase()} — ${periodo.nome.toLowerCase()}${sel.mar_meta_min ? ` (meta ${fmtDuration(sel.mar_meta_min * 60)} por dia)` : ""}. Período anterior: ${fmtDuration(marA)}.`} />
           </div>
 
           {!temAnki && (
