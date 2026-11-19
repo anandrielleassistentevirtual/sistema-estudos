@@ -307,7 +307,7 @@ export default function AulaAberta() {
           {painel === "aa" && <PrefsPanel prefs={prefs} setPrefs={setPrefs} />}
 
           {sel && !editar && (
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-4 z-30 card shadow-xl p-3 w-[min(480px,calc(100%-2rem))] text-ink">
+            <div data-barra-selecao className="absolute left-1/2 -translate-x-1/2 bottom-4 z-30 card shadow-xl p-3 w-[min(480px,calc(100%-2rem))] text-ink">
               <p className="text-xs text-muted line-clamp-2 font-serif">“{sel.quote}”</p>
               <div className="flex gap-2 mt-2 justify-end">
                 <button className="btn btn-ghost px-2 py-1.5" onClick={() => setSel(null)}><X size={15} /></button>

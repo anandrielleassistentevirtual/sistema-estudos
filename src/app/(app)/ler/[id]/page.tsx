@@ -326,7 +326,7 @@ export default function Ler() {
         )}
 
         {sel && (
-          <div className="absolute left-1/2 -translate-x-1/2 bottom-4 z-30 card shadow-xl p-3 w-[min(520px,calc(100%-2rem))] text-ink">
+          <div data-barra-selecao className="absolute left-1/2 -translate-x-1/2 bottom-4 z-30 card shadow-xl p-3 w-[min(520px,calc(100%-2rem))] text-ink">
             <p className="text-xs text-muted line-clamp-2 font-serif">“{sel.quote}”</p>
             <div className="flex gap-2 mt-2 items-center">
               {Object.entries(HL_COLORS).map(([k, c]) => (
