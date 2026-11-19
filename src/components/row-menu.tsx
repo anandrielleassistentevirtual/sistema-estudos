@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MoreHorizontal, type LucideIcon } from "lucide-react";
 
@@ -22,7 +22,7 @@ export function RowMenu({ items, label = "Mais ações", botaoClass = "p-2 sm:p-
   /** espaçamento do botão (área de toque): padrão "p-2 sm:p-1.5" */
   botaoClass?: string;
 }) {
-  const [pos, setPos] = useState<{ right: number; top?: number; bottom?: number } | null>(null);
+  const [pos, setPos] = useState<{ right: number; top?: number; bottom?: number; maxHeight?: number } | null>(null);
   const botao = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const aberto = !!pos;
@@ -34,8 +34,8 @@ export function RowMenu({ items, label = "Mais ações", botaoClass = "p-2 sm:p-
       if (!menu.current?.contains(alvo) && !botao.current?.contains(alvo)) setPos(null);
     };
     const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") { setPos(null); botao.current?.focus(); } };
-    // rolar ou mudar o tamanho da tela fecha o menu (ele ficaria longe do botão)
-    const fechar = () => setPos(null);
+    // rolar (fora do menu) ou mudar o tamanho da tela fecha o menu (ele ficaria longe do botão)
+    const fechar = (e?: Event) => { if (e?.type === "scroll" && menu.current?.contains(e.target as Node)) return; setPos(null); };
     document.addEventListener("mousedown", fora);
     document.addEventListener("keydown", tecla);
     window.addEventListener("scroll", fechar, true);
@@ -57,6 +57,21 @@ export function RowMenu({ items, label = "Mais ações", botaoClass = "p-2 sm:p-
     setPos(paraCima ? { right, bottom: window.innerHeight - r.top + 4 } : { right, top: r.bottom + 4 });
   }
 
+  // menu comprido: não sai da tela (encosta na borda e rola por dentro)
+  useLayoutEffect(() => {
+    const el = menu.current;
+    if (!pos || !el || pos.maxHeight !== undefined) return;
+    const h = el.offsetHeight, H = window.innerHeight;
+    if (pos.top !== undefined && pos.top + h > H - 8) {
+      const r = botao.current?.getBoundingClientRect();
+      const cima = r ? r.top - 4 : 0, baixo = H - pos.top;
+      if (r && cima > baixo) setPos({ right: pos.right, bottom: H - r.top + 4, maxHeight: Math.max(120, cima - 8) });
+      else setPos({ ...pos, maxHeight: Math.max(120, baixo - 8) });
+    } else if (pos.bottom !== undefined && H - pos.bottom - h < 8) {
+      setPos({ ...pos, maxHeight: Math.max(120, H - pos.bottom - 8) });
+    }
+  }, [pos]);
+
   return (
     <div className="relative">
       <button ref={botao} type="button" aria-label={label} title={label} aria-haspopup="menu" aria-expanded={aberto}
@@ -65,8 +80,8 @@ export function RowMenu({ items, label = "Mais ações", botaoClass = "p-2 sm:p-
         <MoreHorizontal size={17} />
       </button>
       {pos && createPortal(
-        <div ref={menu} role="menu" className="fixed z-[80] w-60 sm:w-56 max-w-[calc(100vw-2rem)] card py-1 shadow-xl"
-          style={{ right: pos.right, top: pos.top, bottom: pos.bottom }}>
+        <div ref={menu} role="menu" className="fixed z-[80] w-max min-w-60 sm:min-w-56 max-w-[min(22rem,calc(100vw-2rem))] card py-1 shadow-xl overflow-y-auto overscroll-contain"
+          style={{ right: pos.right, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight }}>
           {items.map((it, i) => (
             <div key={i}>
               {it.separar && <div className="my-1 border-t border-line" />}

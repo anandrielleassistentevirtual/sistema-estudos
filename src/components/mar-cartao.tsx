@@ -107,8 +107,9 @@ export function Pop({ ancora, onFechar, titulo, largura = 300, children }: {
       if (!caixa.current?.contains(alvo) && !ancora?.contains(alvo)) fechar.current();
     };
     const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") { fechar.current(); ancora?.focus(); } };
-    // rolar a página (fora do popover) fecha: ele ficaria longe do botão
-    const rolar = (e: Event) => { if (!celular && !caixa.current?.contains(e.target as Node)) fechar.current(); };
+    // rolar a página (fora do popover) fecha: ele ficaria longe do botão (não nos primeiros instantes: o foco do campo pode rolar)
+    const aberto = Date.now();
+    const rolar = (e: Event) => { if (!celular && Date.now() - aberto > 300 && !caixa.current?.contains(e.target as Node)) fechar.current(); };
     const redimensionar = () => { if (!celular) fechar.current(); };
     document.addEventListener("mousedown", fora);
     document.addEventListener("keydown", tecla);
@@ -186,7 +187,7 @@ function BotaoPrincipal({ rotulo, seg, ocupado, onMarcar, title, desabilitado, c
 }) {
   const toque = useSegundoToque();
   const grande = seg >= MAR_LIMITES.confirmarSeg;
-  const base = "btn justify-center whitespace-nowrap tabular-nums px-3 py-1.5 sm:py-1 text-[14px] sm:text-[13px]";
+  const base = "btn justify-center whitespace-nowrap tabular-nums px-3 py-1.5 sm:py-1 min-h-9 sm:min-h-0 text-[14px] sm:text-[13px]";
   if (toque.pedindo) {
     return (
       <button type="button" className={`${base} btn-primary ${className}`} disabled={!toque.pronto || ocupado}
@@ -255,8 +256,8 @@ function Pergunta({ p, ocupado, onResponder }: { p: NonNullable<PropsCartao["per
     <div className="mt-2 rounded-lg px-2.5 py-2 text-[12.5px] leading-snug" style={{ background: "color-mix(in srgb, #1baf7a 10%, transparent)" }} role="alertdialog" aria-label="O Timer">
       <p>{p.pergunta}</p>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
-        <button type="button" className="btn btn-primary py-1.5 sm:py-1 text-[13px]" disabled={ocupado} onClick={() => onResponder(true)}>{p.sim}</button>
-        <button type="button" className="btn py-1.5 sm:py-1 text-[13px]" disabled={ocupado} onClick={() => onResponder(false)}>{p.nao}</button>
+        <button type="button" className="btn btn-primary py-1.5 sm:py-1 min-h-9 sm:min-h-0 text-[13px]" disabled={ocupado} onClick={() => onResponder(true)}>{p.sim}</button>
+        <button type="button" className="btn py-1.5 sm:py-1 min-h-9 sm:min-h-0 text-[13px]" disabled={ocupado} onClick={() => onResponder(false)}>{p.nao}</button>
       </div>
     </div>
   );
@@ -275,9 +276,12 @@ function FoiOntem({ v, set }: { v: boolean; set: (v: boolean) => void }) {
 function CampoMin({ valor, set, onEnter, min, max, rotulo, autoFocus }: {
   valor: string; set: (v: string) => void; onEnter: () => void; min?: number; max?: number; rotulo: string; autoFocus?: boolean;
 }) {
+  const ref = useRef<HTMLInputElement>(null);
+  // foco sem rolar a página (o popover ainda está se posicionando)
+  useEffect(() => { if (autoFocus) setTimeout(() => ref.current?.focus({ preventScroll: true }), 30); }, [autoFocus]);
   return (
-    <input className="input py-1.5 px-2 w-20 text-right tabular-nums" inputMode="numeric" aria-label={rotulo} placeholder={min ? String(min) : ""}
-      value={valor} autoFocus={autoFocus} onChange={(e) => set(e.target.value.replace(/[^\d:hm ]/gi, ""))}
+    <input ref={ref} className="input py-1.5 px-2 w-20 text-right tabular-nums" inputMode="numeric" aria-label={rotulo} placeholder={min ? String(min) : ""}
+      value={valor} onChange={(e) => set(e.target.value.replace(/[^\d:hm ]/gi, ""))}
       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEnter(); } }}
       {...(max ? { "data-max": max } : {})} />
   );
@@ -298,14 +302,14 @@ function Cronometrar({ t, idioma, onFeito }: { t: Titulo; idioma: string; onFeit
       <div className="rounded-lg bg-surface-2/70 px-2.5 py-2 text-[13px] leading-snug">
         <p>{pergunta}</p>
         <div className="mt-2 flex gap-1.5">
-          <button type="button" className="btn btn-primary py-1.5 sm:py-1 text-[13px]" disabled={encerrando} onClick={async () => {
+          <button type="button" className="btn btn-primary py-1.5 sm:py-1 min-h-9 sm:min-h-0 text-[13px]" disabled={encerrando} onClick={async () => {
             setEncerrando(true);
             await timer.stop();
             timer.cronometrarMar({ id: t.id, titulo: t.titulo }, idioma);
             setEncerrando(false);
             onFeito();
           }}>{encerrando ? "Salvando…" : "Encerrar e cronometrar"}</button>
-          <button type="button" className="btn py-1.5 sm:py-1 text-[13px]" onClick={() => setPergunta(null)}>Cancelar</button>
+          <button type="button" className="btn py-1.5 sm:py-1 min-h-9 sm:min-h-0 text-[13px]" onClick={() => setPergunta(null)}>Cancelar</button>
         </div>
       </div>
     );
@@ -398,14 +402,14 @@ export function MarCartao(props: PropsCartao) {
             <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
               <span className="whitespace-nowrap">{T.nome}{t.onde ? ` · ${t.onde}` : ""}{info ? ` · ${info}` : ""}</span>
               <select aria-label="Nível" value={t.nivel} onChange={(e) => acoes.mudar(t, { nivel: Number(e.target.value) as 1 | 2 | 3 })}
-                className="outline-none cursor-pointer rounded px-1 py-px bg-surface-2" style={{ color: COR_NIVEL[t.nivel] }}>
+                className="outline-none cursor-pointer rounded px-1.5 py-1.5 sm:py-px bg-surface-2" style={{ color: COR_NIVEL[t.nivel] }}>
                 {([1, 2, 3] as const).map((n) => <option key={n} value={n}>{NIVEIS[n]}</option>)}
               </select>
-              <button type="button" className="rounded px-1.5 py-px bg-surface-2 hover:text-ink" title="Com boia = legenda em inglês · sem boia = sem legenda (toque para trocar)"
+              <button type="button" className="rounded px-2 py-1.5 sm:py-px bg-surface-2 hover:text-ink" title="Com boia = legenda em inglês · sem boia = sem legenda (toque para trocar)"
                 onClick={() => acoes.mudar(t, { legenda: t.legenda === "en" ? "sem" : "en" })}>{t.legenda === "en" ? "com boia" : "sem boia"}</button>
             </div>
           </div>
-          <button type="button" className="btn py-1.5 sm:py-1 px-2.5 text-[13px] shrink-0" disabled={ocupado} onClick={() => acoes.comecar(t)} title="Passa para Assistindo (não soma tempo)">
+          <button type="button" className="btn py-1.5 sm:py-1 min-h-9 sm:min-h-0 px-2.5 text-[13px] shrink-0" disabled={ocupado} onClick={() => acoes.comecar(t)} title="Passa para Assistindo (não soma tempo)">
             {ocupado ? "…" : <><Play size={13} style={{ color: COR_MAR }} /> Começar</>}
           </button>
           <RowMenu botaoClass="p-2.5 sm:p-1.5" items={[
@@ -465,11 +469,11 @@ export function MarCartao(props: PropsCartao) {
       <>
         <BotaoPrincipal rotulo={rotulo} seg={noTimer ? 0 : prox.seg} ocupado={ocupado} title={dicaBotao}
           className={celular ? "flex-1" : ""} onMarcar={() => acoes.marcar(t, "ep")} />
-        <button type="button" className={`btn px-2 py-1.5 sm:py-1 ${pop === "mais" ? "bg-surface-2" : ""}`} aria-label="Outras formas de marcar" title="Vários episódios, parei em…, foi ontem, cronometrar"
+        <button type="button" className={`btn px-2 py-1.5 sm:py-1 min-h-9 min-w-9 sm:min-h-0 sm:min-w-0 justify-center ${pop === "mais" ? "bg-surface-2" : ""}`} aria-label="Outras formas de marcar" title="Vários episódios, parei em…, foi ontem, cronometrar"
           aria-expanded={pop === "mais"} disabled={ocupado} onClick={(e) => abrir("mais", e.currentTarget)}><ChevronDown size={15} /></button>
       </>
     ) : (
-      <button type="button" className={`btn py-1.5 sm:py-1 px-2.5 text-[13px] ${celular ? "flex-1 justify-center" : ""}`} onClick={() => acoes.editar(t)}>
+      <button type="button" className={`btn py-1.5 sm:py-1 min-h-9 sm:min-h-0 px-2.5 text-[13px] ${celular ? "flex-1 justify-center" : ""}`} onClick={() => acoes.editar(t)}>
         <ListPlus size={14} style={{ color: COR_MAR }} /> episódios por temporada
       </button>
     );
@@ -521,9 +525,9 @@ export function MarCartao(props: PropsCartao) {
     const falta = segundosFalta(t);
     const botoes = (celular: boolean) => (
       <>
-        <button type="button" className={`btn px-2.5 py-1.5 sm:py-1 text-[13px] ${celular ? "flex-1 justify-center" : ""}`} disabled={ocupado || semDur}
+        <button type="button" className={`btn px-2.5 py-1.5 sm:py-1 min-h-9 sm:min-h-0 text-[13px] ${celular ? "flex-1 justify-center" : ""}`} disabled={ocupado || semDur}
           onClick={(e) => abrir("parei", e.currentTarget)} aria-expanded={pop === "parei"}>{ocupado ? "…" : "Parei em"}</button>
-        <button type="button" className={`btn px-2.5 py-1.5 sm:py-1 text-[13px] ${celular ? "flex-1 justify-center" : ""}`} disabled={ocupado || semDur}
+        <button type="button" className={`btn px-2.5 py-1.5 sm:py-1 min-h-9 sm:min-h-0 text-[13px] ${celular ? "flex-1 justify-center" : ""}`} disabled={ocupado || semDur}
           onClick={(e) => abrir("terminei", e.currentTarget)} aria-expanded={pop === "terminei"}><Check size={14} style={{ color: COR_MAR }} /> Terminei</button>
       </>
     );
@@ -554,13 +558,16 @@ export function MarCartao(props: PropsCartao) {
         <div className="sm:hidden mt-2 flex items-center gap-1.5">{botoes(true)}</div>
         {pop === "parei" && <MenuParei t={t} ancora={ancora} onFechar={fechar} acoes={acoes} />}
         {pop === "terminei" && (
-          <Pop ancora={ancora} onFechar={fechar} titulo="Terminei" largura={300}>
-            <p className="text-[13px] px-1 pb-2">{falta > 0 ? `Somar ${duracao(falta)} e mover para Vistos` : "Mover para Vistos"}</p>
+          <Pop ancora={ancora} onFechar={fechar} titulo={`${t.titulo} · terminei`} largura={320}>
+            <p className="text-[13px] px-1 pb-2.5 leading-snug">{falta > 0 ? <>Somar <b className="font-medium">{duracao(falta)}</b> e mover para Vistos?</> : "Mover para Vistos?"}</p>
             <div className="flex gap-1.5">
-              <button type="button" className="btn btn-primary flex-1 justify-center py-2 sm:py-1.5" onClick={() => { fechar(); acoes.marcar(t, "ep"); }}>{falta > 0 ? "Somar e mover" : "Mover"}</button>
-              {falta > 0 && <button type="button" className="btn flex-1 justify-center py-2 sm:py-1.5" title="Para um filme visto antes do MAR: vai para Vistos sem somar tempo"
+              <button type="button" className="btn btn-primary flex-[1.4] justify-center py-2 sm:py-1.5 whitespace-nowrap" onClick={() => { fechar(); acoes.marcar(t, "ep"); }}>
+                {falta > 0 ? `Somar ${duracao(falta)} e mover` : "Mover"}
+              </button>
+              {falta > 0 && <button type="button" className="btn flex-1 justify-center py-2 sm:py-1.5 whitespace-nowrap" title="Para um filme visto antes do MAR: vai para Vistos sem somar tempo"
                 onClick={() => { fechar(); acoes.ajustar(t, { situacao: "visto" }); }}>Só mover</button>}
             </div>
+            {falta > 0 && <p className="px-1 pt-2 text-[11px] text-faint">“Só mover” é para filme visto antes do MAR: não soma tempo.</p>}
           </Pop>
         )}
       </li>
@@ -572,7 +579,7 @@ export function MarCartao(props: PropsCartao) {
     <>
       <BotaoPrincipal rotulo={noTimer ? "no Timer" : duracao(minUltimo * 60)} seg={noTimer ? 0 : minUltimo * 60} ocupado={ocupado} className={celular ? "flex-1" : ""}
         title={`Somar ${duracao(minUltimo * 60)} (o último valor usado neste título)`} onMarcar={() => acoes.marcar(t, "min", { valor: minUltimo })} />
-      <button type="button" className={`btn px-2 py-1.5 sm:py-1 ${pop === "min" ? "bg-surface-2" : ""}`} aria-label="Outros minutos" title="Outros minutos, foi ontem, cronometrar"
+      <button type="button" className={`btn px-2 py-1.5 sm:py-1 min-h-9 min-w-9 sm:min-h-0 sm:min-w-0 justify-center ${pop === "min" ? "bg-surface-2" : ""}`} aria-label="Outros minutos" title="Outros minutos, foi ontem, cronometrar"
         aria-expanded={pop === "min"} disabled={ocupado} onClick={(e) => abrir("min", e.currentTarget)}><ChevronDown size={15} /></button>
     </>
   );
@@ -623,10 +630,10 @@ function DuracaoInline({ t, acoes }: { t: Titulo; acoes: AcoesCartao }) {
   const salvar = () => { if (ok) acoes.mudar(t, { min_ep: m! }); };
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-2 sm:pl-[30px] text-[12px] text-muted">
-      <span>Duração do filme (min)</span>
-      <input className="input py-1 px-2 w-24 text-right tabular-nums" inputMode="numeric" placeholder="ex.: 1h52" aria-label="Duração do filme"
+      <span className="w-full sm:w-auto">Quanto dura o filme? (min ou 1h52)</span>
+      <input className="input py-1 px-2 w-28 text-right tabular-nums" inputMode="numeric" placeholder="ex.: 1h52" aria-label="Duração do filme"
         value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") salvar(); }} />
-      <button type="button" className="btn py-1.5 sm:py-1 px-2.5 text-[13px]" disabled={!ok} onClick={salvar}>Salvar</button>
+      <button type="button" className="btn py-1.5 sm:py-1 min-h-9 sm:min-h-0 px-2.5 text-[13px]" disabled={!ok} onClick={salvar}>Salvar</button>
     </div>
   );
 }
@@ -644,7 +651,7 @@ function MenuSerie({ t, idioma, ancora, onFechar, acoes }: { t: Titulo; idioma: 
   const pareiOk = Number.isInteger(vParei) && vParei >= minP && vParei <= maxP;
   const feito = (acao: Acao, opts: OpcoesRegistrar) => { onFechar(); acoes.marcar(t, acao, { ...opts, ontem }); };
   return (
-    <Pop ancora={ancora} onFechar={onFechar} titulo={t.titulo} largura={320}>
+    <Pop ancora={ancora} onFechar={onFechar} titulo={t.titulo} largura={344}>
       <Linha onClick={() => feito("ep", {})}>
         <Plus size={15} style={{ color: COR_MAR }} /> Marcar {prox.ref.replace(/^T\d+(?=E)/, (x) => (prox.k === 1 || prox.ref.endsWith("E1") ? x : ""))} · {duracao(prox.seg)}
       </Linha>
@@ -653,7 +660,7 @@ function MenuSerie({ t, idioma, ancora, onFechar, acoes }: { t: Titulo; idioma: 
           <div className="flex items-center gap-1.5 text-[15px] sm:text-[13px]">
             <span className="mr-auto">Vários episódios</span>
             {[2, 3, 4, 5].filter((x) => x <= faltam).map((x) => (
-              <button key={x} type="button" className={`btn px-0 w-9 sm:w-8 justify-center py-1.5 sm:py-1 text-[13px] tabular-nums ${n === x ? "border-transparent" : ""}`}
+              <button key={x} type="button" className={`btn px-0 w-9 sm:w-8 justify-center py-1.5 sm:py-1 min-h-9 sm:min-h-0 text-[13px] tabular-nums ${n === x ? "border-transparent" : ""}`}
                 style={n === x ? { background: COR_MAR, color: "#fff" } : undefined} aria-pressed={n === x} onClick={() => setN(n === x ? null : x)}>{x}</button>
             ))}
           </div>
@@ -666,10 +673,10 @@ function MenuSerie({ t, idioma, ancora, onFechar, acoes }: { t: Titulo; idioma: 
       )}
       {maxP >= minP && (
         <div className="flex items-center gap-2 px-2.5 py-1.5 text-[15px] sm:text-[13px]">
-          <span>Parei em</span>
+          <span className="whitespace-nowrap">Parei em</span>
           <CampoMin rotulo="Parei em (minutos)" valor={parei} set={setParei} min={minP} max={maxP} onEnter={() => { if (pareiOk) feito("parcial", { valor: vParei }); }} />
           <span className="text-muted whitespace-nowrap">min de {Math.round(prox.dur / 60)}</span>
-          <button type="button" className="btn ml-auto py-1.5 sm:py-1 px-2.5 text-[13px]" disabled={!pareiOk} title={pareiOk ? `Soma ${duracao(vParei * 60 - prox.parcial)}` : `De ${minP} a ${maxP}`}
+          <button type="button" className="btn ml-auto py-1.5 sm:py-1 min-h-9 sm:min-h-0 px-2.5 text-[13px]" disabled={!pareiOk} title={pareiOk ? `Soma ${duracao(vParei * 60 - prox.parcial)}` : `De ${minP} a ${maxP}`}
             onClick={() => feito("parcial", { valor: vParei })}>Somar</button>
         </div>
       )}
@@ -724,7 +731,7 @@ function MenuParei({ t, ancora, onFechar, acoes }: { t: Titulo; ancora: HTMLElem
       <div className="flex items-center gap-2 px-1.5 py-1 text-[15px] sm:text-[13px]">
         <CampoMin rotulo="Parei em (minutos)" valor={v} set={setV} min={minP} max={maxP} onEnter={somar} autoFocus />
         <span className="text-muted whitespace-nowrap">min de {Math.round(prox.dur / 60)}</span>
-        <button type="button" className="btn btn-primary ml-auto py-1.5 sm:py-1 px-3 text-[13px]" disabled={!ok} onClick={somar}
+        <button type="button" className="btn btn-primary ml-auto py-1.5 sm:py-1 min-h-9 sm:min-h-0 px-3 text-[13px]" disabled={!ok} onClick={somar}
           title={ok ? `Soma ${duracao(n * 60 - prox.parcial)}` : `De ${minP} a ${maxP}`}>Somar</button>
       </div>
       {ok && <p className="px-1.5 text-[12px] text-muted">Soma {duracao(n * 60 - prox.parcial)}.</p>}

@@ -1,430 +1,689 @@
 "use client";
 /**
- * MAR (método Vergara) dentro de Idiomas: a sua lista de inglês de verdade — filmes, séries, canais e
- * podcasts —, com indicadores do período e as três colunas (assistindo, quero ver, vistos).
- * "Quero ver" vai do mais fácil ao mais difícil; cada título diz onde assistir e se é com boia
- * (legenda em inglês) ou sem boia (sem legenda).
+ * MAR (imersão) dentro de Idiomas: a sua lista de inglês de verdade — séries, filmes, canais e podcasts —
+ * e o TEMPO que ela vira. Este componente é o orquestrador:
+ * - carrega os títulos do idioma e o livro-caixa (mar_log); rebusca ao voltar para a aba e quando o Timer grava;
+ * - mostra os 4 números de tempo (Hoje, Por dia, o período, No MAR), as abas, a faixa de 15 s e a lista;
+ * - fala com o banco (mar_registrar / mar_desfazer): nada é otimista na posição — o cartão troca pelo
+ *   título que o banco devolveu.
+ * O tempo vem sempre das sessões (sessoesMar, a fonte única); o livro-caixa só diz o que cada pedaço foi.
  */
-import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Check, Clapperboard, Mic, Play, Plus, RotateCcw, SquarePlay, Trash2, Tv, Waves, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { ListChecks, Plus, Timer as Relogio, Waves } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
-import { fmtDuration, nf } from "@/lib/dates";
+import { addDays, dayKey, nf } from "@/lib/dates";
 import type { Periodo } from "@/lib/periodo";
-import { RowMenu } from "./row-menu";
-import { useTimerEstado } from "./timer-context";
-import { Variacao } from "./variacao";
-import { lerTemporadas, ondeEsta, totalEps } from "@/lib/mar";
+import {
+  COLUNAS_LOG, COR_MAR, MAR_LIMITES, desfazer as desfazerNoBanco, desfazerPedeConfirmacao, duracao, indicadores, lerMinutos,
+  lerTemporadas, normalizarTitulo, proximo, proximos, registrar, textoConfirmarDesfazer, textoDesfeito, textoFaixa,
+  textoPergunta, candidataPergunta, ultimaAcao, vincularSessao,
+  type Acao, type Faixa, type OpcoesRegistrar, type Pergunta, type Registro, type RespostaMar, type SessaoIdioma, type Situacao,
+  type TipoMar, type Titulo,
+} from "@/lib/mar";
+import { describe, useTimerEstado } from "./timer-context";
+import { MarCartao, NIVEIS, Pop, TIPOS, type AcoesCartao } from "./mar-cartao";
+import { MarEditor } from "./mar-editor";
+import { MarRegistros } from "./mar-registros";
 import { PLATAFORMAS, PlataformaIcone, plataformaDe } from "./plataforma";
 
-type Tipo = "filme" | "serie" | "youtube" | "podcast" | "livro";
-type Situacao = "quero" | "assistindo" | "visto";
-interface Titulo {
-  id: string; idioma: string; titulo: string; tipo: Tipo; situacao: Situacao; onde: string; legenda: "en" | "sem";
-  nivel: 1 | 2 | 3; progresso: string; nota: string; posicao: number; visto_em: string | null; created_at: string;
-  /** séries: nº de episódios de cada temporada, e quantos já foram vistos (T1 inteira, depois T2…) */
-  temporadas: number[] | null; ep_vistos: number | null;
-  /** minutos de cada episódio: cada episódio marcado vira tempo de estudo */
-  min_ep: number | null;
+/** Sessão no formato da página (para o patch de onTempo). */
+export type SessaoPatch = SessaoIdioma;
+export interface PatchTempo { add?: SessaoPatch[]; remove?: string[]; recarregar?: boolean }
+
+const ABAS: { id: Situacao; nome: string; vazio: string }[] = [
+  { id: "assistindo", nome: "Assistindo", vazio: "Nada em andamento. Escolha algo em “Quero ver” e toque em Começar." },
+  { id: "quero", nome: "Quero ver", vazio: "A fila está vazia. Use “+ Adicionar”." },
+  { id: "visto", nome: "Vistos", vazio: "O que você terminar vem para cá." },
+];
+
+// ─── lembranças deste aparelho (localStorage, sempre com try) ───
+const lerLocal = <T,>(k: string, padrao: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : padrao; } catch { return padrao; } };
+const gravarLocal = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+/** "Não" da pergunta do Timer: lembrado por 2 dias (chave da sessão ou do Timer). */
+const NAO = "mar-pergunta-nao";
+/** sobras do Timer descartadas no ✕ do chip (id da corrida) */
+const DESCARTADAS = "mar-sobra-descartada";
+/** o último "+ min" de cada vídeo/podcast/livro */
+const MIN_ULTIMO = "mar-min-ultimo";
+
+interface EstadoFaixa extends Faixa {
+  id: number;
+  /** o título antes da ação (para desfazer / somar mesmo) */
+  t?: Titulo;
+  /** a ação que gerou a faixa (para "Somar mesmo" e "Tentar de novo") */
+  acao?: Acao;
+  opts?: OpcoesRegistrar;
+  /** segundos que a ação pôs (para a confirmação do desfazer) */
+  seg?: number;
+  ref?: string;
+  chave?: string;
 }
 
-const COR_EP = "#1baf7a"; // a cor de Idiomas
-// movidos para lib/mar (o painel novo usa os de lá)
-export { lerTemporadas };
+interface PerguntaPendente { tituloId: string; p: Pergunta; acao: Acao; opts: OpcoesRegistrar; seg: number }
 
-const TIPOS: { id: Tipo; nome: string; icone: typeof Tv }[] = [
-  { id: "serie", nome: "Série", icone: Tv },
-  { id: "filme", nome: "Filme", icone: Clapperboard },
-  { id: "youtube", nome: "Vídeo", icone: SquarePlay },
-  { id: "podcast", nome: "Podcast", icone: Mic },
-  { id: "livro", nome: "Livro", icone: BookOpen },
-];
-const NIVEIS = { 1: "fácil", 2: "médio", 3: "difícil" } as const;
-const COR_NIVEL = { 1: "var(--good)", 2: "#c98a1a", 3: "var(--critical)" } as const;
-const COLUNAS: { id: Situacao; nome: string; vazio: string }[] = [
-  { id: "assistindo", nome: "Assistindo", vazio: "Nada em andamento. Escolha algo da fila e aperte ▶." },
-  { id: "quero", nome: "Quero ver", vazio: "A fila está vazia. Use “Adicionar”." },
-  { id: "visto", nome: "Vistos", vazio: "O que terminar vem para cá." },
-];
-
-export function MarPainel({ idioma, periodo, compacto, className = "mt-3 md:mt-4", onTempo }: {
-  idioma: string; periodo: Periodo;
-  /** um episódio entrou (ou saiu) do tempo de estudo: a página recarrega os números */
-  onTempo?: () => void;
-  /** numa coluna da página: as três colunas viram abas */
-  compacto?: boolean; className?: string;
+export function MarPainel({
+  idioma, periodo, className = "", sessoesMar, sessoesIdioma, meta, inicio, onTempo, onConfigurar,
+}: {
+  idioma: string; periodo: Periodo; className?: string;
+  /** numa coluna da página (as três listas viram abas) — hoje é o único jeito */
+  compacto?: boolean;
+  /** as sessões do idioma que são MAR (ehMar), de todo o histórico: a fonte única do tempo */
+  sessoesMar: SessaoIdioma[];
+  /** todas as sessões do idioma (para a pergunta sobre o Timer) */
+  sessoesIdioma: SessaoIdioma[];
+  /** minutos por dia (0 = sem meta) */
+  meta: number;
+  /** languages.mar_inicio (aaaa-mm-dd) ou null */
+  inicio: string | null;
+  /** o tempo mudou: a página aplica o patch e recarrega as sessões */
+  onTempo: (patch: PatchTempo) => void;
+  /** abre "Configurar" do idioma (meta e começo do MAR) */
+  onConfigurar?: () => void;
 }) {
-  const [lista, setLista] = useState<Titulo[] | null>(null);
-  const [aba, setAba] = useState<Situacao | null>(null);
-  const [form, setForm] = useState(false);
-  const [titulo, setTitulo] = useState("");
-  const [tipo, setTipo] = useState<Tipo>("serie");
-  const [onde, setOnde] = useState("");
-  const [nivel, setNivel] = useState<1 | 2 | 3>(1);
-  const [eps, setEps] = useState("");
-  /** série aberta no editor de episódios */
-  const [editEps, setEditEps] = useState<Titulo | null>(null);
-  /** episódios vistos por dia (para o indicador do período) */
-  type Registro = { id?: string; titulo_id?: string; dia: string; episodios: number; sessao_id?: string | null };
-  const [log, setLog] = useState<Registro[]>([]);
   const timer = useTimerEstado();
+  const [lista, setLista] = useState<Titulo[] | null>(null);
+  const [log, setLog] = useState<Registro[]>([]);
+  const [aba, setAba] = useState<Situacao | null>(null);
+  const [ocupados, setOcupados] = useState<Set<string>>(() => new Set());
+  const [faixa, setFaixa] = useState<EstadoFaixa | null>(null);
+  const [pergunta, setPergunta] = useState<PerguntaPendente | null>(null);
+  const [editando, setEditando] = useState<Titulo | null>(null);
+  const [registros, setRegistros] = useState(false);
+  const [adicionar, setAdicionar] = useState<HTMLElement | null>(null);
+  const [destaque, setDestaque] = useState<string | null>(null);
+  const [dispensadas, setDispensadas] = useState<Record<string, number>>({});
+  const [descartadas, setDescartadas] = useState<string[]>([]);
+  const [minUltimo, setMinUltimo] = useState<Record<string, number>>({});
+  const montado = useRef(true);
+  // (no modo estrito do React o efeito roda duas vezes: liga de novo na volta)
+  useEffect(() => { montado.current = true; return () => { montado.current = false; }; }, []);
 
+  // lembranças do aparelho
   useEffect(() => {
-    void supabase().from("mar_log").select("id,titulo_id,dia,episodios,sessao_id").gte("dia", periodo.antDe < periodo.de ? periodo.antDe : periodo.de)
-      .order("created_at").then(({ data }) => setLog((data as Registro[] | null) ?? []));
+    const agora = Date.now();
+    const nao = Object.fromEntries(Object.entries(lerLocal<Record<string, number>>(NAO, {})).filter(([, ate]) => ate > agora));
+    setDispensadas(nao);
+    setDescartadas(lerLocal<string[]>(DESCARTADAS, []).slice(-50));
+    setMinUltimo(lerLocal<Record<string, number>>(MIN_ULTIMO, {}));
+  }, []);
+
+  // ─── carregar ───
+  const hoje = dayKey();
+  const desde = useMemo(() => {
+    const h30 = dayKey(addDays(new Date(), -30));
+    return [periodo.antDe, periodo.de, h30].sort()[0];
   }, [periodo.antDe, periodo.de]);
-  useEffect(() => {
-    void supabase().from("mar_titulos").select("*").eq("idioma", idioma).order("posicao").order("created_at")
-      .then(({ data }) => setLista((data as Titulo[] | null) ?? []));
-  }, [idioma]);
 
+  const carregarTitulos = useCallback(async () => {
+    const { data } = await supabase().from("mar_titulos").select("*").eq("idioma", idioma).order("posicao").order("created_at");
+    if (montado.current && data) setLista((data as Titulo[]).map((x) => normalizarTitulo(x)));
+  }, [idioma]);
+  const carregarLog = useCallback(async () => {
+    const { data } = await supabase().from("mar_log").select(`${COLUNAS_LOG},depois`).gte("dia", desde).order("created_at");
+    if (montado.current && data) setLog(data as Registro[]);
+  }, [desde]);
+  const recarregar = useCallback(() => { void carregarTitulos(); void carregarLog(); }, [carregarTitulos, carregarLog]);
+
+  useEffect(() => { setLista(null); void carregarTitulos(); }, [carregarTitulos]);
+  useEffect(() => { void carregarLog(); }, [carregarLog]);
+  // outro aparelho pode ter marcado: rebusca ao voltar para a aba
+  useEffect(() => {
+    const ver = () => { if (document.visibilityState === "visible") recarregar(); };
+    document.addEventListener("visibilitychange", ver);
+    return () => document.removeEventListener("visibilitychange", ver);
+  }, [recarregar]);
+  // o Timer gravou (pode ser uma corrida do MAR): rebusca
+  const ultimoSalvo = useRef(timer.lastSaved);
+  useEffect(() => {
+    if (timer.lastSaved === ultimoSalvo.current) return;
+    ultimoSalvo.current = timer.lastSaved;
+    recarregar();
+  }, [timer.lastSaved, recarregar]);
+
+  // ─── derivados ───
+  const ids = useMemo(() => new Set((lista ?? []).map((t) => t.id)), [lista]);
+  const meuLog = useMemo(() => log.filter((l) => ids.has(l.titulo_id)), [log, ids]);
   const col = useMemo(() => {
     const l = lista ?? [];
     return {
       assistindo: l.filter((t) => t.situacao === "assistindo"),
-      // do mais fácil ao mais difícil: primeiro com boia, depois sem
+      // do mais fácil ao mais difícil
       quero: l.filter((t) => t.situacao === "quero").sort((a, b) => a.nivel - b.nivel || a.posicao - b.posicao),
       visto: l.filter((t) => t.situacao === "visto").sort((a, b) => (b.visto_em ?? "").localeCompare(a.visto_em ?? "")),
     };
   }, [lista]);
+  const atual: Situacao = aba ?? (lista && !col.assistindo.length && col.quero.length ? "quero" : "assistindo");
 
-  // indicadores
-  const dia = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
-  const vistosP = col.visto.filter((t) => dia(t.visto_em) >= periodo.de && dia(t.visto_em) <= periodo.ate).length;
-  const vistosA = col.visto.filter((t) => dia(t.visto_em) >= periodo.antDe && dia(t.visto_em) <= periodo.antAte).length;
-  const emUso = [...col.assistindo, ...col.visto];
-  const semBoia = emUso.length ? emUso.filter((t) => t.legenda === "sem").length / emUso.length : null;
-  const faceis = col.quero.filter((t) => t.nivel === 1).length;
-  const epsNo = (de: string, ate: string) => Math.max(0, log.filter((l) => l.dia >= de && l.dia <= ate).reduce((n, l) => n + l.episodios, 0));
-  const epsP = epsNo(periodo.de, periodo.ate), epsA = epsNo(periodo.antDe, periodo.antAte);
-  // o tempo desses episódios (a duração de cada série)
-  const minDe = (id?: string) => (lista ?? []).find((x) => x.id === id)?.min_ep ?? 25;
-  const minEpsP = Math.max(0, log.filter((l) => l.dia >= periodo.de && l.dia <= periodo.ate).reduce((n, l) => n + l.episodios * minDe(l.titulo_id), 0));
-  const porPlataforma = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const t of lista ?? []) { const p = plataformaDe(t.onde); if (p) m.set(t.onde, (m.get(t.onde) ?? 0) + 1); }
-    return [...m.entries()].sort((a, b) => b[1] - a[1]);
-  }, [lista]);
+  const ind = useMemo(() => indicadores(sessoesMar, periodo, meta, inicio, hoje), [sessoesMar, periodo, meta, inicio, hoje]);
 
-  async function adicionar() {
-    const t = titulo.trim();
-    if (!t) return;
-    const posicao = Math.max(0, ...(lista ?? []).map((x) => x.posicao)) + 1;
-    const { data } = await supabase().from("mar_titulos")
-      .insert({ idioma, titulo: t, tipo, onde: onde.trim(), nivel, posicao, situacao: "quero", legenda: "en", progresso: "", nota: "",
-        temporadas: tipo === "serie" ? lerTemporadas(eps) : [], ep_vistos: 0 }).select().single();
-    if (data) setLista((l) => [...(l ?? []), data as Titulo]);
-    setTitulo(""); setOnde(""); setEps("");
-  }
-  function mudar(t: Titulo, campos: Partial<Titulo>) {
-    setLista((l) => l?.map((x) => (x.id === t.id ? { ...x, ...campos } : x)) ?? null);
-    // o pedido ao banco só sai quando é aguardado (then)
-    void supabase().from("mar_titulos").update(campos).eq("id", t.id).then(({ error }) => { if (error) alert(`Não consegui salvar: ${error.message}`); });
-  }
-  /**
-   * +1 / −1 episódio: passa sozinho para a próxima temporada; no último, a série vai para Vistos.
-   * Cada episódio vira tempo de estudo do idioma ("MAR · série", com a duração do episódio), que aparece no
-   * Dashboard e em Idiomas — a não ser que o Timer esteja ligado (aí ele já está contando). O −1 desfaz o último.
-   */
-  async function episodio(t: Titulo, delta: 1 | -1) {
-    const total = totalEps(t);
-    const novo = Math.max(0, Math.min(total, (t.ep_vistos ?? 0) + delta));
-    if (novo === (t.ep_vistos ?? 0)) return;
-    const acabou = delta > 0 && novo === total;
-    mudar(t, { ep_vistos: novo, ...(acabou ? { situacao: "visto" as Situacao, visto_em: new Date().toISOString() } : {}) });
-    const sb = supabase();
-    const agora = new Date();
-    const dia = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}-${String(agora.getDate()).padStart(2, "0")}`;
-    if (delta > 0) {
-      const { temp, ep } = ondeEsta({ temporadas: t.temporadas, ep_vistos: novo });
-      let sessao_id: string | null = null;
-      if (!timer.running) {
-        const seg = (t.min_ep ?? 25) * 60;
-        const { data } = await sb.from("study_sessions").insert({
-          day: dia, started_at: new Date(agora.getTime() - seg * 1000).toISOString(), seconds: seg,
-          category: "Idiomas", language: idioma, label: `MAR · ${t.titulo} T${temp}E${ep}`,
-        }).select("id").single();
-        sessao_id = (data as { id: string } | null)?.id ?? null;
-      }
-      const { data: reg } = await sb.from("mar_log").insert({ titulo_id: t.id, dia, episodios: 1, sessao_id }).select("id").single();
-      setLog((l) => [...l, { id: (reg as { id: string } | null)?.id, titulo_id: t.id, dia, episodios: 1, sessao_id }]);
-    } else {
-      // desfaz o último episódio marcado desta série (e o tempo que ele somou): primeiro o que está na tela, senão busca no banco
-      let ult = [...log].reverse().find((x) => x.titulo_id === t.id && x.episodios > 0 && x.id) ?? null;
-      if (!ult) {
-        const { data } = await sb.from("mar_log").select("id,titulo_id,dia,episodios,sessao_id").eq("titulo_id", t.id).gt("episodios", 0)
-          .order("created_at", { ascending: false }).limit(1).maybeSingle();
-        ult = (data as Registro | null) ?? null;
-      }
-      if (ult?.id) {
-        if (ult.sessao_id) await sb.from("study_sessions").delete().eq("id", ult.sessao_id);
-        await sb.from("mar_log").delete().eq("id", ult.id);
-        const alvo = ult.id;
-        setLog((l) => l.filter((x) => x.id !== alvo));
-      }
+  // tempo de cada título (hoje e no total) e a parte que veio do Timer no período
+  const porTitulo = useMemo(() => {
+    const m = new Map<string, { hoje: number; total: number }>();
+    for (const s of sessoesMar) {
+      if (!s.mar_titulo_id) continue;
+      const x = m.get(s.mar_titulo_id) ?? { hoje: 0, total: 0 };
+      x.total += s.seconds;
+      if (s.day === hoje) x.hoje += s.seconds;
+      m.set(s.mar_titulo_id, x);
     }
-    onTempo?.();
-  }
-  async function apagar(t: Titulo) {
-    if (!confirm(`Tirar “${t.titulo}” da lista?`)) return;
+    return m;
+  }, [sessoesMar, hoje]);
+  const doPeriodo = useMemo(() => {
+    const sessTimer = new Set(meuLog.filter((l) => l.tipo === "timer" && l.sessao_id).map((l) => l.sessao_id!));
+    let timerSeg = 0, marcado = 0;
+    for (const s of sessoesMar) {
+      if (s.day < periodo.de || s.day > periodo.ate) continue;
+      if (sessTimer.has(s.id)) timerSeg += s.seconds; else marcado += s.seconds;
+    }
+    const eps = meuLog.filter((l) => l.tipo === "ep" && l.dia >= periodo.de && l.dia <= periodo.ate).reduce((a, l) => a + (l.episodios ?? 0), 0);
+    const vistos = (lista ?? []).filter((t) => t.visto_em && dayKey(new Date(t.visto_em)) >= periodo.de && dayKey(new Date(t.visto_em)) <= periodo.ate).length;
+    return { timerSeg, marcado, eps, vistos };
+  }, [meuLog, sessoesMar, periodo.de, periodo.ate, lista]);
+
+  // sobras do Timer (tempo medido que ainda não virou episódio), por título
+  const sobras = useMemo(() => {
+    const agora = Date.now();
+    const m = new Map<string, { seg: number; ids: string[]; descartada: boolean }>();
+    for (const l of meuLog) {
+      if (l.tipo !== "timer" || !l.sessao_id || !(Number(l.sobra_seg) > 0) || !l.sobra_ate || Date.parse(l.sobra_ate) < agora) continue;
+      const x = m.get(l.titulo_id) ?? { seg: 0, ids: [], descartada: false };
+      if (descartadas.includes(l.id)) x.descartada = true; else x.seg += Number(l.sobra_seg);
+      x.ids.push(l.id);
+      m.set(l.titulo_id, x);
+    }
+    return m;
+  }, [meuLog, descartadas]);
+
+  const porPlataforma = useMemo(() => {
+    const m = new Map<string, { nome: string; n: number }>();
+    for (const t of lista ?? []) {
+      const p = plataformaDe(t.onde);
+      if (!p) continue;
+      const x = m.get(p) ?? { nome: PLATAFORMAS.find((y) => y.id === p)?.nome ?? t.onde, n: 0 };
+      x.n++;
+      m.set(p, x);
+    }
+    return [...m.values()].sort((a, b) => b.n - a.n);
+  }, [lista]);
+  const emUso = [...col.assistindo, ...col.visto];
+  const semBoia = emUso.length ? Math.round((emUso.filter((t) => t.legenda === "sem").length / emUso.length) * 100) : null;
+
+  // o Timer está ligado a um título daqui?
+  const st = timer.ver();
+  const tituloNoTimer = st.marTituloId && ids.has(st.marTituloId) ? st.marTituloId : "";
+  const contando = !!tituloNoTimer && timer.running && timer.phase === "foco";
+
+  // ─── faixa (15 s) ───
+  const faixaN = useRef(0);
+  const mostrar = useCallback((f: Omit<EstadoFaixa, "id">) => { faixaN.current++; setFaixa({ ...f, id: faixaN.current }); }, []);
+  useEffect(() => {
+    if (!faixa) return;
+    const id = faixa.id;
+    const x = setTimeout(() => setFaixa((f) => (f?.id === id ? null : f)), MAR_LIMITES.faixaMs);
+    return () => clearTimeout(x);
+  }, [faixa]);
+
+  // ─── banco ───
+  const ocupar = (id: string, sim: boolean) => setOcupados((s) => { const n = new Set(s); if (sim) n.add(id); else n.delete(id); return n; });
+  const trocar = (novo: Titulo) => setLista((l) => l?.map((x) => (x.id === novo.id ? novo : x)) ?? null);
+
+  /** Manda a ação ao banco, troca o título pelo que voltou, mostra a faixa e avisa a página. */
+  const executar = useCallback(async (t: Titulo, acao: Acao, opts: OpcoesRegistrar = {}) => {
+    const noTimer = timer.ver().marTituloId === t.id && acao !== "ajuste";
+    ocupar(t.id, true);
+    const r: RespostaMar = await registrar(t, acao, opts);
+    ocupar(t.id, false);
+    if (!montado.current) return r;
+    if (r.ok) trocar(r.titulo);
+    const f = textoFaixa(r, t);
+    if (r.ok && !r.conflito && noTimer && !opts.semTimer) {
+      // o Timer está ligado a este título: ele conta o maior entre o medido e a minutagem
+      f.texto = `✓ ${t.titulo}${r.ref && !r.ref.startsWith("+") ? ` ${r.ref}` : ""} · conta no Timer`;
+      f.somarMesmo = false;
+    }
+    if (r.ok && !r.conflito && r.repetido) f.texto = f.texto.replace(/^✓/, "✓ (já estava salvo)");
+    mostrar({
+      ...f, t, acao, opts: { ...opts, chave: undefined },
+      ...(r.ok && !r.conflito ? { seg: r.segundos + r.coberto, ref: r.ref } : {}),
+      ...(!r.ok ? { chave: r.chave } : {}),
+    });
+    if (r.ok) {
+      void carregarLog();
+      const add: SessaoIdioma[] = !r.conflito && r.sessao && r.segundos > 0 && !r.repetido
+        ? [{ id: r.sessao, day: r.dia, started_at: r.inicio, seconds: r.segundos, label: `MAR · ${t.titulo}`, language: idioma, mar_titulo_id: t.id }]
+        : [];
+      onTempo({ add, recarregar: true });
+    }
+    return r;
+  }, [timer, idioma, onTempo, carregarLog, mostrar]);
+
+  /** Desfaz a última ação do título (com confirmação de 60 min para cima). */
+  const desfazerTitulo = useCallback(async (t: Titulo, info?: { seg: number; ref: string; acao?: Acao }) => {
+    const ult = ultimaAcao(meuLog, t.id);
+    const reg: Registro | null = info
+      ? { id: "", titulo_id: t.id, dia: "", tipo: info.acao ?? "ep", episodios: 0, segundos: info.seg, credito: [], ref: info.ref, created_at: "", sessao_id: null }
+      : ult;
+    if (reg && desfazerPedeConfirmacao(reg) && !confirm(textoConfirmarDesfazer(t, reg))) return false;
+    ocupar(t.id, true);
+    const r = await desfazerNoBanco(t);
+    ocupar(t.id, false);
+    if (!montado.current) return false;
+    if (!r.ok) { mostrar({ texto: r.msg, tom: "erro", desfazer: false, somarMesmo: false, tentar: false }); return false; }
+    trocar(r.titulo);
+    mostrar({ texto: textoDesfeito(r), tom: "ok", desfazer: false, somarMesmo: false, tentar: false });
+    void carregarLog();
+    onTempo({ remove: ult?.sessao_id ? [ult.sessao_id] : [], recarregar: true });
+    return true;
+  }, [meuLog, mostrar, carregarLog, onTempo]);
+
+  // ─── a pergunta única (Timer de Idiomas sem vínculo) ───
+  const timerParaPergunta = () => {
+    const s = timer.ver();
+    const segundos = s.elapsed + (s.running && s.startedAt ? (Date.now() - s.startedAt) / 1000 : 0);
+    return { category: s.category, language: s.language, label: s.label, marTituloId: s.marTituloId, phase: s.phase, segundos, rotulo: describe(s) };
+  };
+  const segDaAcao = (t: Titulo, acao: Acao, opts: OpcoesRegistrar) => {
+    if (acao === "min") return (opts.valor ?? 0) * 60;
+    if (acao === "parcial") return Math.max(0, (opts.valor ?? 0) * 60 - (t.parcial_seg ?? 0));
+    if (t.tipo === "serie") return (opts.valor && opts.valor > 1 ? proximos(t, opts.valor)?.seg : proximo(t)?.seg) ?? 0;
+    return proximo(t)?.seg ?? 0;
+  };
+
+  /** Marcar tempo: antes, se for o caso, pergunta sobre o Timer. */
+  const marcar = useCallback((t: Titulo, acao: Acao, opts: OpcoesRegistrar = {}) => {
+    const sobra = sobras.get(t.id);
+    // a sobra foi descartada (✕): a marcação vai com "Somar mesmo"
+    const o: OpcoesRegistrar = sobra?.descartada && !sobra.seg ? { ...opts, semTimer: true } : opts;
+    if (!o.ontem && !o.semTimer && timer.ver().marTituloId !== t.id) {
+      const p = candidataPergunta(sessoesIdioma, idioma, Date.now(), Object.keys(dispensadas), timerParaPergunta());
+      if (p) { setPergunta({ tituloId: t.id, p, acao, opts: o, seg: segDaAcao(t, acao, o) }); return; }
+    }
+    setPergunta(null);
+    void executar(t, acao, o);
+  }, [sobras, sessoesIdioma, idioma, dispensadas, executar]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const responder = useCallback(async (sim: boolean) => {
+    const q = pergunta;
+    if (!q) return;
+    const t = (lista ?? []).find((x) => x.id === q.tituloId);
+    setPergunta(null);
+    if (!t) return;
+    if (!sim) {
+      const nova = { ...dispensadas, [q.p.chave]: Date.now() + 2 * 864e5 };
+      setDispensadas(nova); gravarLocal(NAO, nova);
+      void executar(t, q.acao, { ...q.opts, semTimer: true });
+      return;
+    }
+    if (q.p.tipo === "rodando") {
+      // o Timer que está contando passa a ser deste título (desde o começo deste foco)
+      timer.ligarMar({ id: t.id, titulo: t.titulo });
+      void executar(t, q.acao, q.opts);
+      return;
+    }
+    // a sessão já salva vira uma corrida deste título; a marcação usa esse tempo
+    ocupar(t.id, true);
+    const v = await vincularSessao(q.p.sessaoId, t);
+    ocupar(t.id, false);
+    if (!v.ok) { mostrar({ texto: v.msg, tom: "erro", desfazer: false, somarMesmo: false, tentar: false }); return; }
+    onTempo({ recarregar: true });
+    void executar(t, q.acao, q.opts);
+  }, [pergunta, lista, dispensadas, executar, timer, mostrar, onTempo]);
+
+  // ─── outras ações dos cartões ───
+  const mudar = useCallback(async (t: Titulo, campos: Partial<Titulo>) => {
+    // nível, boia, tipo e duração (não são do livro-caixa): aplica já e volta se o banco recusar
+    trocar({ ...t, ...campos });
+    const { data, error } = await supabase().from("mar_titulos").update(campos).eq("id", t.id).select().single();
+    if (error) { trocar(t); alert(`Não salvou (${error.message}). Nada mudou.`); return; }
+    if (data) trocar(normalizarTitulo({ ...t, ...campos, ...(data as Partial<Titulo>), id: t.id }));
+  }, []);
+
+  const apagar = useCallback(async (t: Titulo) => {
+    const tempo = porTitulo.get(t.id)?.total ?? 0;
+    if (!confirm(`Tirar “${t.titulo}” da lista?${tempo > 0 ? ` O tempo já contado (${duracao(tempo)}) continua no histórico.` : ""}`)) return;
+    ocupar(t.id, true);
+    const { error } = await supabase().from("mar_titulos").delete().eq("id", t.id);
+    ocupar(t.id, false);
+    if (error) { alert(`Não consegui tirar (${error.message}).`); return; }
     setLista((l) => l?.filter((x) => x.id !== t.id) ?? null);
-    await supabase().from("mar_titulos").delete().eq("id", t.id);
-  }
+  }, [porTitulo]);
 
-  function cartao(t: Titulo) {
-    const T = TIPOS.find((x) => x.id === t.tipo) ?? TIPOS[0];
-    const temPlat = !!plataformaDe(t.onde);
-    return (
-      <li key={t.id} className="group rounded-lg border border-line bg-surface px-2.5 py-2">
-        <div className="flex items-start gap-2.5">
-          <span className="mt-0.5">{temPlat ? <PlataformaIcone onde={t.onde} /> : <span className="w-5 h-5 rounded-[5px] bg-surface-2 grid place-items-center"><T.icone size={12} className="text-icon" /></span>}</span>
-          <div className="min-w-0 flex-1">
-            <div className={`text-sm leading-snug ${t.situacao === "visto" ? "text-muted" : ""}`}>{t.titulo}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-              <span>{T.nome}{t.onde ? ` · ${t.onde}` : ""}</span>
-              <select aria-label="Nível" value={t.nivel} onChange={(e) => mudar(t, { nivel: Number(e.target.value) as 1 | 2 | 3 })}
-                className="outline-none cursor-pointer rounded px-1 py-px bg-surface-2" style={{ color: COR_NIVEL[t.nivel] }}>
-                {([1, 2, 3] as const).map((n) => <option key={n} value={n}>{NIVEIS[n]}</option>)}
-              </select>
-              <button type="button" className="rounded px-1.5 py-px bg-surface-2 hover:text-ink"
-                title="Com boia = legenda em inglês · sem boia = sem legenda (clique para trocar)"
-                onClick={() => mudar(t, { legenda: t.legenda === "en" ? "sem" : "en" })}>
-                {t.legenda === "en" ? "com boia" : "sem boia"}
-              </button>
-            </div>
-            {t.tipo === "serie" && totalEps(t) > 0 ? (() => {
-              // a barra dividida em temporadas, cada pedaço do tamanho da temporada, preenchida até onde você está
-              const ts = t.temporadas ?? [];
-              const vistos = t.ep_vistos ?? 0;
-              const total = totalEps(t);
-              const { temp, ep } = ondeEsta(t);
-              let antes = 0;
-              return (
-                <div className="mt-2">
-                  <div className="flex items-center justify-between gap-2 text-[11px] tabular-nums">
-                    <span>
-                      {vistos === 0 ? <span className="text-muted">não começou · {ts.length} temp. · {total} ep. · {fmtDuration(total * (t.min_ep ?? 25) * 60)}</span>
-                        : vistos >= total ? <span className="text-muted">todas as {ts.length} temporadas · {total} ep.</span>
-                        : <><b className="font-medium text-ink">T{temp} · E{ep}</b><span className="text-muted"> de {ts[temp - 1]} · {vistos}/{total} ep.</span></>}
-                    </span>
-                    {t.situacao === "assistindo" && vistos < total && (
-                      <span className="flex items-center gap-1 shrink-0">
-                        <button className="btn btn-ghost px-1.5 py-0 text-[11px]" title="Desfazer o último episódio" disabled={!vistos} onClick={() => void episodio(t, -1)}>−1</button>
-                        <button className="btn px-2 py-0 text-[11px]" title={`Vi o episódio ${ep + 1 > (ts[temp - 1] ?? 0) ? `1 da T${temp + 1}` : `${vistos ? ep + 1 : 1} da T${vistos ? temp : 1}`}`} onClick={() => void episodio(t, 1)}><Plus size={11} /> episódio</button>
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-[3px] mt-1.5">
-                    {ts.map((n, i) => {
-                      const feitos = Math.max(0, Math.min(n, vistos - antes));
-                      antes += n;
-                      return (
-                        <div key={i} className="h-1.5 rounded-full bg-surface-2 overflow-hidden" style={{ flexGrow: n, flexBasis: 0 }}
-                          title={`Temporada ${i + 1}: ${feitos} de ${n} episódios`}>
-                          <div className="h-full rounded-full" style={{ width: `${(feitos / n) * 100}%`, background: COR_EP }} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {vistos > 0 && (
-                    <div className="mt-1 flex justify-between text-[10.5px] text-faint tabular-nums">
-                      <span>{t.min_ep ?? 25} min/ep. · assistido {fmtDuration(vistos * (t.min_ep ?? 25) * 60)}</span>
-                      {vistos < total && <span>faltam {fmtDuration((total - vistos) * (t.min_ep ?? 25) * 60)}</span>}
-                    </div>
-                  )}
-                </div>
-              );
-            })() : t.tipo === "serie" ? (
-              <button className="mt-1.5 text-[11px] text-muted hover:text-ink underline-offset-2 hover:underline" onClick={() => setEditEps(t)}>+ episódios por temporada</button>
-            ) : t.situacao === "assistindo" && (
-              <input className="input mt-1.5 py-0.5 px-2 text-xs" placeholder="onde parou (ex.: 40 min, cap. 3)" defaultValue={t.progresso}
-                onBlur={(e) => e.target.value !== t.progresso && mudar(t, { progresso: e.target.value })} />
-            )}
-          </div>
-          <div className="flex items-center shrink-0 -mr-1">
-            {t.situacao === "quero" && <button className="btn btn-ghost px-1.5 py-1" title="Começar a assistir" onClick={() => mudar(t, { situacao: "assistindo" })}><Play size={14} /></button>}
-            {t.situacao === "assistindo" && (
-              <button className="btn btn-ghost px-1.5 py-1" title={t.tipo === "serie" && totalEps(t) ? "Terminei a série (vai sozinha para Vistos no último episódio)" : "Terminei"}
-                onClick={() => {
-                  // série com episódios: só termina de uma vez se você confirmar (o normal é ir pelo “+ episódio”)
-                  const faltam = totalEps(t) - (t.ep_vistos ?? 0);
-                  if (t.tipo === "serie" && faltam > 0 && !confirm(`Marcar “${t.titulo}” como vista? Ainda faltam ${faltam} de ${totalEps(t)} episódios.`)) return;
-                  mudar(t, { situacao: "visto", visto_em: new Date().toISOString() });
-                }}><Check size={15} /></button>
-            )}
-            <RowMenu items={[
-              ...(t.situacao !== "quero" ? [{ label: "Voltar para “Quero ver”", icon: RotateCcw, onClick: () => mudar(t, { situacao: "quero", visto_em: null }) }] : []),
-              ...(t.situacao === "visto" ? [{ label: "Assistir de novo", icon: Play, onClick: () => mudar(t, { situacao: "assistindo", visto_em: null, ...(t.tipo === "serie" ? { ep_vistos: 0 } : {}) }) }] : []),
-              ...(t.tipo === "serie" ? [{ label: "Temporadas e episódios…", icon: Tv, onClick: () => setEditEps(t) }] : []),
-              ...TIPOS.filter((x) => x.id !== t.tipo).map((x, i) => ({ label: `É ${x.nome.toLowerCase()}`, icon: x.icone, onClick: () => mudar(t, { tipo: x.id }), separar: i === 0 })),
-              { label: "Tirar da lista", icon: Trash2, danger: true, separar: true, onClick: () => void apagar(t) },
-            ]} />
-          </div>
-        </div>
-      </li>
-    );
-  }
+  const acoes: AcoesCartao = useMemo(() => ({
+    marcar,
+    ajustar: (t, opts) => { setPergunta(null); void executar(t, "ajuste", opts); },
+    desfazer: (t) => void desfazerTitulo(t),
+    mudar: (t, campos) => void mudar(t, campos),
+    editar: (t) => setEditando(t),
+    apagar: (t) => void apagar(t),
+    comecar: async (t) => {
+      const r = await executar(t, "ajuste", { situacao: "assistindo" });
+      if (r.ok && !r.conflito) {
+        setAba("assistindo");
+        setDestaque(t.id);
+        setTimeout(() => setDestaque((d) => (d === t.id ? null : d)), 2500);
+      }
+    },
+    responder: (sim) => void responder(sim),
+    descartarSobra: (t) => {
+      const x = sobras.get(t.id);
+      if (!x) return;
+      const nova = [...new Set([...descartadas, ...x.ids])].slice(-50);
+      setDescartadas(nova); gravarLocal(DESCARTADAS, nova);
+    },
+    lembrarMin: (t, min) => { const n = { ...minUltimo, [t.id]: min }; setMinUltimo(n); gravarLocal(MIN_ULTIMO, n); },
+  }), [marcar, executar, desfazerTitulo, mudar, apagar, responder, sobras, descartadas, minUltimo]);
 
-  const Mini = ({ rotulo, valor, dica, hint }: { rotulo: string; valor: React.ReactNode; dica?: string; hint?: React.ReactNode }) => (
-    <div className="rounded-lg bg-surface-2/60 px-3 py-2 min-w-0" title={dica}>
-      <div className="text-[11px] text-muted truncate">{rotulo}</div>
-      <div className="text-xl tabular-nums leading-tight mt-0.5">{valor}</div>
-      {hint && <div className="text-[11px] text-faint truncate">{hint}</div>}
-    </div>
-  );
+  // ─── faixa: botões ───
+  const faixaDesfazer = async () => {
+    const f = faixa;
+    if (!f?.t) return;
+    const t = (lista ?? []).find((x) => x.id === f.t!.id) ?? f.t;
+    await desfazerTitulo(t, f.seg !== undefined ? { seg: f.seg, ref: f.ref ?? "", acao: f.acao } : undefined);
+  };
+  const faixaSomarMesmo = async () => {
+    const f = faixa;
+    if (!f?.t || !f.acao) return;
+    const t = (lista ?? []).find((x) => x.id === f.t!.id) ?? f.t;
+    setFaixa(null);
+    ocupar(t.id, true);
+    const r = await desfazerNoBanco(t);
+    ocupar(t.id, false);
+    if (!r.ok) { mostrar({ texto: r.msg, tom: "erro", desfazer: false, somarMesmo: false, tentar: false }); return; }
+    void executar(r.titulo, f.acao, { ...f.opts, semTimer: true });
+  };
+  const faixaTentar = () => {
+    const f = faixa;
+    if (!f?.t || !f.acao) return;
+    const t = (lista ?? []).find((x) => x.id === f.t!.id) ?? f.t;
+    setFaixa(null);
+    void executar(t, f.acao, { ...f.opts, chave: f.chave });
+  };
+
+  const tituloAberto = (lista ?? []).find((x) => x.id === pergunta?.tituloId);
+  const textoDaPergunta = pergunta && tituloAberto ? textoPergunta(pergunta.p, pergunta.seg) : null;
+  const metaTxt = meta > 0 ? `meta ${duracao(meta * 60)}/dia` : "sem meta";
+  const varP = ind.totalA > 0 ? Math.round(((ind.totalP - ind.totalA) / ind.totalA) * 100) : null;
 
   return (
-    <section id="mar" className={`card p-4 min-w-0 flex flex-col ${className}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <div className="min-w-0">
-          <h3 className="font-medium flex items-center gap-2"><Waves size={16} className="text-icon" /> MAR</h3>
-          <p className="text-xs text-muted mt-0.5">{idioma} de verdade — séries, filmes, canais e podcasts. {compacto ? "Do mais fácil, com boia, ao sem boia." : "Comece pelo mais fácil, com boia; depois tire a boia."}</p>
-        </div>
-        {!form && <button className="btn text-sm" onClick={() => setForm(true)}><Plus size={15} /> Adicionar</button>}
-      </div>
-
-      {form && (
-        <form className="flex flex-wrap items-center gap-2 mb-3 rounded-lg bg-surface-2/60 p-2.5" onSubmit={(e) => { e.preventDefault(); void adicionar(); }}>
-          <input className="input flex-1 min-w-[12rem]" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título (ex.: Friends)" autoFocus />
-          <select aria-label="Tipo" className="input w-auto" value={tipo} onChange={(e) => setTipo(e.target.value as Tipo)}>
-            {TIPOS.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
-          </select>
-          <span className="relative inline-flex items-center">
-            <span className="absolute left-2 pointer-events-none"><PlataformaIcone onde={onde} tamanho={16} /></span>
-            <input className={`input w-40 ${plataformaDe(onde) ? "pl-8" : ""}`} list="mar-plataformas" value={onde} onChange={(e) => setOnde(e.target.value)} placeholder="Onde (Netflix…)" />
-            <datalist id="mar-plataformas">{PLATAFORMAS.map((p) => <option key={p.id} value={p.nome} />)}</datalist>
+    <section id="mar" className={`card p-4 min-w-0 flex flex-col xl:h-full min-h-0 ${className}`}>
+      {/* 1) cabeçalho: uma linha */}
+      <div className="flex items-center justify-between gap-2 min-h-7 shrink-0">
+        <h3 className="font-medium flex items-center gap-2 min-w-0" title={`${idioma} de verdade — séries, filmes, canais e podcasts. Do mais fácil, com boia, ao sem boia.`}>
+          <Waves size={16} style={{ color: COR_MAR }} className="shrink-0" />
+          <span className="shrink-0">MAR</span>
+          <span className="text-sm font-normal text-muted truncate">
+            · {idioma.toLowerCase()} de verdade ·{" "}
+            {onConfigurar
+              ? <button type="button" className="hover:text-ink underline-offset-2 hover:underline" title="Mudar a meta por dia (Configurar)" onClick={onConfigurar}>{metaTxt}</button>
+              : metaTxt}
           </span>
-          <select aria-label="Nível" className="input w-auto" value={nivel} onChange={(e) => setNivel(Number(e.target.value) as 1 | 2 | 3)}>
-            {([1, 2, 3] as const).map((n) => <option key={n} value={n}>{NIVEIS[n]}</option>)}
-          </select>
-          {tipo === "serie" && (
-            <input className="input w-44" value={eps} onChange={(e) => setEps(e.target.value)} placeholder="episódios: 10, 12, 8 ou 3x10"
-              title="Quantos episódios tem cada temporada (pode deixar para depois)" />
-          )}
-          <button className="btn btn-primary" disabled={!titulo.trim()}><Plus size={15} /> Adicionar</button>
-          <button type="button" className="btn btn-ghost px-2" title="Fechar" onClick={() => setForm(false)}><X size={15} /></button>
-        </form>
-      )}
-
-      {/* indicadores */}
-      <div className={`grid gap-2 ${compacto ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 lg:grid-cols-4"}`}>
-        <Mini rotulo="Assistindo" valor={col.assistindo.length} hint={col.assistindo[0]?.titulo ?? "nada agora"} />
-        <Mini rotulo={`Episódios · ${periodo.nome.toLowerCase()}`} valor={nf.format(epsP)}
-          hint={<>{minEpsP > 0 && <>{fmtDuration(minEpsP * 60)} · </>}<Variacao atual={epsP} base={epsA} vs={periodo.vs} /></>}
-          dica={`Episódios vistos no período (pelo “+ episódio”; cada um soma a duração dele no tempo de estudo). Período anterior: ${epsA}. Na fila: ${col.quero.length} títulos, ${faceis} ${faceis === 1 ? "fácil" : "fáceis"}.`} />
-        <Mini rotulo={`Vistos · ${periodo.nome.toLowerCase()}`} valor={vistosP} hint={<Variacao atual={vistosP} base={vistosA} vs={periodo.vs} />}
-          dica={`Terminados no período. Período anterior: ${vistosA}. No total: ${col.visto.length}.`} />
-        <Mini rotulo="Sem boia" valor={semBoia === null ? "—" : `${Math.round(semBoia * 100)}%`} hint={compacto ? "sem legenda" : "do que você assiste e já viu, sem legenda"}
-          dica="Com boia = com legenda em inglês. O objetivo, com o tempo, é tirar a boia." />
+        </h3>
+        <button type="button" className="btn py-2 sm:py-1 px-2.5 text-[13px] shrink-0" aria-expanded={!!adicionar}
+          onClick={(e) => setAdicionar(adicionar ? null : e.currentTarget)}>
+          <Plus size={14} /> Adicionar
+        </button>
       </div>
-      {porPlataforma.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2.5 text-xs text-muted">
-          {porPlataforma.map(([o, n]) => <span key={o} className="inline-flex items-center gap-1.5"><PlataformaIcone onde={o} tamanho={16} />{o} <b className="font-medium text-ink tabular-nums">{n}</b></span>)}
+
+      {/* 2) os 4 números de tempo */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2.5 shrink-0">
+        <button type="button" onClick={() => setRegistros(true)} title="MAR de hoje. O Mairo recomenda no mínimo 1 h por dia. (Toque para ver os registros.)"
+          className="text-left rounded-lg bg-surface-2/60 hover:bg-surface-2 transition-colors px-3 py-1.5 min-w-0">
+          <Rotulo>Hoje</Rotulo>
+          <Valor>{duracao(ind.hoje)}</Valor>
+          <div className="mt-1 h-[3px] rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+            <div className="h-full rounded-full" style={{ width: `${ind.metaSeg ? Math.min(100, (ind.hoje / ind.metaSeg) * 100) : 0}%`, background: ind.naMetaHoje ? "var(--good)" : COR_MAR }} />
+          </div>
+          <Dica>
+            {contando ? <span style={{ color: COR_MAR }}><Relogio size={10} className="inline -mt-px" /> contando · </span> : null}
+            <span style={ind.naMetaHoje ? { color: "var(--good)" } : undefined}>{ind.dicaHoje}</span>
+          </Dica>
+        </button>
+
+        <div className="rounded-lg bg-surface-2/60 px-3 py-1.5 min-w-0" title={ind.resumo} aria-label={`Média por dia: ${duracao(ind.mediaP)}. ${ind.resumo}`}>
+          <Rotulo>Por dia · {periodo.nome.toLowerCase()}</Rotulo>
+          <Valor>{duracao(ind.mediaP)}</Valor>
+          <Barrinhas ind={ind} />
         </div>
-      )}
 
-      {/* compacto: uma coluna por vez, em abas */}
-      {compacto ? (() => {
-        const atual: Situacao = aba ?? (col.assistindo.length ? "assistindo" : "quero");
-        const c = COLUNAS.find((x) => x.id === atual)!;
-        return (
-          <div className="mt-3">
-            <div className="inline-flex rounded-lg bg-surface-2 p-0.5 text-xs mb-2" role="tablist">
-              {COLUNAS.map((x) => (
-                <button key={x.id} role="tab" aria-selected={x.id === atual} onClick={() => setAba(x.id)}
-                  className={`px-2.5 py-1 rounded-md ${x.id === atual ? "bg-seg shadow-sm font-medium" : "text-muted hover:text-ink"}`}>
-                  {x.nome} <span className="tabular-nums text-muted">{col[x.id].length}</span>
-                </button>
-              ))}
-            </div>
-            {lista === null ? <p className="text-sm text-muted">…</p>
-              : col[atual].length === 0 ? <p className="text-xs text-muted">{c.vazio}</p>
-              : <ul className="space-y-2 max-h-[15.5rem] overflow-y-auto pr-0.5">{col[atual].map(cartao)}</ul>}
+        <div className="rounded-lg bg-surface-2/60 px-3 py-1.5 min-w-0"
+          title={`${periodo.nome}: ${duracao(ind.totalP)} de MAR — marcado ${duracao(doPeriodo.marcado)} · Timer ${duracao(doPeriodo.timerSeg)}. ${nf.format(doPeriodo.eps)} ${doPeriodo.eps === 1 ? "episódio" : "episódios"}${doPeriodo.vistos ? `, ${doPeriodo.vistos} ${doPeriodo.vistos === 1 ? "título terminado" : "títulos terminados"}` : ""}. Período anterior: ${duracao(ind.totalA)}.`}>
+          <Rotulo>{periodo.nome}</Rotulo>
+          <Valor>{duracao(ind.totalP)}</Valor>
+          <Dica>
+            {ind.metaSeg > 0 && ind.diasP > 1 ? `meta em ${ind.diasNaMeta} de ${ind.diasP} dias` : `${ind.diasComMar} ${ind.diasComMar === 1 ? "dia" : "dias"} com MAR`}
+            {varP !== null && <> · <span className="font-medium" style={{ color: varP > 0 ? "var(--good)" : varP < 0 ? "var(--critical)" : undefined }}>{varP > 0 ? "▲" : varP < 0 ? "▼" : "="} {Math.abs(varP)}%</span></>}
+          </Dica>
+        </div>
+
+        <div className="rounded-lg bg-surface-2/60 px-3 py-1.5 min-w-0" title={ind.tituloTotal}>
+          <Rotulo>No MAR</Rotulo>
+          <Valor>{duracao(ind.total)}</Valor>
+          <div className="mt-1 h-[3px] rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+            <div className="h-full rounded-full" style={{ width: ind.total > 0 ? `max(3px, ${ind.fracTotal * 100}%)` : 0, background: COR_MAR }} />
           </div>
-        );
-      })() : (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 items-start">
-        {COLUNAS.map((c) => (
-          <div key={c.id} className="rounded-xl bg-surface-2/40 p-2.5 min-w-0">
-            <div className="flex items-baseline justify-between px-0.5 mb-2">
-              <span className="text-[11px] uppercase tracking-wider text-muted">{c.nome}</span>
-              <span className="text-xs text-muted tabular-nums">{nf.format(col[c.id].length)}</span>
-            </div>
-            {lista === null ? <p className="text-sm text-muted px-0.5">…</p>
-              : col[c.id].length === 0 ? <p className="text-xs text-muted px-0.5 pb-1">{c.vazio}</p>
-              : <ul className="space-y-2 max-h-80 overflow-y-auto">{col[c.id].map(cartao)}</ul>}
-          </div>
-        ))}
+          <Dica>{ind.dicaTotal}</Dica>
+        </div>
       </div>
+
+      {/* 3) abas · plataformas, sem boia, Registros — ou a faixa de 15 s no mesmo lugar */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2.5 shrink-0">
+        <div className="inline-flex rounded-lg bg-surface-2 p-0.5 text-[13px]" role="tablist" aria-label="Listas do MAR">
+          {ABAS.map((x) => (
+            <button key={x.id} type="button" role="tab" aria-selected={x.id === atual} onClick={() => setAba(x.id)}
+              className={`px-2.5 py-2 sm:py-1 rounded-md whitespace-nowrap ${x.id === atual ? "bg-seg shadow-sm font-medium" : "text-muted hover:text-ink"}`}>
+              {x.nome} <span className="tabular-nums text-muted font-normal">{col[x.id].length}</span>
+            </button>
+          ))}
+        </div>
+        <div className="w-full sm:w-auto sm:flex-1 min-w-0 flex items-center justify-end gap-x-3 min-h-7">
+          {faixa ? (
+            <FaixaMar f={faixa} ocupado={!!faixa.t && ocupados.has(faixa.t.id)} onDesfazer={() => void faixaDesfazer()}
+              onSomarMesmo={() => void faixaSomarMesmo()} onTentar={faixaTentar} onFechar={() => setFaixa(null)} />
+          ) : (
+            <div className="flex items-center gap-x-3 text-xs text-muted min-w-0">
+              <span className="hidden md:flex items-center gap-2.5 min-w-0 overflow-hidden">
+                {porPlataforma.map((p) => (
+                  <span key={p.nome} className="inline-flex items-center gap-1 shrink-0" title={`${p.nome}: ${p.n} ${p.n === 1 ? "título" : "títulos"}`}>
+                    <PlataformaIcone onde={p.nome} tamanho={16} /><span className="tabular-nums">{p.n}</span>
+                  </span>
+                ))}
+              </span>
+              {semBoia !== null && (
+                <span className="whitespace-nowrap shrink-0" title="Do que você assiste e já viu, quanto é sem legenda. Com boia = com legenda em inglês; o objetivo, com o tempo, é tirar a boia.">
+                  sem boia <b className="font-medium text-ink tabular-nums">{semBoia}%</b>
+                </span>
+              )}
+              <button type="button" className="btn btn-ghost py-2 sm:py-1 px-2 text-xs shrink-0" onClick={() => setRegistros(true)} title="O que contou em cada dia (últimos 30 dias)">
+                <ListChecks size={14} /> Registros
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 4) a lista: rola por dentro no computador */}
+      <div className="mt-2 xl:flex-1 xl:min-h-0 xl:overflow-y-auto -mx-1 px-1 pb-0.5">
+        {lista === null ? <p className="text-sm text-muted py-2">Carregando…</p>
+          : col[atual].length === 0 ? <p className="text-sm text-muted py-2">{ABAS.find((x) => x.id === atual)!.vazio}</p>
+          : (
+            <ul className="space-y-2">
+              {col[atual].map((t) => (
+                <MarCartao key={t.id} t={t} idioma={idioma} ocupado={ocupados.has(t.id)}
+                  pergunta={pergunta?.tituloId === t.id ? textoDaPergunta : null}
+                  sobraSeg={sobras.get(t.id)?.seg ?? 0} noTimer={tituloNoTimer === t.id}
+                  hojeSeg={porTitulo.get(t.id)?.hoje ?? 0} totalSeg={porTitulo.get(t.id)?.total ?? 0}
+                  ultima={ultimaAcao(meuLog, t.id)} destaque={destaque === t.id}
+                  minUltimo={minUltimo[t.id] ?? t.min_ep ?? 15} acoes={acoes} />
+              ))}
+            </ul>
+          )}
+      </div>
+
+      {adicionar && (
+        <Pop ancora={adicionar} onFechar={() => setAdicionar(null)} titulo="Adicionar ao MAR" largura={380}>
+          <FormAdicionar idioma={idioma} posicao={Math.max(0, ...(lista ?? []).map((x) => x.posicao)) + 1}
+            onAdicionado={(t) => { setLista((l) => [...(l ?? []), t]); setAba(t.situacao); setAdicionar(null); }} />
+        </Pop>
       )}
-      {editEps && (
-        <EditorDeEpisodios t={editEps} onClose={() => setEditEps(null)}
-          onSalvar={(temporadas, ep_vistos, min_ep) => { mudar(editEps, { temporadas, ep_vistos, min_ep }); setEditEps(null); }} />
+      {editando && typeof document !== "undefined" && createPortal(
+        <MarEditor t={(lista ?? []).find((x) => x.id === editando.id) ?? editando} onFechar={() => setEditando(null)}
+          onSalvo={(novo, ajuste) => {
+            trocar(novo);
+            setEditando(null);
+            if (ajuste) {
+              mostrar({ ...textoFaixa(ajuste, editando), t: editando, acao: "ajuste" });
+              void carregarLog();
+            }
+          }} />,
+        document.body,
+      )}
+      {registros && typeof document !== "undefined" && createPortal(
+        <MarRegistros lista={lista ?? []} log={meuLog} sessoesMar={sessoesMar} metaMin={meta} ocupados={ocupados}
+          onDesfazer={(t) => void desfazerTitulo(t)} onConfigurar={onConfigurar ? () => { setRegistros(false); onConfigurar(); } : undefined}
+          onFechar={() => setRegistros(false)} />,
+        document.body,
       )}
     </section>
   );
 }
 
-/** Temporadas e episódios de uma série: quantos episódios tem cada temporada e onde você parou. */
-function EditorDeEpisodios({ t, onClose, onSalvar }: { t: Titulo; onClose: () => void; onSalvar: (temporadas: number[], epVistos: number, minEp: number) => void }) {
-  const [ts, setTs] = useState<number[]>(t.temporadas?.length ? [...t.temporadas] : [10]);
-  const [minEp, setMinEp] = useState(t.min_ep ?? 25);
-  const inicio = ondeEsta(t);
-  const [temp, setTemp] = useState(inicio.temp);
-  const [ep, setEp] = useState(inicio.ep);
-  const [rapido, setRapido] = useState("");
-  const tempOk = Math.min(temp, ts.length);
-  const epOk = Math.min(ep, ts[tempOk - 1] ?? 0);
-  const vistos = ts.slice(0, tempOk - 1).reduce((a, b) => a + b, 0) + epOk;
-  const total = ts.reduce((a, b) => a + b, 0);
+// ─── peças ───
+
+const Rotulo = ({ children }: { children: React.ReactNode }) => <div className="text-[11px] text-muted truncate">{children}</div>;
+const Valor = ({ children }: { children: React.ReactNode }) => <div className="text-lg tabular-nums leading-tight tracking-tight">{children}</div>;
+const Dica = ({ children }: { children: React.ReactNode }) => <div className="mt-0.5 text-[11px] leading-snug text-faint sm:truncate">{children}</div>;
+
+/** As barrinhas do "Por dia": uma por dia (ou semana, ou mês), com a linha tracejada da meta. */
+function Barrinhas({ ind }: { ind: ReturnType<typeof indicadores> }) {
+  const H = 18;
+  const meta = ind.metaSeg;
+  const topo = Math.max(meta, ...ind.barrinhas.map((b) => b.porDia), 1);
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/45" onClick={onClose}>
-      <div className="card w-full max-w-md p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="font-medium">{t.titulo} <span className="text-muted font-normal">· temporadas</span></h2>
-          <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
+    <div className="relative mt-1 flex items-end gap-[2px]" style={{ height: H }} aria-hidden>
+      {meta > 0 && <div className="absolute inset-x-0 border-t border-dashed pointer-events-none" style={{ bottom: (meta / topo) * H, borderColor: "var(--good)", opacity: 0.7 }} />}
+      {ind.barrinhas.map((b) => (
+        <div key={b.de} className="flex-1 min-w-0 h-full flex items-end" title={b.title}>
+          <div className="w-full rounded-[2px]" style={{
+            height: b.porDia > 0 ? Math.max(2, (b.porDia / topo) * H) : 2,
+            background: b.porDia <= 0 ? "var(--border)" : b.naMeta && meta > 0 ? "var(--good)" : `color-mix(in srgb, ${COR_MAR} ${meta > 0 ? 45 : 100}%, transparent)`,
+          }} />
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <input className="input flex-1" value={rapido} onChange={(e) => setRapido(e.target.value)} placeholder="rápido: 3x10 ou 10, 12, 8" />
-          <button className="btn" disabled={!lerTemporadas(rapido).length} onClick={() => { setTs(lerTemporadas(rapido)); setRapido(""); }}>Preencher</button>
-        </div>
-        <ul className="grid grid-cols-2 gap-2 text-sm">
-          {ts.map((n, i) => (
-            <li key={i} className="flex items-center gap-2 rounded-lg bg-surface-2/60 px-2.5 py-1.5">
-              <span className="text-muted w-8">T{i + 1}</span>
-              <input type="number" min={1} max={999} className="input py-0.5 px-2 w-16 text-right tabular-nums" value={n}
-                onChange={(e) => setTs((l) => l.map((x, j) => (j === i ? Math.max(1, Number(e.target.value) || 1) : x)))} />
-              <span className="text-xs text-muted">ep.</span>
-              {ts.length > 1 && <button className="ml-auto text-faint hover:text-critical" title="Tirar a temporada" onClick={() => setTs((l) => l.filter((_, j) => j !== i))}><X size={13} /></button>}
-            </li>
-          ))}
-        </ul>
-        <div className="flex items-center justify-between gap-3">
-          <button className="btn text-xs" onClick={() => setTs((l) => [...l, l[l.length - 1] ?? 10])}><Plus size={13} /> Temporada</button>
-          <label className="flex items-center gap-2 text-sm" title="Cada episódio marcado soma esse tempo no seu estudo de inglês (Dashboard e Idiomas)">
-            <span className="text-xs text-muted">cada episódio</span>
-            <input type="number" min={1} max={300} className="input py-0.5 px-2 w-16 text-right tabular-nums" value={minEp}
-              onChange={(e) => setMinEp(Math.max(1, Math.min(300, Number(e.target.value) || 25)))} />
-            <span className="text-xs text-muted">min</span>
+      ))}
+    </div>
+  );
+}
+
+/** A faixa de 15 s depois de cada ação: o que contou, e os botões Desfazer / Somar mesmo / Tentar de novo. */
+function FaixaMar({ f, ocupado, onDesfazer, onSomarMesmo, onTentar, onFechar }: {
+  f: EstadoFaixa; ocupado: boolean; onDesfazer: () => void; onSomarMesmo: () => void; onTentar: () => void; onFechar: () => void;
+}) {
+  const cor = f.tom === "erro" ? "var(--critical)" : f.tom === "aviso" ? "#c98a1a" : COR_MAR;
+  const botao = "btn py-1 px-2.5 text-xs shrink-0 sm:py-0.5 min-h-9 sm:min-h-7";
+  return (
+    <div role="status" aria-live="polite" className="w-full sm:w-auto min-w-0 flex flex-wrap sm:flex-nowrap items-center justify-end gap-1.5 rounded-lg pl-2.5 pr-1 py-0.5"
+      style={{ background: `color-mix(in srgb, ${cor} 12%, transparent)` }}>
+      <span className="text-[13px] min-w-0 flex-1 sm:flex-initial truncate" title={f.texto} style={f.tom === "erro" ? { color: "var(--critical)" } : undefined}>{f.texto}</span>
+      {f.tentar && <button type="button" className={`${botao} btn-primary`} disabled={ocupado} onClick={onTentar}>Tentar de novo</button>}
+      {f.desfazer && <button type="button" className={botao} disabled={ocupado} onClick={onDesfazer}>Desfazer</button>}
+      {f.somarMesmo && <button type="button" className={botao} disabled={ocupado} onClick={onSomarMesmo}
+        title="Não usar o tempo do Timer: somar a minutagem inteira">Somar mesmo</button>}
+      <button type="button" className="text-muted hover:text-ink px-1.5 text-base leading-none shrink-0" aria-label="Fechar o aviso" onClick={onFechar}>×</button>
+    </div>
+  );
+}
+
+/** "+ Adicionar": título, tipo, onde, nível e o que cada tipo precisa (episódios, duração, min por vez). */
+function FormAdicionar({ idioma, posicao, onAdicionado }: { idioma: string; posicao: number; onAdicionado: (t: Titulo) => void }) {
+  const [titulo, setTitulo] = useState("");
+  const [tipo, setTipo] = useState<TipoMar>("serie");
+  const [onde, setOnde] = useState("");
+  const [nivel, setNivel] = useState<1 | 2 | 3>(1);
+  const [eps, setEps] = useState("");
+  const [minEp, setMinEp] = useState("22");
+  const [dur, setDur] = useState("");
+  const [porVez, setPorVez] = useState("15");
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const durMin = lerMinutos(dur);
+  const ok = !!titulo.trim() && (tipo !== "filme" || (!!durMin && durMin <= MAR_LIMITES.min));
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ok || salvando) return;
+    const min_ep = tipo === "serie" ? Math.max(1, Math.min(300, lerMinutos(minEp) ?? 22))
+      : tipo === "filme" ? durMin!
+      : Math.max(1, Math.min(300, lerMinutos(porVez) ?? 15));
+    setSalvando(true); setErro(null);
+    const { data, error } = await supabase().from("mar_titulos").insert({
+      idioma, titulo: titulo.trim(), tipo, onde: onde.trim(), nivel, posicao, situacao: "quero", legenda: "en", progresso: "", nota: "",
+      temporadas: tipo === "serie" ? lerTemporadas(eps) : [], ep_vistos: 0, min_ep,
+    }).select().single();
+    setSalvando(false);
+    if (error || !data) return setErro(`Não salvou (${error?.message ?? "sem resposta"}).`);
+    onAdicionado(normalizarTitulo(data as Titulo));
+  }
+  const campo = "space-y-1 block";
+  return (
+    <form onSubmit={salvar} className="space-y-3 text-sm">
+      <label className={campo}>
+        <span className="label">Título</span>
+        <input className="input" autoFocus value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="ex.: Friends" />
+      </label>
+      <div className="grid grid-cols-5 gap-1" role="radiogroup" aria-label="Tipo">
+        {TIPOS.map((x) => (
+          <button key={x.id} type="button" role="radio" aria-checked={tipo === x.id} onClick={() => setTipo(x.id)}
+            className={`flex flex-col items-center gap-1 rounded-lg border py-2 text-xs ${tipo === x.id ? "border-transparent font-medium" : "border-line text-muted hover:text-ink"}`}
+            style={tipo === x.id ? { background: `color-mix(in srgb, ${COR_MAR} 16%, transparent)`, color: "var(--text)" } : undefined}>
+            <x.icone size={16} style={tipo === x.id ? { color: COR_MAR } : undefined} />{x.nome}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <label className={campo}>
+          <span className="label">Onde</span>
+          <span className="relative flex items-center">
+            {plataformaDe(onde) && <span className="absolute left-2.5 pointer-events-none"><PlataformaIcone onde={onde} tamanho={16} /></span>}
+            <input className={`input ${plataformaDe(onde) ? "pl-9" : ""}`} list="mar-plataformas" value={onde} onChange={(e) => setOnde(e.target.value)} placeholder="Netflix, YouTube…" />
+          </span>
+          <datalist id="mar-plataformas">{PLATAFORMAS.map((p) => <option key={p.id} value={p.nome} />)}</datalist>
+        </label>
+        <label className={campo}>
+          <span className="label">Nível</span>
+          <select className="input w-auto" value={nivel} onChange={(e) => setNivel(Number(e.target.value) as 1 | 2 | 3)}>
+            {([1, 2, 3] as const).map((n) => <option key={n} value={n}>{NIVEIS[n]}</option>)}
+          </select>
+        </label>
+      </div>
+      {tipo === "serie" && (
+        <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-2">
+          <label className={campo}>
+            <span className="label">Episódios por temporada</span>
+            <input className="input" value={eps} onChange={(e) => setEps(e.target.value)} placeholder="10, 12, 8 ou 3x10" />
+          </label>
+          <label className={campo}>
+            <span className="label">Min/ep.</span>
+            <input className="input text-right tabular-nums" inputMode="numeric" value={minEp} onChange={(e) => setMinEp(e.target.value)} />
           </label>
         </div>
-        <div className="rounded-lg border border-line p-3 text-sm space-y-2">
-          <div className="text-xs text-muted">Onde você parou (o último episódio que viu) — mudar aqui não soma tempo; o tempo entra pelo “+ episódio”</div>
-          <div className="flex items-center gap-2">
-            <select className="input w-auto" value={tempOk} onChange={(e) => { setTemp(Number(e.target.value)); setEp(0); }}>
-              {ts.map((_, i) => <option key={i} value={i + 1}>Temporada {i + 1}</option>)}
-            </select>
-            <select className="input w-auto" value={epOk} onChange={(e) => setEp(Number(e.target.value))}>
-              <option value={0}>{tempOk === 1 ? "não comecei" : "nenhum desta"}</option>
-              {Array.from({ length: ts[tempOk - 1] ?? 0 }, (_, i) => <option key={i} value={i + 1}>Episódio {i + 1}</option>)}
-            </select>
-          </div>
-          <div className="text-xs text-muted tabular-nums">{vistos} de {total} episódios ({total ? Math.round((vistos / total) * 100) : 0}%)</div>
-        </div>
-        <div className="flex justify-end gap-2">
-          <button className="btn" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={() => onSalvar(ts, vistos, minEp)}>Salvar</button>
-        </div>
-      </div>
-    </div>
+      )}
+      {tipo === "filme" && (
+        <label className={campo}>
+          <span className="label">Duração (min ou 1h52)</span>
+          <input className="input" inputMode="numeric" value={dur} onChange={(e) => setDur(e.target.value)} placeholder="ex.: 1h52" />
+          {dur && !ok && titulo.trim() && <span className="text-xs text-critical">Não entendi. Use minutos (ex.: 112) ou 1h52.</span>}
+        </label>
+      )}
+      {(tipo === "youtube" || tipo === "podcast" || tipo === "livro") && (
+        <label className={campo}>
+          <span className="label">Minutos por vez (o botão “+” usa este valor)</span>
+          <input className="input w-28 text-right tabular-nums" inputMode="numeric" value={porVez} onChange={(e) => setPorVez(e.target.value)} />
+        </label>
+      )}
+      {erro && <p className="text-xs text-critical">{erro}</p>}
+      <button className="btn btn-primary w-full justify-center py-2" disabled={!ok || salvando}>
+        <Plus size={15} /> {salvando ? "Salvando…" : "Adicionar em “Quero ver”"}
+      </button>
+    </form>
   );
 }

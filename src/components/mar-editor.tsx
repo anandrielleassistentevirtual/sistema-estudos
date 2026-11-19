@@ -89,7 +89,7 @@ export function MarEditor({ t, onFechar, onSalvo }: {
 
   return (
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/45" onClick={onFechar}>
-      <div className="card w-full max-w-lg p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="card w-full max-w-2xl p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-medium truncate">{t.titulo} <span className="text-muted font-normal">· temporadas e minutagem</span></h2>
           <button type="button" onClick={onFechar} className="btn btn-ghost p-1.5" aria-label="Fechar"><X size={18} /></button>
@@ -111,16 +111,16 @@ export function MarEditor({ t, onFechar, onSalvo }: {
           {ts.map((n, i) => {
             const ex = excecoes(i);
             return (
-              <li key={i} className={`flex items-center gap-1.5 rounded-lg px-2 py-1 ${grade === i ? "bg-surface-2 ring-1 ring-line" : "bg-surface-2/60"}`}>
-                <button type="button" className="inline-flex items-center gap-1 text-muted hover:text-ink w-12 shrink-0" title={`Minutagem de cada episódio da T${i + 1}`}
+              <li key={i} className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 ${grade === i ? "bg-surface-2 ring-1 ring-line" : "bg-surface-2/60"}`}>
+                <button type="button" className="inline-flex items-center gap-1 rounded-md px-1 py-1 text-muted hover:text-ink hover:bg-sel w-14 shrink-0" title={`Minutagem de cada episódio da T${i + 1} (toque para abrir)`}
                   onClick={() => setGrade(grade === i ? null : i)}>T{i + 1}<Grid3x3 size={12} /></button>
                 <input className="input py-0.5 px-1.5 w-12 text-right tabular-nums" inputMode="numeric" aria-label={`Episódios da T${i + 1}`} value={n}
                   onChange={(e) => setTs((l) => l.map((x, j) => (j === i ? Math.max(1, Math.min(999, Number(e.target.value.replace(/\D/g, "")) || 1)) : x)))} />
-                <span className="text-xs text-muted">ep. ·</span>
+                <span className="text-xs text-muted">ep.</span>
                 <input className="input py-0.5 px-1.5 w-12 text-right tabular-nums" inputMode="numeric" aria-label={`Minutos dos episódios da T${i + 1}`}
                   placeholder={String(padrao)} value={mm[String(i + 1)] ?? ""}
                   onChange={(e) => mudarMin(String(i + 1), Number(e.target.value.replace(/\D/g, "").slice(0, 3)) || null, padrao)} />
-                <span className="text-xs text-muted">min</span>
+                <span className="text-xs text-muted mr-1">min</span>
                 {ex > 0 && <span className="text-[10.5px] tabular-nums" style={{ color: COR_MAR }} title={`${ex} episódios com minutagem própria`}>+{ex}</span>}
                 {ts.length > 1 && <button type="button" className="ml-auto text-faint hover:text-critical p-1" title="Tirar a temporada (as seguintes sobem)" onClick={() => tirarTemporada(i)}><X size={13} /></button>}
               </li>
