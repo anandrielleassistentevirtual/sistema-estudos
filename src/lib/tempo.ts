@@ -33,3 +33,13 @@ export async function ankiPorIdioma(desde: string): Promise<{ dias: AnkiIdiomaDi
  */
 export const contaComoEstudo = (label: string | null | undefined, ankiWeb: boolean, categoria?: string | null) =>
   categoria !== "Exercício" && !(ankiWeb && (label ?? "").startsWith("Anki ·"));
+
+/**
+ * A sessão é do MAR (imersão)? Ligada a um título do MAR (mar_titulo_id) ou com o rótulo "MAR · …".
+ * O mesmo teste em todo lugar: Timer, "Onde foi o tempo", "Tempo" de Idiomas e o painel do MAR.
+ * ("Série / filme", do Registrar tempo, não é MAR.)
+ */
+export const ehMar = (label?: string | null, marTituloId?: string | null) => !!marTituloId || /^MAR\b/.test(label ?? "");
+
+/** O Mairo fala em 800 a 1.000 h de MAR para começar a entender: a barra "No MAR" vai até aqui. */
+export const MAR_META_HORAS = 1000;

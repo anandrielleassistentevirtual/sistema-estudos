@@ -10,11 +10,17 @@ export interface Language {
   bandeira: string | null;
   /** baralhos de cima do Anki que pertencem a este idioma (ex.: ["English"]) */
   anki_baralhos: string[];
+  /** MAR: meta de minutos por dia (o Mairo recomenda no mínimo 60) */
+  mar_meta_min: number;
+  /** MAR: quando a etapa começou (aaaa-mm-dd); null = desde o 1º registro */
+  mar_inicio: string | null;
 }
 
 export async function loadLanguages(): Promise<Language[]> {
-  const { data } = await supabase().from("languages").select("id,name,weekly_goal_min,position,bandeira,anki_baralhos").order("position").order("name");
-  return ((data as Language[]) ?? []).map((l) => ({ ...l, anki_baralhos: l.anki_baralhos ?? [] }));
+  const { data } = await supabase().from("languages").select("id,name,weekly_goal_min,position,bandeira,anki_baralhos,mar_meta_min,mar_inicio").order("position").order("name");
+  return ((data as Language[]) ?? []).map((l) => ({
+    ...l, anki_baralhos: l.anki_baralhos ?? [], mar_meta_min: l.mar_meta_min ?? 60, mar_inicio: l.mar_inicio ?? null,
+  }));
 }
 
 export const SUGESTOES = ["Inglês", "Italiano", "Francês", "Espanhol", "Alemão", "Latim", "Grego antigo", "Russo", "Japonês", "Mandarim"];

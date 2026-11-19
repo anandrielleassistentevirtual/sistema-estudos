@@ -15,8 +15,11 @@ export function BarChart({
   average,
   meta,
   alturaExata,
+  corParte = "#1baf7a",
+  rotuloParte = "MAR",
 }: {
-  data: { label: string; value: number; detail?: string }[];
+  /** parte: um pedaço do valor (ex.: os minutos do MAR), pintado sólido no pé da barra */
+  data: { label: string; value: number; detail?: string; parte?: number }[];
   unit: string;
   height?: number;
   average?: number;
@@ -24,6 +27,10 @@ export function BarChart({
   meta?: number;
   /** usa a altura pedida em qualquer largura (quando quem chama já calculou o espaço disponível) */
   alturaExata?: boolean;
+  /** cor da parte de cada barra (padrão: a cor de Idiomas) */
+  corParte?: string;
+  /** nome da parte na tabela para leitores de tela: "(MAR 22)" */
+  rotuloParte?: string;
 }) {
   const [sel, setSel] = useState<number | null>(null);
   const [largura, setLargura] = useState(0);
@@ -121,7 +128,7 @@ export function BarChart({
             {/* barra selecionada: um fundo leve marca a coluna inteira, também nas barras vazias */}
             {sel === i && <div className="absolute inset-y-0 inset-x-[8%] rounded-md bg-ink/[0.05]" />}
             <div
-              className="absolute bottom-0 rounded-t-[4px] transition-opacity"
+              className={`absolute bottom-0 rounded-t-[4px] transition-opacity${d.parte ? " overflow-hidden" : ""}`}
               style={{
                 width: "62%",
                 maxWidth: 40,
@@ -131,7 +138,12 @@ export function BarChart({
                   : "linear-gradient(to top, color-mix(in srgb, var(--chart) 35%, transparent), var(--chart))",
                 opacity: sel === null || sel === i ? 1 : 0.45,
               }}
-            />
+            >
+              {/* a parte (ex.: MAR) sólida no pé da barra: altura parte/nice do gráfico */}
+              {!!d.parte && d.parte > 0 && d.value > 0 && (
+                <div className="absolute inset-x-0 bottom-0" style={{ height: `${Math.min(100, (d.parte / d.value) * 100)}%`, background: corParte }} />
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -161,7 +173,7 @@ export function BarChart({
       <table className="sr-only">
         <tbody>
           {data.map((d, i) => (
-            <tr key={i}><th scope="row">{d.detail ?? d.label}</th><td>{nf.format(d.value)} {unit}</td></tr>
+            <tr key={i}><th scope="row">{d.detail ?? d.label}</th><td>{nf.format(d.value)} {unit}{d.parte ? ` (${rotuloParte} ${nf.format(d.parte)})` : ""}</td></tr>
           ))}
         </tbody>
       </table>

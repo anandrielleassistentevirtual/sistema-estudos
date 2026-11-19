@@ -13,6 +13,7 @@ import type { Periodo } from "@/lib/periodo";
 import { RowMenu } from "./row-menu";
 import { useTimerEstado } from "./timer-context";
 import { Variacao } from "./variacao";
+import { lerTemporadas, ondeEsta, totalEps } from "@/lib/mar";
 import { PLATAFORMAS, PlataformaIcone, plataformaDe } from "./plataforma";
 
 type Tipo = "filme" | "serie" | "youtube" | "podcast" | "livro";
@@ -27,21 +28,8 @@ interface Titulo {
 }
 
 const COR_EP = "#1baf7a"; // a cor de Idiomas
-const totalEps = (t: Pick<Titulo, "temporadas">) => (t.temporadas ?? []).reduce((a, b) => a + b, 0);
-/** o último episódio visto: temporada (1…) e episódio dentro dela; 0 = não começou */
-function ondeEsta(t: Pick<Titulo, "temporadas" | "ep_vistos">) {
-  let k = t.ep_vistos ?? 0;
-  const ts = t.temporadas ?? [];
-  if (k <= 0 || !ts.length) return { temp: 1, ep: 0 };
-  for (let i = 0; i < ts.length; i++) { if (k <= ts[i]) return { temp: i + 1, ep: k }; k -= ts[i]; }
-  return { temp: ts.length, ep: ts[ts.length - 1] };
-}
-/** "10, 12, 8" ou "3x10" (3 temporadas de 10) → [10, 12, 8] */
-export function lerTemporadas(txt: string): number[] {
-  const x = txt.trim().toLowerCase().match(/^(\d+)\s*[x×]\s*(\d+)$/);
-  if (x) return Array.from({ length: Math.min(60, Number(x[1])) }, () => Number(x[2]));
-  return txt.split(/[,;\s]+/).map((v) => parseInt(v, 10)).filter((v) => v > 0 && v < 1000).slice(0, 60);
-}
+// movidos para lib/mar (o painel novo usa os de lá)
+export { lerTemporadas };
 
 const TIPOS: { id: Tipo; nome: string; icone: typeof Tv }[] = [
   { id: "serie", nome: "Série", icone: Tv },
