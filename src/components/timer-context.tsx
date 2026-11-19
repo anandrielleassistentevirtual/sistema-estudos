@@ -6,7 +6,7 @@ import { dayKey } from "@/lib/dates";
 export type TimerMode = "pomodoro" | "livre";
 export type Phase = "foco" | "pausa";
 
-interface TimerState {
+export interface TimerState {
   mode: TimerMode;
   phase: Phase;
   running: boolean;
@@ -115,6 +115,8 @@ export const CATEGORIAS = ["Leitura", "Idiomas", "Estudos", "Anki", "Oração", 
 export function describe(st: TimerState): string {
   if (st.category === "Leitura" && st.bookTitle) return st.bookTitle;
   if (st.category === "Estudos" && st.noteTitle) return st.noteTitle;
+  // MAR (imersão) fica "MAR · título", para ser reconhecido em todo lugar (o idioma já vai na coluna language)
+  if (st.category === "Idiomas" && /^MAR\b/.test(st.label)) return st.label;
   if (st.category === "Idiomas" && st.language) return st.label ? `${st.language} · ${st.label}` : st.language;
   return st.label;
 }
@@ -135,6 +137,10 @@ function beep() {
 
 export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [s, setS] = useState<TimerState>(initial);
+  // o estado de agora, para quem só precisa consultá-lo num clique (sem redesenhar a cada segundo)
+  const atual = useRef(s);
+  atual.current = s;
+  const ver = useCallback(() => atual.current, []);
   const [now, setNow] = useState(() => Date.now());
   const [lastSaved, setLastSaved] = useState(0);
   const [pending, setPending] = useState<PendingPages | null>(null);
@@ -267,7 +273,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const set = useCallback((patch: Partial<TimerState>) => setS((p) => ({ ...p, ...patch })), []);
   // estado sem o relógio: só muda quando o timer liga, pausa ou troca de fase
-  const estado = useMemo<TimerEstado>(() => ({ running: s.running, phase: s.phase, set, start }), [s.running, s.phase, set, start]);
+  const estado = useMemo<TimerEstado>(() => ({ running: s.running, phase: s.phase, set, start, ver }), [s.running, s.phase, set, start, ver]);
 
   const api: TimerApi = {
     ...s,
@@ -336,6 +342,8 @@ export interface TimerEstado {
   phase: TimerState["phase"];
   set: (patch: Partial<TimerState>) => void;
   start: () => void;
+  /** o estado completo de agora (categoria, idioma, rótulo…), lido na hora — não redesenha a tela */
+  ver: () => Readonly<TimerState>;
 }
 const EstadoCtx = createContext<TimerEstado | null>(null);
 export function useTimerEstado() {
