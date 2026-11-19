@@ -26,7 +26,7 @@ interface Titulo {
   min_ep: number | null;
 }
 
-const COR_EP = "#1baf7a"; // a cor de Idiomas
+const COR_EP = "var(--area-idiomas)"; // a cor de Idiomas
 const totalEps = (t: Pick<Titulo, "temporadas">) => (t.temporadas ?? []).reduce((a, b) => a + b, 0);
 /** o último episódio visto: temporada (1…) e episódio dentro dela; 0 = não começou */
 function ondeEsta(t: Pick<Titulo, "temporadas" | "ep_vistos">) {
@@ -51,7 +51,7 @@ const TIPOS: { id: Tipo; nome: string; icone: typeof Tv }[] = [
   { id: "livro", nome: "Livro", icone: BookOpen },
 ];
 const NIVEIS = { 1: "fácil", 2: "médio", 3: "difícil" } as const;
-const COR_NIVEL = { 1: "var(--good)", 2: "#c98a1a", 3: "var(--critical)" } as const;
+const COR_NIVEL = { 1: "var(--good)", 2: "var(--warn)", 3: "var(--critical)" } as const;
 const COLUNAS: { id: Situacao; nome: string; vazio: string }[] = [
   { id: "assistindo", nome: "Assistindo", vazio: "Nada em andamento. Escolha algo da fila e aperte ▶." },
   { id: "quero", nome: "Quero ver", vazio: "A fila está vazia. Use “Adicionar”." },
@@ -279,7 +279,7 @@ export function MarPainel({ idioma, periodo, compacto, className = "mt-3 md:mt-4
   const Mini = ({ rotulo, valor, dica, hint }: { rotulo: string; valor: React.ReactNode; dica?: string; hint?: React.ReactNode }) => (
     <div className="rounded-lg bg-surface-2/60 px-3 py-2 min-w-0" title={dica}>
       <div className="text-[11px] text-muted truncate">{rotulo}</div>
-      <div className="text-xl tabular-nums leading-tight mt-0.5">{valor}</div>
+      <div className="text-xl font-medium tracking-[-0.02em] tabular-nums leading-tight mt-0.5">{valor}</div>
       {hint && <div className="text-[11px] text-faint truncate">{hint}</div>}
     </div>
   );
@@ -288,7 +288,7 @@ export function MarPainel({ idioma, periodo, compacto, className = "mt-3 md:mt-4
     <section id="mar" className={`card p-4 min-w-0 flex flex-col ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="min-w-0">
-          <h3 className="font-medium flex items-center gap-2"><Waves size={16} className="text-icon" /> MAR</h3>
+          <h3 className="card-title flex items-center gap-2"><Waves size={16} className="text-icon" /> MAR</h3>
           <p className="text-xs text-muted mt-0.5">{idioma} de verdade — séries, filmes, canais e podcasts. {compacto ? "Do mais fácil, com boia, ao sem boia." : "Comece pelo mais fácil, com boia; depois tire a boia."}</p>
         </div>
         {!form && <button className="btn text-sm" onClick={() => setForm(true)}><Plus size={15} /> Adicionar</button>}
@@ -340,10 +340,9 @@ export function MarPainel({ idioma, periodo, compacto, className = "mt-3 md:mt-4
         const c = COLUNAS.find((x) => x.id === atual)!;
         return (
           <div className="mt-3">
-            <div className="inline-flex rounded-lg bg-surface-2 p-0.5 text-xs mb-2" role="tablist">
+            <div className="seg mb-2" role="tablist">
               {COLUNAS.map((x) => (
-                <button key={x.id} role="tab" aria-selected={x.id === atual} onClick={() => setAba(x.id)}
-                  className={`px-2.5 py-1 rounded-md ${x.id === atual ? "bg-seg shadow-sm font-medium" : "text-muted hover:text-ink"}`}>
+                <button key={x.id} role="tab" aria-selected={x.id === atual} aria-pressed={x.id === atual} onClick={() => setAba(x.id)}>
                   {x.nome} <span className="tabular-nums text-muted">{col[x.id].length}</span>
                 </button>
               ))}
@@ -392,8 +391,8 @@ function EditorDeEpisodios({ t, onClose, onSalvar }: { t: Titulo; onClose: () =>
     <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/45" onClick={onClose}>
       <div className="card w-full max-w-md p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">{t.titulo} <span className="text-muted font-normal">· temporadas</span></h2>
-          <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
+          <h2 className="modal-title">{t.titulo} <span className="text-muted font-normal">· temporadas</span></h2>
+          <button onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         <div className="flex items-center gap-2 text-sm">
           <input className="input flex-1" value={rapido} onChange={(e) => setRapido(e.target.value)} placeholder="rápido: 3x10 ou 10, 12, 8" />

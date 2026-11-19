@@ -10,6 +10,7 @@ import { supabase } from "./supabase/client";
 import { todas } from "./supabase/todas";
 import { addDays, dayKey, parseDay, weekStart } from "./dates";
 import { ankiPorIdioma } from "./tempo";
+import { COR_AREA } from "./cores";
 
 export type Estacao = "verao" | "outono" | "inverno" | "primavera";
 export type Area = "leitura" | "estudos" | "idiomas" | "escrita" | "pesquisa" | "exercicio";
@@ -22,13 +23,14 @@ export const ESTACOES: Record<Estacao, { nome: string; mes: number; dia: number 
 };
 const ORDEM: Estacao[] = ["outono", "inverno", "primavera", "verao"]; // na ordem do ano civil (o verão começa em dezembro)
 
+/** As cores das áreas vêm de lib/cores (as mesmas do Dashboard, dos gráficos e das barras de progresso). */
 export const AREAS: { id: Area; nome: string; cor: string }[] = [
-  { id: "leitura", nome: "Leitura", cor: "#3987e5" },
-  { id: "estudos", nome: "Estudos", cor: "#8e6fd6" },
-  { id: "idiomas", nome: "Idiomas", cor: "#1baf7a" },
-  { id: "escrita", nome: "Escrita", cor: "#e8913a" },
-  { id: "pesquisa", nome: "Pesquisa", cor: "#c9a227" },
-  { id: "exercicio", nome: "Exercício", cor: "#e05d5d" },
+  { id: "leitura", nome: "Leitura", cor: COR_AREA.leitura },
+  { id: "estudos", nome: "Estudos", cor: COR_AREA.estudos },
+  { id: "idiomas", nome: "Idiomas", cor: COR_AREA.idiomas },
+  { id: "escrita", nome: "Escrita", cor: COR_AREA.escrita },
+  { id: "pesquisa", nome: "Pesquisa", cor: COR_AREA.pesquisa },
+  { id: "exercicio", nome: "Exercício", cor: COR_AREA.exercicio },
 ];
 
 /** Categoria do Timer → área da temporada (Oração e "Outro" não entram). */

@@ -247,7 +247,7 @@ export default function AulaAberta() {
             <ListChecks size={18} />
             {tarefasPendentes > 0 && !tarefasAberto && (
               <span className="absolute top-0.5 right-0 min-w-[15px] h-[15px] px-0.5 rounded-full text-[10px] leading-[15px] text-center tabular-nums"
-                style={{ background: "#c98a1a", color: "#fff" }}>{tarefasPendentes}</span>
+                style={{ background: "var(--warn)", color: "var(--accent-ink)" }}>{tarefasPendentes}</span>
             )}
           </button>
         )}
@@ -316,7 +316,7 @@ export default function AulaAberta() {
             </div>
           )}
           {aviso && (
-            <div className="absolute left-1/2 -translate-x-1/2 top-4 z-40 rounded-lg px-4 py-2 text-sm shadow-lg" style={{ background: "var(--text)", color: "var(--bg)" }}>
+            <div role="status" className="toast absolute left-1/2 -translate-x-1/2 top-4 z-40 max-w-[calc(100vw-2rem)]">
               {aviso}
             </div>
           )}
@@ -352,7 +352,7 @@ export default function AulaAberta() {
         <footer className="shrink-0 flex items-center gap-2 px-3 h-9 text-xs opacity-80">
           <button className="p-1" onClick={() => reader.current?.prev()} aria-label="Página anterior"><ChevronLeft size={16} /></button>
           <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: linha }}>
-            <div className="h-full opacity-60" style={{ width: `${progresso * 100}%`, background: "currentColor" }} />
+            <div className="h-full rounded-full opacity-90" style={{ width: `${progresso * 100}%`, background: "var(--area-estudos)" }} />
           </div>
           <button className="p-1" onClick={() => reader.current?.next()} aria-label="Próxima página"><ChevronRight size={16} /></button>
         </footer>

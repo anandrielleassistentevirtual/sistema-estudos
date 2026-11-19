@@ -61,7 +61,7 @@ export function RowMenu({ items, label = "Mais ações" }: { items: MenuItem[]; 
         <MoreHorizontal size={17} />
       </button>
       {pos && createPortal(
-        <div ref={menu} role="menu" className="fixed z-[80] w-60 sm:w-56 max-w-[calc(100vw-2rem)] card py-1 shadow-xl"
+        <div ref={menu} role="menu" className="fixed z-[80] w-60 sm:w-56 max-w-[calc(100vw-2rem)] popover py-1"
           style={{ right: pos.right, top: pos.top, bottom: pos.bottom }}>
           {items.map((it, i) => (
             <div key={i}>

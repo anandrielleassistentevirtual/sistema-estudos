@@ -31,10 +31,10 @@ export function ConfissaoAviso() {
   const dias = ultima ? diasDesde(ultima) : null;
   const atrasada = dias !== null && dias > PRAZO_CONFISSAO;
   return (
-    <section className={`card px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 ${atrasada ? "border-[color-mix(in_srgb,#c98a1a_55%,transparent)]" : ""}`}
-      style={atrasada ? { background: "color-mix(in srgb, #c98a1a 9%, var(--surface))" } : undefined}>
+    <section className={`card px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 ${atrasada ? "border-[color-mix(in_srgb,var(--warn)_55%,transparent)]" : ""}`}
+      style={atrasada ? { background: "color-mix(in srgb, var(--warn) 9%, var(--surface))" } : undefined}>
       <div className="flex items-center gap-2 min-w-0 basis-full sm:basis-0 flex-1">
-        {atrasada ? <BellRing size={17} className="shrink-0" style={{ color: "#c98a1a" }} /> : <ListChecks size={17} className="text-icon shrink-0" />}
+        {atrasada ? <BellRing size={17} className="shrink-0" style={{ color: "var(--warn)" }} /> : <ListChecks size={17} className="text-icon shrink-0" />}
         <div className="min-w-0">
           <div className="text-sm font-medium">
             {ultima === null ? "Quando foi a sua última confissão?" : atrasada ? "Está na hora da confissão" : "Confissão em dia"}

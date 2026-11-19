@@ -28,11 +28,14 @@ export default function Login() {
   }
 
   return (
-    <main className="min-h-screen grid place-items-center px-4">
+    <main className="min-h-screen grid place-items-center px-4 py-10">
       <form onSubmit={submit} className="card w-full max-w-sm p-7 space-y-4">
-        <div>
-          <h1 className="text-xl font-medium">Sistema de Estudos</h1>
-          <p className="text-sm text-muted mt-1">
+        {/* a mesma marca do menu e da tela de início: o ícone do app, o nome e o lema */}
+        <div className="text-center pb-1">
+          <img src="/icons/icon-192.png" alt="" width={56} height={56} className="w-14 h-14 mx-auto rounded-[14px] ring-1 ring-black/10 dark:ring-white/10 shadow-sm" />
+          <h1 className="text-xl font-semibold tracking-tight mt-4">Sistema de Estudos</h1>
+          <p className="text-[11px] text-faint mt-1">studium · lectio · memoria</p>
+          <p className="text-sm text-muted mt-3">
             {mode === "entrar" ? "Entre para continuar seus estudos." : "Crie sua conta (só você terá acesso aos dados)."}
           </p>
         </div>
@@ -57,7 +60,7 @@ export default function Login() {
         </button>
         <button
           type="button"
-          className="text-sm text-muted underline w-full"
+          className="text-sm text-muted hover:text-ink underline underline-offset-2 w-full"
           onClick={() => setMode(mode === "entrar" ? "criar" : "entrar")}
         >
           {mode === "entrar" ? "Primeiro acesso? Criar conta" : "Já tenho conta"}

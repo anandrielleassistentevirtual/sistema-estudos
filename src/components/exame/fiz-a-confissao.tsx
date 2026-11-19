@@ -13,7 +13,7 @@ export function FizAConfissao({ total, onClose, onConfirmar }: {
   return (
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div className="card w-full max-w-md p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg">Fiz a confissão</h2>
+        <h2 className="modal-title">Fiz a confissão</h2>
         <label className="block"><span className="label">Quando?</span>
           <input type="date" className="input mt-1" max={hojeIso()} value={d} onChange={(e) => setD(e.target.value)} /></label>
         <label className="block"><span className="label">Penitência (opcional, para não esquecer)</span>
@@ -24,7 +24,7 @@ export function FizAConfissao({ total, onClose, onConfirmar }: {
             ? <>Os {total === 1 ? "pecado marcado será apagado" : `${total} pecados marcados serão apagados`} <b className="text-ink">para sempre</b>, sem cópia. Ficam guardadas só a data e, cifrada, a penitência até você marcá-la como cumprida.</>
             : "Ficam guardadas só a data e, cifrada, a penitência até você marcá-la como cumprida."}
         </p>
-        {erro && <p className="text-sm" style={{ color: "var(--bad, #d33)" }}>{erro}</p>}
+        {erro && <p className="text-sm" style={{ color: "var(--critical)" }}>{erro}</p>}
         <div className="flex justify-end gap-2">
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" disabled={!d || indo} onClick={async () => {

@@ -16,7 +16,7 @@ export function CampoSenha({ valor, onMudar, placeholder, autoFocus }: { valor: 
   );
 }
 
-const vermelho = { color: "var(--bad, #d33)" };
+const vermelho = { color: "var(--critical)" };
 
 export function CriarSenha({ onCriar }: { onCriar: (s: string) => Promise<void> }) {
   const [a, setA] = useState("");
@@ -31,7 +31,7 @@ export function CriarSenha({ onCriar }: { onCriar: (s: string) => Promise<void> 
       setIndo(true);
       try { await onCriar(a); } catch (x) { setErro((x as Error).message); setIndo(false); }
     }}>
-      <div className="flex items-center gap-2"><ShieldCheck size={18} className="text-icon" /><h2 className="font-medium">Crie uma senha para o exame</h2></div>
+      <div className="flex items-center gap-2"><ShieldCheck size={18} className="text-icon" /><h2 className="card-title">Crie uma senha para o exame</h2></div>
       <p className="text-sm text-muted">
         O exame é cifrado no seu aparelho com esta senha antes de ser guardado. Ninguém consegue lê-lo sem ela:
         nem o sistema, nem quem tiver acesso ao banco de dados.
@@ -62,7 +62,7 @@ export function Destrancar({ onAbrir, onApagarTudo }: { onAbrir: (s: string) => 
         setIndo(true);
         await onApagarTudo();
       }}>
-        <h2 className="font-medium">Esqueci a senha</h2>
+        <h2 className="card-title">Esqueci a senha</h2>
         <p className="text-sm text-muted">
           Sem a senha, ninguém consegue abrir o exame em andamento — nem o sistema. A única saída é <b className="text-ink">apagá-lo</b> e criar uma senha nova.
           Se você só não lembra agora, tente com calma antes: as letras maiúsculas e minúsculas contam.
@@ -84,7 +84,7 @@ export function Destrancar({ onAbrir, onApagarTudo }: { onAbrir: (s: string) => 
       const r = await onAbrir(s);
       if (r) { setErro(r); setIndo(false); setS(""); }
     }}>
-      <div className="flex items-center gap-2"><Lock size={18} className="text-icon" /><h2 className="font-medium">Exame trancado</h2></div>
+      <div className="flex items-center gap-2"><Lock size={18} className="text-icon" /><h2 className="card-title">Exame trancado</h2></div>
       <p className="text-sm text-muted">Digite a sua senha para abrir.</p>
       <CampoSenha valor={s} onMudar={setS} placeholder="Senha" autoFocus />
       {erro && <p className="text-sm" style={vermelho}>{erro}</p>}

@@ -47,8 +47,8 @@ export function LiteraryModal({ note, books, onClose, onSaved, fixedBookId }: {
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-xl p-5 space-y-3 max-h-[92vh] overflow-y-auto">
         <div className="flex justify-between items-center">
-          <h2 className="font-medium">{note ? "Nota literária" : "Nova nota literária"}</h2>
-          <button type="button" onClick={onClose}><X size={18} /></button>
+          <h2 className="modal-title">{note ? "Nota literária" : "Nova nota literária"}</h2>
+          <button type="button" onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         <div className="grid grid-cols-[1fr_140px] gap-3">
           <label className="space-y-1"><span className="label">Livro</span>

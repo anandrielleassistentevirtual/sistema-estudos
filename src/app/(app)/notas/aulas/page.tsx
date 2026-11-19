@@ -82,9 +82,9 @@ export default function AnotacoesDasAulas() {
             <input className="bg-transparent outline-none flex-1 min-w-0" placeholder="Buscar nas anotações, aulas e cursos" value={q} onChange={(e) => setQ(e.target.value)} />
             {q && <button onClick={() => setQ("")} className="text-faint hover:text-ink"><X size={14} /></button>}
           </label>
-          <div className="inline-flex rounded-lg bg-surface-2 p-1 text-sm">
+          <div className="seg seg-md">
             {([["curso", "Por curso"], ["recentes", "Mais recentes"]] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setVista(k)} className={`px-3 py-1 rounded-md ${vista === k ? "bg-seg shadow-sm" : "text-muted"}`}>{l}</button>
+              <button key={k} onClick={() => setVista(k)} aria-pressed={vista === k} className="px-3">{l}</button>
             ))}
           </div>
         </div>

@@ -12,10 +12,9 @@ export function FiltroPeriodo({ periodo, onMudar }: { periodo: Periodo; onMudar:
   const hoje = dayKey();
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <div className="inline-flex rounded-lg bg-surface-2 p-0.5 text-xs" role="group" aria-label="Atalhos de período">
+      <div className="seg" role="group" aria-label="Atalhos de período">
         {ATALHOS.map(([id, nome]) => (
-          <button key={id} onClick={() => onMudar(id)}
-            className={`px-2.5 py-1 rounded-md ${periodo.id === id ? "bg-seg shadow-sm font-medium" : "text-muted hover:text-ink"}`}>{nome}</button>
+          <button key={id} onClick={() => onMudar(id)} aria-pressed={periodo.id === id}>{nome}</button>
         ))}
       </div>
       <span className="inline-flex items-center gap-1 text-sm">

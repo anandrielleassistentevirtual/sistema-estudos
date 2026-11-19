@@ -100,7 +100,7 @@ export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
               {origem && <span>da {origem}</span>}
               {t.antes_de && t.antes_de !== aula.id && <span className="inline-flex items-center gap-1"><CornerDownRight size={11} /> antes de {nomeDe.get(t.antes_de) ?? "outra aula"}</span>}
               {t.book_id && livros.get(t.book_id) && <span>{livros.get(t.book_id)!.title}</span>}
-              {prazo && <span style={{ color: prazo.urgente ? "#c98a1a" : undefined }}>{prazo.texto}</span>}
+              {prazo && <span style={{ color: prazo.urgente ? "var(--warn)" : undefined }}>{prazo.texto}</span>}
             </div>
           )}
         </div>
@@ -119,7 +119,7 @@ export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
             <div className="flex items-start gap-3">
               <ListChecks size={20} className="text-icon mt-0.5 shrink-0" />
               <div>
-                <h2 className="font-medium">Antes desta aula</h2>
+                <h2 className="modal-title">Antes desta aula</h2>
                 <p className="text-sm text-muted mt-0.5">
                   {antesPendentes.length === 1 ? "Ficou uma tarefa para fazer antes de estudar esta aula." : `Ficaram ${antesPendentes.length} tarefas para fazer antes de estudar esta aula.`}
                 </p>
@@ -138,7 +138,7 @@ export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
         <aside className="fixed inset-y-0 right-0 z-40 w-[min(420px,92vw)] bg-surface text-ink border-l border-line flex flex-col shadow-2xl pt-safe">
           <div className="flex items-center justify-between px-4 h-12 border-b border-line shrink-0">
             <span className="font-medium text-sm flex items-center gap-2"><ListChecks size={15} className="text-icon" /> Tarefas desta aula</span>
-            <button onClick={onFechar} className="text-muted hover:text-ink"><X size={18} /></button>
+            <button onClick={onFechar} className="modal-close" aria-label="Fechar"><X size={18} /></button>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5">
             <NovaTarefaDaAula aula={aula} proxima={proxima} onCriada={(t) => { setTarefas((l) => [...(l ?? []), t]); avisar("Tarefa acrescentada à lista."); }} />

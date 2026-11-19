@@ -50,7 +50,7 @@ export function Conectar({ onConectado }: { onConectado: () => Promise<void> }) 
   const [erro, setErro] = useState<string | null>(null);
   return (
     <section className="card p-5 mb-4 max-w-xl">
-      <h2 className="font-medium flex items-center gap-2"><Cloud size={17} className="text-icon" /> Conectar ao AnkiWeb</h2>
+      <h2 className="card-title flex items-center gap-2"><Cloud size={17} className="text-icon" /> Conectar ao AnkiWeb</h2>
       <p className="text-sm text-muted mt-1">
         Use o mesmo e-mail e senha com que o seu Anki sincroniza. Depois disso é só tocar em <b className="text-ink">Atualizar</b>, no celular ou no computador — sem precisar do Anki aberto.
       </p>
@@ -116,7 +116,7 @@ export function AnkiNoComputador({ conectado, setConectado, className = "mt-6", 
           </button>
         </div>
         <div className="space-y-2">
-          <h3 className="font-medium">Como ligar (uma vez por computador)</h3>
+          <h3 className="card-title">Como ligar (uma vez por computador)</h3>
           <ol className="list-decimal pl-5 space-y-1.5 text-muted">
             <li>No Anki: <b>Ferramentas → Complementos → Obter complementos</b> e cole o código <code className="bg-surface-2 px-1 rounded">2055492159</code> (AnkiConnect). Reinicie o Anki.</li>
             <li>Em <b>Complementos → AnkiConnect → Configuração</b>, adicione este site em <code>webCorsOriginList</code>:

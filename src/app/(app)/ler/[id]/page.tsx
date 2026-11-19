@@ -342,7 +342,7 @@ export default function Ler() {
         )}
 
         {toast && (
-          <div className="absolute left-1/2 -translate-x-1/2 top-4 z-40 rounded-lg px-4 py-2 text-sm shadow-lg" style={{ background: "var(--text)", color: "var(--bg)" }}>
+          <div role="status" className="toast absolute left-1/2 -translate-x-1/2 top-4 z-40 max-w-[calc(100vw-2rem)]">
             {toast}
           </div>
         )}
@@ -351,7 +351,7 @@ export default function Ler() {
       <footer className="shrink-0 flex items-center gap-2 px-3 h-9 text-xs opacity-80">
         <button className="p-1" onClick={() => reader.current?.prev()}><ChevronLeft size={16} /></button>
         <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: tema === "escuro" ? "#2f2f2c" : "#00000012" }}>
-          <div className="h-full opacity-60" style={{ width: `${progress * 100}%`, background: "currentColor" }} />
+          <div className="h-full rounded-full opacity-90" style={{ width: `${progress * 100}%`, background: "var(--area-leitura)" }} />
         </div>
         <button className="p-1" onClick={() => reader.current?.next()}><ChevronRight size={16} /></button>
       </footer>
