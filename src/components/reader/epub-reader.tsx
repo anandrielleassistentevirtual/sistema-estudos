@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { countWords } from "@/lib/text";
 import { repararCapitulo } from "./epub-reparo";
-import { FONTS, HL_COLORS, ReaderHandle, ReaderProps, THEMES, semVariaveis, themeColors } from "./types";
+import { aoDesfazerSelecao, FONTS, HL_COLORS, ReaderHandle, ReaderProps, THEMES, semVariaveis, themeColors } from "./types";
 
 type Pos = { index: number; page: number; total: number };
 
@@ -35,6 +35,13 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
       rendition.current = r;
       // livro convertido de PDF (uma linha por parágrafo): junta as linhas antes de montar as páginas
       r.hooks.content.register((contents: any) => { try { repararCapitulo(contents.document); } catch {} });
+      // cada capítulo é um iframe: desfazer a seleção lá dentro também fecha a barra de anotação
+      r.hooks.content.register((contents: any) => {
+        try {
+          const desliga = aoDesfazerSelecao(contents.document, () => cb.current.onSelect(null));
+          contents.on?.("destroy", desliga);
+        } catch {}
+      });
       for (const [k, t] of Object.entries(THEMES)) {
         r.themes.register(k, {
           body: { background: `${t.bg} !important`, color: `${t.fg} !important` },

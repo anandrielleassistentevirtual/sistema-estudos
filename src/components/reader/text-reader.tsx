@@ -2,7 +2,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { FONTS, ReaderHandle, ReaderProps, themeColors, TocItem } from "./types";
+import { aoDesfazerSelecao, FONTS, ReaderHandle, ReaderProps, themeColors, TocItem } from "./types";
 import { paginar } from "./paginar";
 
 /** Leitor paginado para TXT e Markdown: páginas de ~320 palavras, quebrando em parágrafos. */
@@ -73,10 +73,14 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     return () => document.removeEventListener("keyup", k);
   });
 
+  // seleção desfeita (clique fora do trecho, toque, tecla): a barra de anotação some
+  useEffect(() => aoDesfazerSelecao(document, () => cb.current.onSelect(null)), []);
+
   function onMouseUp() {
     const sel = window.getSelection();
     const quote = sel?.toString().trim();
     if (quote && box.current?.contains(sel!.anchorNode)) cb.current.onSelect({ location: `p:${page}`, quote });
+    else cb.current.onSelect(null);
   }
 
   const t = themeColors(props.prefs.theme);

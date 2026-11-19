@@ -58,6 +58,7 @@ export interface ReaderProps {
   knownWords: number | null;
   onTurn: (words: number, forward: boolean) => void;
   onLocation: (location: string, progress: number, label: string) => void;
+  /** trecho selecionado (abre a barra de anotação); null quando a seleção é desfeita */
   onSelect: (sel: { location: string; quote: string } | null) => void;
   onWordCount: (total: number) => void;
   onAnnotationClick: (id: string) => void;
@@ -75,3 +76,31 @@ export function themeColors(t: ReaderTheme) {
 
 /** Pilha de fontes sem var(): dentro do iframe do EPUB as variáveis da página não existem. */
 export const semVariaveis = (css: string) => css.replace(/var\([^)]*\),\s*/g, "");
+
+/**
+ * Atributo da barra que aparece com a seleção (anotar, levar para as anotações). Mexer nela (digitar a nota,
+ * escolher a cor) desfaz a seleção do texto, mas não deve fechá-la; qualquer outro clique que desfaz a seleção fecha.
+ */
+export const BARRA_SELECAO = "data-barra-selecao";
+const naBarra = (n: EventTarget | Element | null | undefined) => !!(n as Element | null)?.closest?.(`[${BARRA_SELECAO}]`);
+
+/**
+ * Fecha a barra de anotação quando a seleção some (clique ou toque fora do trecho, tecla), num documento —
+ * a página ou o iframe do EPUB. Devolve a função que desliga.
+ */
+export function aoDesfazerSelecao(doc: Document, fechar: () => void): () => void {
+  let ultimoToqueNaBarra = false;
+  const toque = (e: Event) => { ultimoToqueNaBarra = naBarra(e.target); };
+  const mudou = () => {
+    // usando a barra (digitando a nota): a seleção do texto some, mas a barra fica
+    if (ultimoToqueNaBarra || naBarra(document.activeElement)) return;
+    const s = doc.getSelection();
+    if (!s || s.isCollapsed || !s.toString().trim()) fechar();
+  };
+  doc.addEventListener("pointerdown", toque, true);
+  doc.addEventListener("selectionchange", mudou);
+  return () => {
+    doc.removeEventListener("pointerdown", toque, true);
+    doc.removeEventListener("selectionchange", mudou);
+  };
+}

@@ -13,6 +13,7 @@ export function BarChart({
   unit,
   height: alturaPedida = 160,
   average,
+  meta,
   alturaExata,
   cor = "var(--chart)",
 }: {
@@ -20,6 +21,8 @@ export function BarChart({
   unit: string;
   height?: number;
   average?: number;
+  /** linha tracejada da meta (ex.: 60 min por dia); as barras que chegam nela ficam na cor de "bom" */
+  meta?: number;
   /** usa a altura pedida em qualquer largura (quando quem chama já calculou o espaço disponível) */
   alturaExata?: boolean;
   /** cor das barras: a da área do dado (ex.: Idiomas em verde); sem área, o grafite dos gráficos */
@@ -50,7 +53,7 @@ export function BarChart({
 
   // no celular o gráfico fica mais baixo (a tela é estreita: barras altas só gastam rolagem)
   const height = !alturaExata && largura && largura < 480 ? Math.round(alturaPedida * 0.62) : alturaPedida;
-  const max = Math.max(1, ...data.map((d) => d.value), average ?? 0);
+  const max = Math.max(1, ...data.map((d) => d.value), average ?? 0, meta ?? 0);
   const nice = niceMax(max);
   const n = data.length;
   const W = 100 / n;
@@ -111,6 +114,11 @@ export function BarChart({
             <span className="absolute -top-4 left-0 text-[10px] text-muted bg-surface pr-1">média {nf.format(Math.round(average))}</span>
           </div>
         )}
+        {meta !== undefined && meta > 0 && (
+          <div className="absolute inset-x-0 border-t border-dashed pointer-events-none" style={{ bottom: (meta / nice) * height, borderColor: "var(--good)" }}>
+            <span className="absolute -top-4 right-0 text-[10px] bg-surface pl-1" style={{ color: "var(--good)" }}>meta {nf.format(Math.round(meta))}</span>
+          </div>
+        )}
         {data.map((d, i) => (
           <div key={i} className="absolute bottom-0 flex justify-center pointer-events-none" style={{ left: `${i * W}%`, width: `${W}%`, height }}>
             {/* barra selecionada: um fundo leve marca a coluna inteira, também nas barras vazias */}
@@ -121,7 +129,13 @@ export function BarChart({
                 width: "62%",
                 maxWidth: 40,
                 height: d.value > 0 ? `max(2px, ${(d.value / nice) * 100}%)` : 0,
-                background: `linear-gradient(to top, color-mix(in srgb, ${cor} 45%, transparent), ${cor})`,
+                // com linha de meta, a cor diz se a barra chegou nela (verde) ou não (grafite);
+                // sem meta, as barras ficam na cor da área do dado
+                background: meta && meta > 0
+                  ? d.value >= meta
+                    ? "linear-gradient(to top, color-mix(in srgb, var(--good) 35%, transparent), var(--good))"
+                    : "linear-gradient(to top, color-mix(in srgb, var(--chart) 35%, transparent), var(--chart))"
+                  : `linear-gradient(to top, color-mix(in srgb, ${cor} 45%, transparent), ${cor})`,
                 opacity: sel === null || sel === i ? 1 : 0.45,
               }}
             />
