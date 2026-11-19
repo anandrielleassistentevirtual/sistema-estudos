@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BookMarked, BookOpen, ChevronDown, ChevronUp, Download, ChevronRight, Folder, FolderOpen, FolderPlus, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
+  ArrowDown, ArrowUp, BookMarked, BookOpen, ChevronDown, ChevronUp, Download, ChevronRight, Folder, FolderOpen, FolderPlus, Library, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { ACCEPT, addPhysicalBook, deleteBook, enqueue, limparCacheDeLivros, ppmDosLivros, saveBookFile, uploadBook } from "@/lib/books";
@@ -171,6 +171,9 @@ export default function Biblioteca() {
   // obras de consulta: abaixo de tudo, à parte
   const consulta = useMemo(() => visible.filter((b) => b.status === "consulta"), [visible]);
   const queueLeft = queued.reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
+  // em leitura (na pasta escolhida), os mais adiantados primeiro: o mesmo "Lendo agora" dos Estudos
+  const lendoAgora = useMemo(() => visible.filter((b) => b.status === "lendo").sort((a, b) => progressoDoLivro(b) - progressoDoLivro(a)), [visible]);
+  const lendoFalta = lendoAgora.reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
 
   /** Reordena a fila (troca com o vizinho) e renumera 1, 2, 3… */
   async function moveQueue(b: Book, dir: -1 | 1) {
@@ -392,10 +395,10 @@ export default function Biblioteca() {
               <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
               <input className="input pl-8" placeholder="Buscar título ou autor" value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
-            <div className="flex max-w-full overflow-x-auto no-scrollbar rounded-lg bg-surface-2 p-1 text-xs">
+            <div className="seg flex overflow-x-auto no-scrollbar">
               {(["todos", ...STATUS] as const).map((s) => (
-                <button key={s} onClick={() => setStatus(s)}
-                  className={`shrink-0 px-2.5 py-1.5 sm:py-1 rounded-md ${status === s ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
+                <button key={s} onClick={() => setStatus(s)} aria-pressed={status === s}
+                  className="shrink-0 py-1.5 sm:py-1">
                   {s === "todos" ? "Todos" : STATUS_LABEL[s]}
                 </button>
               ))}
@@ -406,21 +409,54 @@ export default function Biblioteca() {
           {uploading && <p className="text-sm text-muted mb-3" aria-live="polite">{uploading}</p>}
 
           {visible.length === 0 ? (
-            <Empty>
+            <Empty icone={Library}>
               Nenhum livro aqui. Arraste arquivos <b>EPUB</b>, <b>TXT</b> ou <b>MD</b> para esta área ou use “Enviar livros”.
             </Empty>
           ) : (
             <>
+              {lendoAgora.length > 0 && status === "todos" && !q.trim() && (
+                <section className="mb-6">
+                  <div className="flex items-baseline justify-between mb-2 px-1">
+                    <h2 className="card-title flex items-center gap-2"><BookOpen size={16} className="text-icon" /> Lendo agora</h2>
+                    {lendoFalta > 0 && <span className="text-xs text-muted tabular-nums">≈ {fmtDuration((lendoFalta / wpm) * 60)} pela frente</span>}
+                  </div>
+                  <div className="card divide-y divide-line">
+                    {lendoAgora.map((b) => {
+                      const pct = Math.round(progressoDoLivro(b) * 100);
+                      const falta = (b.word_count ?? 0) * (1 - progressoDoLivro(b));
+                      return (
+                        <Link key={b.id} href={b.format === "fisico" ? "#" : `/ler/${b.id}`}
+                          onClick={(e) => { if (b.format === "fisico") { e.preventDefault(); readPhysical(b); } }}
+                          title={b.format === "fisico" ? "Ler (liga o timer)" : "Continuar no leitor"}
+                          className="flex items-center gap-3 p-3 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
+                          <Cover book={b} url={covers[b.id]} className="w-8 h-11 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block line-clamp-2 sm:line-clamp-1 break-words leading-snug font-medium">{b.title}</span>
+                            <span className="block truncate text-xs text-muted mt-0.5">{b.author ?? "Autor desconhecido"}{b.format === "fisico" ? " · físico" : ""}</span>
+                            <span className="block h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
+                              <span className="block h-full bg-area-leitura rounded-full" style={{ width: `${pct}%` }} />
+                            </span>
+                          </span>
+                          <span className="text-right shrink-0 tabular-nums">
+                            <span className="block text-sm">{pct}%</span>
+                            {falta > 0 && <span className="block text-xs text-muted">faltam ≈ {fmtDuration((falta / wpm) * 60)}</span>}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
               {queued.length > 0 && (
                 <section className="mb-6">
                   <div className="flex items-baseline justify-between mb-2 px-1">
-                    <h2 className="font-medium flex items-center gap-2"><ListOrdered size={16} className="text-icon" /> Fila de leitura</h2>
+                    <h2 className="card-title flex items-center gap-2"><ListOrdered size={16} className="text-icon" /> Fila de leitura</h2>
                     <span className="text-xs text-muted">
                       {queued.length} {queued.length === 1 ? "livro" : "livros"}
                       {queueLeft ? ` · ≈ ${fmtDuration((queueLeft / wpm) * 60)} de leitura` : ""}
                     </span>
                   </div>
-                  <div className="card divide-y divide-line border-accent/40">
+                  <div className="card divide-y divide-line border-[color-mix(in_srgb,var(--area-leitura)_45%,var(--border))]">
                     {queued.map((b) => renderRow(b))}
                   </div>
                 </section>
@@ -428,7 +464,7 @@ export default function Biblioteca() {
               {rest.length > 0 && (
                 <section>
                   <div className="flex items-baseline justify-between mb-2 px-1">
-                    <h2 className="font-medium text-muted">{queued.length ? "Fora da fila" : "Livros"}</h2>
+                    <h2 className="card-title text-muted">{queued.length ? "Fora da fila" : "Livros"}</h2>
                     <span className="text-xs text-muted">{rest.length} {rest.length === 1 ? "livro" : "livros"} · use ☰ para pôr na fila</span>
                   </div>
                   <div className="card divide-y divide-line">
@@ -439,7 +475,7 @@ export default function Biblioteca() {
               {consulta.length > 0 && (
                 <section className={queued.length || rest.length ? "mt-6" : ""}>
                   <div className="flex items-baseline justify-between mb-2 px-1 gap-3">
-                    <h2 className="font-medium text-muted flex items-center gap-2"><BookMarked size={16} className="text-icon" /> Obras de consulta</h2>
+                    <h2 className="card-title text-muted flex items-center gap-2"><BookMarked size={16} className="text-icon" /> Obras de consulta</h2>
                     <span className="text-xs text-muted text-right">{consulta.length} {consulta.length === 1 ? "livro" : "livros"} · abrem onde você parou e não contam nos indicadores</span>
                   </div>
                   <div className="card divide-y divide-line">
@@ -465,7 +501,7 @@ export default function Biblioteca() {
           onSaved={(b) => { setPhysical(false); setBooks((all) => [...all, b].sort((x, y) => x.title.localeCompare(y.title, "pt-BR"))); }} />
       )}
       {toast && (
-        <div className="fixed left-1/2 -translate-x-1/2 top-4 z-50 rounded-lg px-4 py-2 text-sm shadow-lg" style={{ background: "var(--text)", color: "var(--bg)" }}>{toast}</div>
+        <div role="status" className="toast fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top)+1rem)] z-50 max-w-[calc(100vw-2rem)]">{toast}</div>
       )}
     </Page>
   );
@@ -489,8 +525,8 @@ function PhysicalModal({ folders, folderId, onClose, onSaved }: { folders: F[]; 
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3">
         <div className="flex justify-between items-center">
-          <h2 className="font-medium">Livro físico</h2>
-          <button type="button" onClick={onClose}><X size={18} /></button>
+          <h2 className="modal-title">Livro físico</h2>
+          <button type="button" onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         <label className="block space-y-1"><span className="label">Título</span>
           <input className="input" required autoFocus value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
@@ -617,8 +653,8 @@ function EditBookModal({ book, folders, coverUrl, onClose, onSaved, onCover }: {
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <form onSubmit={save} onPaste={onPaste} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3 max-h-[92vh] overflow-y-auto">
         <div className="flex justify-between items-center">
-          <h2 className="font-medium">Editar livro</h2>
-          <button type="button" onClick={onClose}><X size={18} /></button>
+          <h2 className="modal-title">Editar livro</h2>
+          <button type="button" onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         <div className="flex gap-4 items-start">
           <Cover book={book} url={preview} className="w-24 h-36" />
@@ -727,8 +763,8 @@ function FolderModal({ folders, edit, parentId, onClose, onSaved }: {
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={onClose}>
       <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3">
         <div className="flex justify-between items-center">
-          <h2 className="font-medium">{edit ? "Editar pasta" : parentFolder ? "Nova subpasta" : "Nova pasta"}</h2>
-          <button type="button" onClick={onClose}><X size={18} /></button>
+          <h2 className="modal-title">{edit ? "Editar pasta" : parentFolder ? "Nova subpasta" : "Nova pasta"}</h2>
+          <button type="button" onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         <label className="block space-y-1"><span className="label">Dentro de</span>
           <FolderSelect folders={folders} value={parent} onChange={setParent} exclude={blocked} emptyLabel="— pasta principal (nova classe) —" />

@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronRight, CircleCheck, Download, FileText, Folder, FolderInput, FolderOpen, FolderPlus, FolderUp,
-  ListChecks, ListOrdered, NotebookPen, Pencil, Plus, Search, Trash2, Upload, X,
+  GraduationCap, ListChecks, ListOrdered, NotebookPen, Pencil, Plus, Search, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { EstudosTabs } from "@/components/estudos-tabs";
@@ -358,22 +358,22 @@ export default function Estudos() {
               <input className="bg-transparent outline-none flex-1 min-w-0" placeholder="Buscar no título, no texto das aulas ou nas anotações" value={q} onChange={(e) => setQ(e.target.value)} />
               {q && <button onClick={() => setQ("")} className="text-faint hover:text-ink"><X size={14} /></button>}
             </label>
-            <div className="flex w-full sm:w-auto sm:inline-flex rounded-lg bg-surface-2 p-1 text-sm">
+            <div className="seg seg-md flex w-full sm:w-auto sm:inline-flex">
               {([["todas", "Todas"], ["pendente", "Pendentes"], ["lendo", "Lendo"], ["concluida", "Concluídas"]] as const).map(([k, l]) => (
-                <button key={k} onClick={() => setFiltro(k)} className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-1 rounded-md ${filtro === k ? "bg-seg shadow-sm" : "text-muted"}`}>{l}</button>
+                <button key={k} onClick={() => setFiltro(k)} aria-pressed={filtro === k} className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-1">{l}</button>
               ))}
             </div>
           </div>
 
           {aulas && total === 0 && (
-            <Empty>Nenhuma aula ainda. Use <b>Importar curso</b> e escolha a pasta do curso no seu computador (cada arquivo .md vira uma aula).</Empty>
+            <Empty icone={GraduationCap}>Nenhuma aula ainda. Use <b>Importar curso</b> e escolha a pasta do curso no seu computador (cada arquivo .md vira uma aula).</Empty>
           )}
           {aulas && total > 0 && !visiveis.length && <p className="text-sm text-muted">Nada encontrado.</p>}
 
           {lendo.length > 0 && !q.trim() && (
             <section className="mb-6">
               <div className="flex items-baseline justify-between mb-2 px-1">
-                <h2 className="font-medium flex items-center gap-2"><BookOpen size={16} className="text-icon" /> Lendo agora</h2>
+                <h2 className="card-title flex items-center gap-2"><BookOpen size={16} className="text-icon" /> Lendo agora</h2>
                 <span className="text-xs text-muted tabular-nums">≈ {tempo(lendo.reduce((n, a) => n + faltam(a), 0))} pela frente</span>
               </div>
               <div className="card divide-y divide-line">
@@ -383,7 +383,7 @@ export default function Estudos() {
                       <span className="line-clamp-2 sm:line-clamp-1 break-words leading-snug font-medium">{a.title}</span>
                       <span className="block truncate text-xs text-muted mt-0.5">{a.course}</span>
                       <span className="block h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
-                        <span className="block h-full bg-chart rounded-full" style={{ width: `${Math.round((a.progresso ?? 0) * 100)}%` }} />
+                        <span className="block h-full bg-area-estudos rounded-full" style={{ width: `${Math.round((a.progresso ?? 0) * 100)}%` }} />
                       </span>
                     </span>
                     <span className="text-right shrink-0 tabular-nums">
@@ -400,7 +400,12 @@ export default function Estudos() {
             {grupos.map(([g, lista]) => (
               <div key={g}>
                 <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-x-3 mb-2 px-1">
-                  <h2 className="text-sm text-muted break-words sm:truncate min-w-0">{g}</h2>
+                  {/* o caminho em cinza e a pasta do grupo em destaque: "Paulo Cantarelli › EFESC › Módulo 1" */}
+                  <h2 className="text-sm text-muted break-words sm:truncate min-w-0" title={g}>
+                    {g.split(" › ").map((parte, i, l) => (
+                      <span key={i}>{i > 0 && <span className="text-faint"> › </span>}<span className={i === l.length - 1 ? "text-ink font-medium" : ""}>{parte}</span></span>
+                    ))}
+                  </h2>
                   <span className="text-xs text-faint tabular-nums sm:shrink-0">
                     {lista.filter((a) => a.situacao === "concluida").length}/{lista.length}
                     {lista.some((a) => a.situacao !== "concluida") && ` · ≈ ${tempo(lista.reduce((n, a) => n + faltam(a), 0))} pela frente`}
@@ -428,7 +433,7 @@ export default function Estudos() {
                               ].filter(Boolean).join(" · ")}
                               {!!antesDe.get(a.id) && (
                                 <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-px font-medium" title="Tarefas para fazer antes desta aula (não bloqueia a leitura)"
-                                  style={{ background: "color-mix(in srgb, #c98a1a 14%, transparent)", color: "#a8741a" }}>
+                                  style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)", color: "var(--warn)" }}>
                                   <ListChecks size={11} /> {antesDe.get(a.id)} {antesDe.get(a.id) === 1 ? "tarefa antes" : "tarefas antes"}
                                 </span>
                               )}
@@ -471,8 +476,8 @@ export default function Estudos() {
         <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={fecharPreview}>
           <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg">Importar {preview.files.length} {preview.files.length === 1 ? "aula" : "aulas"}</h2>
-              <button onClick={fecharPreview} className="text-muted hover:text-ink"><X size={18} /></button>
+              <h2 className="modal-title">Importar {preview.files.length} {preview.files.length === 1 ? "aula" : "aulas"}</h2>
+              <button onClick={fecharPreview} className="modal-close" aria-label="Fechar"><X size={18} /></button>
             </div>
             {preview.files.some((f) => pastasDoArquivo(f, 0).length > 0) && <div className="grid grid-cols-2 gap-1.5">
               <button className={`btn justify-center text-xs ${preview.nivel === 1 ? "border-muted bg-sel" : ""}`} onClick={() => setPreview({ ...preview, nivel: 1 })}>Escolhi a pasta com vários cursos</button>
@@ -552,8 +557,8 @@ function EditarAula({ aula, onClose, onSalvo }: { aula: Aula; onClose: () => voi
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <form onSubmit={salvar} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-6 space-y-3 shadow-2xl">
         <div className="flex justify-between items-center">
-          <h2 className="text-lg">Editar aula</h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
+          <h2 className="modal-title">Editar aula</h2>
+          <button type="button" onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         <label className="block"><span className="label">Nome da aula</span>
           <input autoFocus className="input mt-1" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></label>
@@ -574,7 +579,7 @@ function NomeDaPasta({ titulo, inicial, onClose, onSalvar }: { titulo: string; i
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <form onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); if (nome.trim()) onSalvar(nome.trim()); }}
         className="card w-full max-w-sm p-6 space-y-3 shadow-2xl">
-        <h2 className="text-lg">{titulo}</h2>
+        <h2 className="modal-title">{titulo}</h2>
         <input autoFocus className="input" value={nome} placeholder="ex.: Olavo de Carvalho, COF, Módulo 1" onChange={(e) => setNome(e.target.value)} />
         <div className="flex justify-end gap-2">
           <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
@@ -593,8 +598,8 @@ function MoverPara({ titulo, ordem, proibidas, atual, raiz, onClose, onEscolher 
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-sm p-5 space-y-3 shadow-2xl max-h-[85vh] flex flex-col">
         <div className="flex justify-between items-center">
-          <h2 className="text-lg truncate">{titulo}</h2>
-          <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
+          <h2 className="modal-title truncate">{titulo}</h2>
+          <button onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         <div className="overflow-y-auto -mx-2 text-sm">
           <button disabled={atual === null} onClick={() => onEscolher(null)}
@@ -636,8 +641,8 @@ function NovaAula({ ordem, inicial, onClose, onImportar, onEmBranco }: {
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-6 space-y-4 shadow-2xl">
         <div className="flex justify-between items-center">
-          <h2 className="text-lg">Nova aula</h2>
-          <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
+          <h2 className="modal-title">Nova aula</h2>
+          <button onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         <label className="block"><span className="label">Em qual pasta?</span>
           <div className="mt-1 flex"><SeletorDePasta ordem={ordem} valor={destino} vazio="Primeiro nível (sem pasta)" onMudar={setDestino} /></div></label>
@@ -671,7 +676,7 @@ function PosicaoDaAula({ aula, atual, total, pasta, onClose, onMover }: {
       <form onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); if (ok) onMover(num); }}
         className="card w-full max-w-sm p-6 space-y-4 shadow-2xl">
         <div>
-          <h2 className="text-lg">Mover para a posição</h2>
+          <h2 className="modal-title">Mover para a posição</h2>
           <p className="text-sm text-muted mt-1 truncate">{aula.title}</p>
           <p className="text-xs text-faint truncate">{pasta} · hoje na posição {atual} de {total}</p>
         </div>

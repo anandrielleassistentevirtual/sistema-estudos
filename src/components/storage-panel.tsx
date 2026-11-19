@@ -37,44 +37,55 @@ export function StoragePanel() {
   }
 
   const dias = ultima ? Math.floor((Date.now() - new Date(ultima).getTime()) / 864e5) : null;
-  const barra = (v: number, max: number) => (
-    <div className="mt-1.5 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-      <div className="h-full rounded-full bg-chart" style={{ width: `${Math.max(1, Math.min(100, (v / max) * 100))}%` }} />
-    </div>
-  );
+  /** cor da barra pela situação: folgado (verde), atenção (âmbar), quase cheio (vermelho) */
+  const corDoUso = (f: number) => (f < 0.6 ? "var(--good)" : f < 0.85 ? "var(--warn)" : "var(--critical)");
+  const fracDados = uso ? (uso.dados ?? uso.banco) / LIMITE_BANCO : 0;
+  const fracFixo = uso && uso.dados !== undefined ? (uso.banco - uso.dados) / LIMITE_BANCO : 0;
+  const fracArq = uso ? uso.arquivos / LIMITE_ARQUIVOS : 0;
+  const pct = (f: number) => `${Math.max(1, Math.min(100, f * 100))}%`;
+  const copiaVelha = dias === null || dias > 30;
 
+  // os mesmos cartões de indicador das outras abas: o nome, o número grande, a barra e a legenda
   return (
-    <section className="card p-5">
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.2fr] gap-6 items-start">
-        <div>
-          <div className="text-[13px] text-muted">Seus dados</div>
-          <div className="text-sm mt-0.5 tabular-nums">{uso ? `${mb(uso.dados ?? uso.banco)} de 500 MB` : "…"}</div>
-          {uso && (
-            <div className="mt-1.5 h-1.5 rounded-full bg-surface-2 overflow-hidden flex">
-              {/* parte fixa do Supabase (cinza claro) + seus dados */}
-              <div className="h-full bg-faint/50" style={{ width: `${Math.min(100, ((uso.banco - (uso.dados ?? 0)) / LIMITE_BANCO) * 100)}%` }} />
-              <div className="h-full bg-chart" style={{ width: `${Math.max(1, Math.min(100, ((uso.dados ?? uso.banco) / LIMITE_BANCO) * 100))}%` }} />
-            </div>
-          )}
-          {uso?.dados !== undefined && (
-            <div className="text-xs text-faint mt-1">+ {mb(uso.banco - uso.dados)} fixos do Supabase, que não crescem com o uso</div>
-          )}
+    <section className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 items-stretch">
+      <div className="card p-4 min-w-0">
+        <div className="text-xs text-muted">Seus dados</div>
+        <div className="mt-1 flex items-baseline gap-1.5 tabular-nums">
+          <span className="text-[1.6rem] font-medium tracking-[-0.02em] leading-none">{uso ? mb(uso.dados ?? uso.banco) : "…"}</span>
+          <span className="text-xs text-muted">de 500 MB</span>
         </div>
-        <div>
-          <div className="text-[13px] text-muted">Arquivos</div>
-          <div className="text-sm mt-0.5 tabular-nums">{uso ? `${mb(uso.arquivos)} de 1 GB` : "…"}</div>
-          {uso && barra(uso.arquivos, LIMITE_ARQUIVOS)}
-          {uso && <div className="text-xs text-faint mt-1">{uso.qtd_arquivos} arquivos</div>}
-        </div>
-        <div>
-          <div className="text-[13px] text-muted">Cópia de segurança</div>
-          <div className="text-sm mt-0.5">
-            {dias === null ? "nenhuma cópia ainda" : dias === 0 ? "feita hoje" : `última há ${dias} ${dias === 1 ? "dia" : "dias"}`}
-            {dias !== null && dias > 30 && <span className="text-critical"> · faça uma nova</span>}
+        {uso && (
+          <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden flex gap-px">
+            {/* parte fixa do Supabase (cinza) + os seus dados (na cor da situação) */}
+            {fracFixo > 0 && <div className="h-full bg-faint/40" style={{ width: pct(fracFixo) }} />}
+            <div className="h-full rounded-r-full" style={{ width: pct(fracDados), background: corDoUso(fracDados + fracFixo) }} />
           </div>
-          <button className="btn mt-2" disabled={rodando} onClick={copiar}><Download size={15} /> {rodando ? "Copiando…" : "Baixar cópia de tudo"}</button>
-          {msg && <p className="text-xs text-muted mt-2">{msg}</p>}
+        )}
+        {uso?.dados !== undefined && (
+          <div className="text-xs text-faint mt-2">+ {mb(uso.banco - uso.dados)} fixos do Supabase, que não crescem com o uso</div>
+        )}
+      </div>
+      <div className="card p-4 min-w-0">
+        <div className="text-xs text-muted">Arquivos</div>
+        <div className="mt-1 flex items-baseline gap-1.5 tabular-nums">
+          <span className="text-[1.6rem] font-medium tracking-[-0.02em] leading-none">{uso ? mb(uso.arquivos) : "…"}</span>
+          <span className="text-xs text-muted">de 1 GB</span>
         </div>
+        {uso && (
+          <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden">
+            <div className="h-full rounded-full" style={{ width: pct(fracArq), background: corDoUso(fracArq) }} />
+          </div>
+        )}
+        {uso && <div className="text-xs text-faint mt-2">{uso.qtd_arquivos} {uso.qtd_arquivos === 1 ? "arquivo" : "arquivos"} · livros, capas e áudios</div>}
+      </div>
+      <div className="card p-4 min-w-0 flex flex-col">
+        <div className="text-xs text-muted">Cópia de segurança</div>
+        <div className="mt-1 text-[1.6rem] font-medium tracking-[-0.02em] leading-none" style={copiaVelha ? { color: "var(--warn)" } : undefined}>
+          {dias === null ? "nenhuma" : dias === 0 ? "hoje" : `há ${dias} ${dias === 1 ? "dia" : "dias"}`}
+        </div>
+        <div className="text-xs text-faint mt-2">{copiaVelha ? "Faça uma cópia: o ideal é uma por mês." : "Última cópia baixada para o seu aparelho."}</div>
+        <button className="btn mt-3 self-start" disabled={rodando} onClick={copiar}><Download size={15} /> {rodando ? "Copiando…" : "Baixar cópia de tudo"}</button>
+        {msg && <p className="text-xs text-muted mt-2">{msg}</p>}
       </div>
     </section>
   );

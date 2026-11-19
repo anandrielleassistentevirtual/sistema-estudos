@@ -24,6 +24,9 @@ const NAV = [
   { href: "/notas", label: "Notas", icon: NotebookPen },
 ] as const;
 
+/** itens do rodapé do menu: o mesmo desenho dos itens de cima, num tom mais discreto */
+const ITEM_RODAPE = "flex w-full items-center gap-3 md:gap-2.5 rounded-lg px-3 md:px-2.5 py-2.5 md:py-[7px] text-[15px] md:text-sm transition-colors";
+
 function ThemeToggle() {
   const [dark, setDark] = useState(false);
   useEffect(() => {
@@ -32,7 +35,7 @@ function ThemeToggle() {
   }, []);
   return (
     <button
-      className="btn btn-ghost w-full justify-start text-muted"
+      className={`${ITEM_RODAPE} text-muted hover:bg-sel hover:text-ink`}
       onClick={() => {
         const next = dark ? "light" : "dark";
         document.documentElement.dataset.theme = next;
@@ -40,7 +43,7 @@ function ThemeToggle() {
         setDark(!dark);
       }}
     >
-      {dark ? <Sun size={16} /> : <Moon size={16} />} {dark ? "Tema claro" : "Tema escuro"}
+      {dark ? <Sun size={17} strokeWidth={1.8} /> : <Moon size={17} strokeWidth={1.8} />} {dark ? "Tema claro" : "Tema escuro"}
     </button>
   );
 }
@@ -125,22 +128,29 @@ export function Sidebar() {
           >
             <item.icon size={17} strokeWidth={1.8} className="text-icon shrink-0" />
             {item.label}
+            {/* sessão do Timer em andamento: o relógio aparece no próprio item (pulsando enquanto corre) */}
+            {item.href === "/timer" && showTimer && (
+              <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-mono tabular-nums text-muted">
+                <span className={`dot !w-1.5 !h-1.5 ${timer.running ? "bg-good animate-pulse" : "bg-faint"}`} aria-hidden />
+                {fmtClock(timer.mode === "pomodoro" ? timer.remaining : timer.seconds)}
+              </span>
+            )}
           </Link>
         ),
       )}
       <div className="mt-auto pt-3 space-y-0.5">
-        <Link href="/armazenamento" className={`btn btn-ghost w-full justify-start ${active("/armazenamento") ? "text-ink bg-sel" : "text-muted"}`}>
-          <HardDrive size={16} /> Armazenamento
+        <Link href="/armazenamento" className={`${ITEM_RODAPE} ${active("/armazenamento") ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel hover:text-ink"}`}>
+          <HardDrive size={17} strokeWidth={1.8} /> Armazenamento
         </Link>
         <ThemeToggle />
         <button
-          className="btn btn-ghost w-full justify-start text-muted"
+          className={`${ITEM_RODAPE} text-muted hover:bg-sel hover:text-ink`}
           onClick={async () => {
             await supabase().auth.signOut();
             window.location.href = "/login";
           }}
         >
-          <LogOut size={16} /> Sair
+          <LogOut size={17} strokeWidth={1.8} /> Sair
         </button>
       </div>
     </nav>

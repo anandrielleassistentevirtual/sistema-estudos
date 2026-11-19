@@ -447,7 +447,7 @@ export function MarPainel({
     <section id="mar" className={`card p-4 min-w-0 flex flex-col xl:h-full min-h-0 ${className}`}>
       {/* 1) cabeçalho: uma linha */}
       <div className="flex items-center justify-between gap-2 min-h-7 shrink-0">
-        <h3 className="font-medium flex items-center gap-2 min-w-0" title={`${idioma} de verdade — séries, filmes, canais e podcasts. Do mais fácil, com boia, ao sem boia.`}>
+        <h3 className="card-title flex items-center gap-2 min-w-0" title={`${idioma} de verdade — séries, filmes, canais e podcasts. Do mais fácil, com boia, ao sem boia.`}>
           <Waves size={16} style={{ color: COR_MAR }} className="shrink-0" />
           <span className="shrink-0">MAR</span>
           <span className="text-sm font-normal text-muted truncate">
@@ -619,7 +619,7 @@ function Barrinhas({ ind }: { ind: ReturnType<typeof indicadores> }) {
 function FaixaMar({ f, ocupado, onDesfazer, onSomarMesmo, onTentar, onFechar }: {
   f: EstadoFaixa; ocupado: boolean; onDesfazer: () => void; onSomarMesmo: () => void; onTentar: () => void; onFechar: () => void;
 }) {
-  const cor = f.tom === "erro" ? "var(--critical)" : f.tom === "aviso" ? "#c98a1a" : COR_MAR;
+  const cor = f.tom === "erro" ? "var(--critical)" : f.tom === "aviso" ? "var(--warn)" : COR_MAR;
   const botao = "btn py-1 px-2.5 text-xs shrink-0 sm:py-0.5 min-h-9 sm:min-h-7";
   return (
     <div role="status" aria-live="polite" className="w-full sm:w-auto min-w-0 flex flex-wrap sm:flex-nowrap items-center justify-end gap-1.5 rounded-lg pl-2.5 pr-1 py-0.5"

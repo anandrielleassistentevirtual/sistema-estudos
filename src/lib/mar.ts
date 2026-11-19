@@ -169,7 +169,7 @@ export const MAR_LIMITES = {
 } as const;
 
 /** A cor de Idiomas (a parte do MAR nos gráficos). */
-export const COR_MAR = "#1baf7a";
+export const COR_MAR = "var(--area-idiomas)";
 
 export const NOME_SITUACAO: Record<Situacao, string> = { quero: "Quero ver", assistindo: "Assistindo", visto: "Vistos" };
 

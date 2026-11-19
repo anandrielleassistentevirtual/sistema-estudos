@@ -21,6 +21,7 @@ import {
   type Area, type Estacao, type Meta, type Registros, type Temporada, type Unidade,
 } from "@/lib/temporadas";
 import { NovaMeta, type Livro, type AulaT, type BaralhoT } from "./nova-meta";
+import { corDaNota } from "@/lib/cores";
 import { DetalheDaMeta, type ItemDaMeta } from "./detalhe-meta";
 
 const fmtData = (k: string) => parseDay(k).toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
@@ -32,7 +33,8 @@ const fmtQ = (v: number, u: Unidade, curto = false) =>
   u === "min" ? (curto ? `${Math.round(v)} min` : fmtDuration(v * 60))
     : `${nf.format(u === "cartoes" && v < 10 && v % 1 ? Math.round(v * 10) / 10 : Math.round(v))} ${u === "palavras" ? (curto ? "pal." : "palavras") : curto ? "novos" : "cartões novos"}`;
 interface AnkiDia { day: string; baralho: string; reviews: number; criados: number }
-const corExecucao = (v: number) => (v >= 0.85 ? "var(--good)" : v >= 0.6 ? "#c98a1a" : "var(--critical)");
+/** nota da semana → verde, âmbar ou vermelho (a mesma régua do Dashboard) */
+const corExecucao = corDaNota;
 
 export default function Temporadas() {
   const atual = estacaoDe();
@@ -147,7 +149,7 @@ export default function Temporadas() {
     /** para o detalhamento: os itens (livros/aulas) e o que precisa por dia × o seu ritmo */
     itens?: ItemDaMeta[]; precisaN?: number; ritmoN?: number;
   };
-  const COR: Record<Estado, string> = { ok: "var(--good)", feita: "var(--good)", risco: "#c98a1a", fora: "var(--critical)" };
+  const COR: Record<Estado, string> = { ok: "var(--good)", feita: "var(--good)", risco: "var(--warn)", fora: "var(--critical)" };
   const SELO: Record<Estado, string> = { ok: "no ritmo", feita: "concluída", risco: "em risco", fora: "não cabe" };
   /** número curto: 4.276 · 9,9 · 2 */
   const N = (v: number) => (!isFinite(v) ? "—" : nf.format(v > 0 && v < 10 && v % 1 ? Math.round(v * 10) / 10 : Math.round(v)));
@@ -210,7 +212,7 @@ export default function Temporadas() {
           {dias.map((k) => {
             const n = noDia(k);
             const futuro = k > hoje;
-            const cor = n >= meta ? "var(--good)" : n > 0 ? "#c98a1a" : futuro || k === hoje ? "var(--surface-2)" : "color-mix(in srgb, var(--critical) 35%, var(--surface-2))";
+            const cor = n >= meta ? "var(--good)" : n > 0 ? "var(--warn)" : futuro || k === hoje ? "var(--surface-2)" : "color-mix(in srgb, var(--critical) 35%, var(--surface-2))";
             return (
               <span key={k} className={`flex-1 h-5 rounded-[4px] grid place-items-center text-[10px] tabular-nums ${k === hoje ? "ring-1 ring-[var(--muted)]" : ""}`}
                 style={{ background: cor, color: n >= meta ? "#fff" : "var(--muted)" }}
@@ -363,7 +365,7 @@ export default function Temporadas() {
     const pctHoje = p > 0 ? hojeFeito / p : null;
     const mt = metaTotal(a.id);
     const precisa = passada ? 0 : Math.max(0, mt.total - feito) / Math.max(1, diasRestantes);
-    const corPrecisa = precisa <= 0 ? "var(--muted)" : precisa <= ritmo[a.id] ? "var(--good)" : precisa <= p ? "#c98a1a" : "var(--critical)";
+    const corPrecisa = precisa <= 0 ? "var(--muted)" : precisa <= ritmo[a.id] ? "var(--good)" : precisa <= p ? "var(--warn)" : "var(--critical)";
     const vazio = p === 0 && feito < 1 && !mt.daMeta;
     // por dia: só o número (a unidade está na caixa do plano); totais em minutos viram horas
     const dia = (v: number) => (v >= 0.5 ? nf.format(un === "cartoes" && v < 10 && v % 1 ? Math.round(v * 10) / 10 : Math.round(v)) : "—");
@@ -426,11 +428,11 @@ export default function Temporadas() {
       {/* plano por área: o ritmo real, o que a meta pede por dia, o plano e o que já foi feito */}
       <section className="card px-4 py-3 min-w-0">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-1">
-          <h2 className="font-medium">Plano da temporada</h2>
+          <h2 className="card-title">Plano da temporada</h2>
           <span className="flex flex-wrap items-center gap-x-3 text-xs text-muted">
             <span>Ritmo diário:</span>
             <span className="inline-flex items-center gap-1"><i className="w-2 h-2 rounded-full" style={{ background: "var(--good)" }} />seu ritmo dá conta</span>
-            <span className="inline-flex items-center gap-1"><i className="w-2 h-2 rounded-full" style={{ background: "#c98a1a" }} />só seguindo o plano</span>
+            <span className="inline-flex items-center gap-1"><i className="w-2 h-2 rounded-full" style={{ background: "var(--warn)" }} />só seguindo o plano</span>
             <span className="inline-flex items-center gap-1"><i className="w-2 h-2 rounded-full" style={{ background: "var(--critical)" }} />nem o plano dá conta</span>
           </span>
         </div>
@@ -522,7 +524,7 @@ export default function Temporadas() {
         {/* metas com previsão */}
         <section className="card p-4 min-w-0">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="font-medium">Metas <span className="text-xs text-muted font-normal">· 1 a 3 por temporada</span></h2>
+            <h2 className="card-title">Metas <span className="text-xs text-muted font-normal">· 1 a 3 por temporada</span></h2>
             {(grandes < 3 || retas < 2) && !passada && (
               <button className="btn text-xs py-1" onClick={async () => { if (!registro) await mudar({}); setNovaMeta(true); }}><Plus size={13} /> Meta</button>
             )}
@@ -533,8 +535,9 @@ export default function Temporadas() {
             </p>
           ) : (
             // agrupadas por área: Leitura, Estudos, Inglês…
-            <div className="grid grid-cols-1 gap-3 items-start md:[grid-template-columns:var(--cols)]"
-              style={{ ["--cols" as string]: `repeat(${grupos.length}, minmax(0, 1fr))` }}>
+            // as áreas lado a lado só enquanto cada uma tiver largura (~15 rem); depois quebram para a linha de baixo,
+            // em vez de espremer os cartões até cortar e sobrepor os números
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15.5rem),1fr))] gap-x-4 gap-y-4 items-start">
             {grupos.map((g) => (
             <div key={g.area.id} className="min-w-0">
               <h3 className="text-[11px] uppercase tracking-wider text-muted mb-1.5 flex items-center gap-1.5">
@@ -596,7 +599,7 @@ export default function Temporadas() {
       {/* execução semanal (o placar do método das 12 semanas) */}
       <section className="card p-4 min-w-0 flex flex-col">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3">
-          <h2 className="font-medium">Execução semanal</h2>
+          <h2 className="card-title">Execução semanal</h2>
           <span className="text-xs text-muted">
             o plano de cada área × os dias da semana · 85% ou mais é bem executada
             {mediaExec !== null && <> · média <b style={{ color: corExecucao(mediaExec) }}>{Math.round(mediaExec * 100)}%</b></>}

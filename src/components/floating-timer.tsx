@@ -6,6 +6,7 @@ import { useTimer } from "./timer-context";
 import { TimerControls } from "./timer-controls";
 import { fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
+import { corDaCategoria } from "@/lib/cores";
 
 /** Timer sempre à mão: botão flutuante em todas as telas (inclusive no leitor). */
 export function FloatingTimer() {
@@ -40,6 +41,8 @@ export function FloatingTimer() {
               <Timer size={16} />
               {active ? (
                 <>
+                  {/* a cor da categoria cronometrada (a mesma do anel do Timer e do Dashboard) */}
+                  {t.phase !== "pausa" && <span className="dot !w-1.5 !h-1.5" style={{ background: corDaCategoria(t.category) }} aria-hidden />}
                   <span className="font-mono tabular-nums font-medium">{clock}</span>
                   <span className="hidden sm:inline max-w-[160px] truncate opacity-90">{t.phase === "pausa" ? "Pausa" : t.what || t.category}</span>
                 </>
@@ -79,9 +82,9 @@ function PagesPrompt() {
   const n = Number(page);
   const pages = info?.current ? n - info.current : n;
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center p-4 bg-black/40">
+    <div className="modal fixed inset-0 z-[70] grid place-items-center p-4">
       <form className="card w-full max-w-sm p-5 space-y-3" onSubmit={(e) => { e.preventDefault(); void t.resolvePending(n > 0 ? n : null); }}>
-        <h2 className="font-medium">Até que página você chegou?</h2>
+        <h2 className="modal-title">Até que página você chegou?</h2>
         <p className="text-sm text-muted">
           {p.state.bookTitle} · {fmtClock(p.seconds)} de leitura
           {info?.current ? ` · você estava na p. ${info.current}` : ""}{info?.total ? ` (de ${info.total})` : ""}

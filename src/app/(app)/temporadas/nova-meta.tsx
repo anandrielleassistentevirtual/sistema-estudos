@@ -130,7 +130,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/45" onClick={onClose}>
       <div className="card w-full max-w-md p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">{editar ? "Editar a meta" : "Nova meta da temporada"}</h2>
+          <h2 className="modal-title">{editar ? "Editar a meta" : "Nova meta da temporada"}</h2>
           <button onClick={onClose} className="p-1.5 -m-1.5 sm:p-0 sm:m-0 text-muted hover:text-ink" aria-label="Fechar"><X size={18} /></button>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -168,7 +168,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
                 <input className="bg-transparent outline-none flex-1 min-w-0" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por título ou autor" />
               </label>
               {achados.length > 0 && (
-                <div className="absolute z-20 left-0 right-0 mt-1 card shadow-xl py-1">
+                <div className="absolute z-20 left-0 right-0 mt-1 popover py-1">
                   {achados.map((b) => (
                     <button key={b.id} className="w-full text-left px-3 py-1.5 hover:bg-sel" onClick={() => { setEscolhidos((l) => [...l, b.id]); setBusca(""); }}>
                       <span className="block truncate">{b.title}</span>

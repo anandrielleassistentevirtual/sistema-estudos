@@ -12,6 +12,7 @@ import { bookName } from "@/lib/folders";
 import { porOrdem } from "@/lib/estudos";
 import { COR_MAR } from "@/lib/mar";
 import { Combobox } from "./combobox";
+import { areaDaCategoria, corDaCategoria } from "@/lib/cores";
 
 interface BookOpt { id: string; title: string; author: string | null; format: string; status: string; current_page: number | null; total_pages: number | null }
 interface NoteOpt { id: string; title: string; professor: string; course: string; situacao?: string; progresso?: number; ordem?: number | null }
@@ -74,10 +75,10 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
     // na tela do Timer (computador): relógio à esquerda, ajustes à direita — tudo sem precisar rolar
     <div className={compact ? "flex flex-col items-center w-full" : "w-full grid grid-cols-1 lg:grid-cols-[auto_minmax(300px,1fr)] gap-6 lg:gap-10 items-center"}>
     <div className="flex flex-col items-center min-w-0">
-      <div className={`inline-flex rounded-lg bg-surface-2 p-1 text-sm ${compact ? "mb-3" : "mb-4"}`}>
+      <div className={`seg seg-md ${compact ? "mb-3" : "mb-4"}`}>
         {(["pomodoro", "livre"] as const).map((m) => (
-          <button key={m} disabled={t.running} onClick={() => { if (m !== t.mode) void trocar({ mode: m, phase: "foco", elapsed: 0 }); }}
-            className={`px-3 py-1 rounded-md ${t.mode === m ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
+          <button key={m} disabled={t.running} onClick={() => { if (m !== t.mode) void trocar({ mode: m, phase: "foco", elapsed: 0 }); }} aria-pressed={t.mode === m}
+            className="px-3 disabled:cursor-default">
             {m === "pomodoro" ? "Pomodoro" : "Cronômetro"}
           </button>
         ))}
@@ -86,7 +87,8 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
       <div className="relative aspect-square max-w-full" style={{ width: size }}>
         <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full -rotate-90">
           <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke="var(--surface-2)" strokeWidth={compact ? 7 : 10} />
-          <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke={t.phase === "foco" ? "var(--accent)" : "var(--good)"}
+          {/* no foco, a cor da categoria (a mesma do Dashboard); na pausa, cinza: o tempo de pausa não conta */}
+          <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke={t.phase === "foco" ? (areaDaCategoria(t.category) === "outro" ? "var(--accent)" : corDaCategoria(t.category)) : "var(--faint)"}
             strokeWidth={compact ? 7 : 10} strokeLinecap="round" strokeDasharray={C}
             strokeDashoffset={C * (1 - Math.max(0, Math.min(1, pct)))} style={{ transition: "stroke-dashoffset 0.5s linear" }} />
         </svg>
@@ -94,7 +96,7 @@ export function TimerControls({ compact = false }: { compact?: boolean }) {
           <div className="text-[10px] uppercase tracking-wider text-muted">
             {t.mode === "pomodoro" ? (foco ? `Foco · ${serie + 1} de ${t.ciclosAteLonga}` : t.pausaLonga ? "Pausa longa" : "Pausa") : "Decorrido"}
           </div>
-          <div className={`${compact ? "text-3xl" : "text-5xl"} font-medium font-mono tabular-nums mt-0.5`}>{fmtClock(display)}</div>
+          <div className={`${compact ? "text-[2rem]" : "text-[3.4rem]"} font-light tracking-[-0.03em] tabular-nums leading-none mt-1`}>{fmtClock(display)}</div>
           {t.mode === "pomodoro" && !compact && <div className="text-xs text-faint mt-1">ciclos hoje: {ciclosHoje}</div>}
         </div>
       </div>

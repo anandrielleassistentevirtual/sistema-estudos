@@ -80,7 +80,7 @@ export function RowMenu({ items, label = "Mais ações", botaoClass = "p-2 sm:p-
         <MoreHorizontal size={17} />
       </button>
       {pos && createPortal(
-        <div ref={menu} role="menu" className="fixed z-[80] w-max min-w-60 sm:min-w-56 max-w-[min(22rem,calc(100vw-2rem))] card py-1 shadow-xl overflow-y-auto overscroll-contain"
+        <div ref={menu} role="menu" className="fixed z-[80] w-max min-w-60 sm:min-w-56 max-w-[min(22rem,calc(100vw-2rem))] popover py-1 overflow-y-auto overscroll-contain"
           style={{ right: pos.right, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight }}>
           {items.map((it, i) => (
             <div key={i}>

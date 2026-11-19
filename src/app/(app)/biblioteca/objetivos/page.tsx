@@ -94,7 +94,7 @@ export default function Mesas() {
                 <span className="text-xs text-muted">{r.livrosLidos} de {r.livros} {r.livros === 1 ? "livro lido" : "livros lidos"}</span>
               </div>
               <div className="mt-1.5 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                <div className="h-full rounded-full bg-chart" style={{ width: `${r.pct * 100}%` }} />
+                <div className="h-full rounded-full bg-area-leitura" style={{ width: `${r.pct * 100}%` }} />
               </div>
               {r.livros > 0 && (
                 <div className="mt-2 text-xs text-faint tabular-nums">
@@ -126,8 +126,8 @@ function Janela({ titulo, onClose, children, larga }: { titulo: string; onClose:
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div className={`card w-full ${larga ? "max-w-2xl" : "max-w-md"} p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg">{titulo}</h2>
-          <button className="text-muted hover:text-ink" onClick={onClose}><X size={18} /></button>
+          <h2 className="modal-title">{titulo}</h2>
+          <button onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         {children}
       </div>

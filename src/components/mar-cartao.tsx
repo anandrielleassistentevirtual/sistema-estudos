@@ -28,7 +28,7 @@ export const TIPOS: { id: TipoMar; nome: string; icone: typeof Tv }[] = [
   { id: "livro", nome: "Livro", icone: BookOpen },
 ];
 export const NIVEIS = { 1: "fácil", 2: "médio", 3: "difícil" } as const;
-export const COR_NIVEL = { 1: "var(--good)", 2: "#c98a1a", 3: "var(--critical)" } as const;
+export const COR_NIVEL = { 1: "var(--good)", 2: "var(--warn)", 3: "var(--critical)" } as const;
 
 /** O que o cartão pede ao painel (que fala com o banco). */
 export interface AcoesCartao {
@@ -249,7 +249,7 @@ function BarraTemporadas({ t }: { t: Titulo }) {
 
 function Chips({ t, noTimer, sobraSeg, acoes }: { t: Titulo; noTimer: boolean; sobraSeg: number; acoes: AcoesCartao }) {
   if (noTimer) {
-    return <span className="inline-flex items-center gap-1 rounded-full px-2 py-px text-[11px] whitespace-nowrap" style={{ background: "color-mix(in srgb, #1baf7a 14%, transparent)", color: COR_MAR }}
+    return <span className="inline-flex items-center gap-1 rounded-full px-2 py-px text-[11px] whitespace-nowrap" style={{ background: "color-mix(in srgb, var(--area-idiomas) 14%, transparent)", color: COR_MAR }}
       title="O Timer está ligado a este título: o tempo dele e os episódios marcados não se somam duas vezes."><Timer size={11} /> no Timer</span>;
   }
   if (sobraSeg >= 60) {
@@ -267,7 +267,7 @@ function Chips({ t, noTimer, sobraSeg, acoes }: { t: Titulo; noTimer: boolean; s
 
 function Pergunta({ p, ocupado, onResponder }: { p: NonNullable<PropsCartao["pergunta"]>; ocupado: boolean; onResponder: (sim: boolean) => void }) {
   return (
-    <div className="mt-2 rounded-lg px-2.5 py-2 text-[12.5px] leading-snug" style={{ background: "color-mix(in srgb, #1baf7a 10%, transparent)" }} role="alertdialog" aria-label="O Timer">
+    <div className="mt-2 rounded-lg px-2.5 py-2 text-[12.5px] leading-snug" style={{ background: "color-mix(in srgb, var(--area-idiomas) 10%, transparent)" }} role="alertdialog" aria-label="O Timer">
       <p>{p.pergunta}</p>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         <button type="button" className="btn btn-primary py-1.5 sm:py-1 min-h-9 sm:min-h-0 text-[13px]" disabled={ocupado} onClick={() => onResponder(true)}>{p.sim}</button>

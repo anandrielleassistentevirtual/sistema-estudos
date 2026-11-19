@@ -5,6 +5,8 @@ import { addDays, dayKey, parseDay, weekStart } from "@/lib/dates";
 import { semanasDoPeriodo, type Periodo } from "@/lib/periodo";
 import { DayStats, inicio12Meses, loadDaily, Metric, METRICS } from "@/lib/stats";
 
+const COR_METRICA: Record<Metric, string> = { tempo: "var(--heat-4)", palavras: "var(--area-leitura)", escritas: "var(--area-escrita)", anki: "var(--area-idiomas)" };
+
 /** Com `periodo` (filtro do painel): mostra só esse período, com as cores calculadas dentro dele. */
 export function CalendarPanel({ compacto = false, periodo }: { compacto?: boolean; periodo?: Periodo }) {
   const [year, setYear] = useState<number | "12m">("12m");
@@ -27,19 +29,23 @@ export function CalendarPanel({ compacto = false, periodo }: { compacto?: boolea
   useEffect(() => { void loadDaily(desde).then(setDaily); }, [desde]);
 
   const end = periodo ? parseDay(periodo.ate) : year === "12m" ? new Date() : new Date(year, 11, 31);
-  const weeks = periodo ? semanasDoPeriodo(periodo) : year === "12m" ? 53 : Math.ceil((end.getTime() - weekStart(new Date(year, 0, 1)).getTime()) / (7 * 864e5));
+  // períodos curtos (uma semana, alguns dias) mostram pelo menos 5 semanas: o período em destaque e as
+  // semanas de antes esmaecidas, como contexto (uma linha solta deixava o cartão quase vazio)
+  const weeks = periodo ? Math.max(5, semanasDoPeriodo(periodo)) : year === "12m" ? 53 : Math.ceil((end.getTime() - weekStart(new Date(year, 0, 1)).getTime()) / (7 * 864e5));
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
     // tudo num cartão só (título, filtros e calendário); o calendário sempre cabe na largura, sem rolar
     <section id="calendario" className={`card scroll-mt-4 min-w-0 flex flex-col ${compacto ? "p-4" : "mt-4 p-4 md:p-5"}`}>
       <div className={`flex flex-wrap items-center gap-2 ${compacto ? "mb-2" : "mb-3"}`}>
-        <h2 className="font-medium mr-auto">Calendário</h2>
+        <h2 className="card-title mr-auto">Calendário</h2>
         {/* celular: as métricas ganham a linha toda, embaixo do título */}
-        <div className={`order-last sm:order-none w-full sm:w-auto flex sm:inline-flex rounded-lg bg-surface-2 p-0.5 sm:p-1 ${compacto ? "text-xs" : "text-[13px] sm:text-sm"}`}>
+        <div className={`seg order-last sm:order-none w-full sm:w-auto flex sm:inline-flex ${compacto ? "" : "seg-md"}`}>
           {METRICS.map((m) => (
-            <button key={m.id} onClick={() => setMetric(m.id)}
-              className={`flex-1 sm:flex-none ${compacto ? "px-2.5 py-1" : "px-3 py-1 sm:py-1.5"} rounded-md ${metric === m.id ? "bg-seg shadow-sm font-medium" : "text-muted"}`}>
+            <button key={m.id} onClick={() => setMetric(m.id)} aria-pressed={metric === m.id}
+              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 ${compacto ? "" : "px-3"}`}>
+              {/* a bolinha diz a cor do calendário nessa métrica (a cor da área: escrita laranja, Anki verde…) */}
+              <span className="dot !w-1.5 !h-1.5" style={{ background: COR_METRICA[m.id], opacity: metric === m.id ? 1 : 0.6 }} aria-hidden />
               {m.label}
             </button>
           ))}

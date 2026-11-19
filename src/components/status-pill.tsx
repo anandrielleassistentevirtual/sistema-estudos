@@ -26,17 +26,19 @@ export function StatusPill<T extends string>({ value, options, onChange, label =
 
 /** Status das aulas (Estudos). */
 export type SituacaoAula = "pendente" | "lendo" | "concluida";
+// em andamento: na cor da área (aula = Estudos, violeta; livro = Leitura, azul); feito: verde; parado: âmbar
 export const SITUACOES_AULA: OpcaoStatus<SituacaoAula>[] = [
   { value: "pendente", label: "Pendente", cor: "var(--muted)" },
-  { value: "lendo", label: "Lendo", cor: "var(--accent)" },
+  { value: "lendo", label: "Lendo", cor: "var(--area-estudos)" },
   { value: "concluida", label: "Concluída", cor: "var(--good)" },
 ];
 
 /** Status dos livros (biblioteca e mesas). */
 export const OPCOES_LIVRO: OpcaoStatus<BookStatus>[] = [
   { value: "aguardando", label: STATUS_LABEL.aguardando, cor: "var(--muted)" },
-  { value: "lendo", label: STATUS_LABEL.lendo, cor: "var(--accent)" },
-  { value: "pausado", label: STATUS_LABEL.pausado, cor: "#c98a1a" },
+  { value: "lendo", label: STATUS_LABEL.lendo, cor: "var(--area-leitura)" },
+  { value: "pausado", label: STATUS_LABEL.pausado, cor: "var(--warn)" },
   { value: "lido", label: STATUS_LABEL.lido, cor: "var(--good)" },
-  { value: "consulta", label: STATUS_LABEL.consulta, cor: "#8e6fd6" },
+  // obra de consulta: a cor da Pesquisa (é para consultar, não para ler de ponta a ponta)
+  { value: "consulta", label: STATUS_LABEL.consulta, cor: "var(--area-pesquisa)" },
 ];

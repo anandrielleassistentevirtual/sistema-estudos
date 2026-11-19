@@ -138,7 +138,7 @@ export default function Tarefas() {
             )}
             {t.antes_de && aulaDe.get(t.antes_de) && (
               <Link href={`/estudos/${t.antes_de}`} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:underline underline-offset-2"
-                style={{ background: "color-mix(in srgb, #c98a1a 14%, transparent)", color: "#a8741a" }} title="Fazer antes de abrir esta aula">
+                style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)", color: "var(--warn)" }} title="Fazer antes de abrir esta aula">
                 <CornerDownRight size={12} /> antes de {curto(aulaDe.get(t.antes_de)!.title, 40)}
               </Link>
             )}
@@ -152,7 +152,7 @@ export default function Tarefas() {
             {t.link && <a href={t.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-ink underline-offset-2 hover:underline"><ExternalLink size={11} /> link</a>}
             {prazo && (
               <span className="rounded-md px-1.5 py-0.5 font-medium"
-                style={{ color: prazo.atrasada ? "var(--bad, #d33)" : prazo.urgente ? "#c98a1a" : undefined, background: prazo.urgente ? "color-mix(in srgb, currentColor 12%, transparent)" : "var(--surface-2)" }}>
+                style={{ color: prazo.atrasada ? "var(--critical)" : prazo.urgente ? "var(--warn)" : undefined, background: prazo.urgente ? "color-mix(in srgb, currentColor 12%, transparent)" : "var(--surface-2)" }}>
                 {prazo.texto}
               </span>
             )}
@@ -203,9 +203,9 @@ export default function Tarefas() {
           onCriar={async (dados) => { const t = await criarTarefa(dados, tarefas ?? []); setTarefas((l) => [...(l ?? []), t]); }} />
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg bg-surface-2 p-1 text-sm">
+          <div className="seg seg-md">
             {([["lista", "Lista"], ["prazo", "Por prazo"]] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setVista(k)} className={`px-3 py-1 rounded-md ${vista === k ? "bg-seg shadow-sm" : "text-muted"}`}>{l}</button>
+              <button key={k} onClick={() => setVista(k)} aria-pressed={vista === k} className="px-3">{l}</button>
             ))}
           </div>
           {cursosComTarefa.length > 0 && (
@@ -375,8 +375,8 @@ function Janela({ titulo, onClose, children }: { titulo: string; onClose: () => 
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/50" onClick={onClose}>
       <div className="card w-full max-w-md p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg">{titulo}</h2>
-          <button className="text-muted hover:text-ink" onClick={onClose}><X size={18} /></button>
+          <h2 className="modal-title">{titulo}</h2>
+          <button onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
         </div>
         {children}
       </div>
@@ -515,7 +515,7 @@ function FormTarefa({ ordem, filhos, porId, livros, aulas, inicial, rotulo, onSa
                     <input className="bg-transparent outline-none flex-1 min-w-0" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por título ou autor" />
                   </label>
                   {achados.length > 0 && (
-                    <div className="absolute z-20 left-0 right-0 mt-1 card shadow-xl py-1 max-h-64 overflow-y-auto">
+                    <div className="absolute z-20 left-0 right-0 mt-1 popover py-1 max-h-64 overflow-y-auto">
                       {achados.map((b) => (
                         <button key={b.id} type="button" className="w-full text-left px-3 py-1.5 hover:bg-sel" onClick={() => { setBookId(b.id); setBusca(""); }}>
                           <span className="block truncate">{b.title}</span>
