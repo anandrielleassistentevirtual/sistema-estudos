@@ -43,6 +43,10 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     cb.current.onView?.(pages[p]?.words ?? 0, p === pages.length - 1);
     const chapter = [...toc].reverse().find((t) => Number(t.location.slice(2)) <= p);
     cb.current.onLocation(`p:${p}`, before / total, `${chapter ? chapter.label + " · " : ""}Página ${p + 1} de ${pages.length}`);
+    // até o começo do próximo capítulo (ou o fim do livro)
+    const inicios = limitesDeCapitulo(toc);
+    const proximo = inicios.filter((n) => n > p).sort((a, b) => a - b)[0] ?? pages.length;
+    cb.current.onCapitulo?.(inicios.length ? Math.max(0, proximo - p - 1) : null);
   }
 
   function go(to: number) {
@@ -136,4 +140,15 @@ function highlight(html: string, quotes: string[]) {
     out = out.split(q).join(`<mark>${q}</mark>`);
   }
   return out;
+}
+
+/**
+ * Onde começa cada capítulo (página). "Capítulo" é o nível do sumário que divide o livro: com poucas partes
+ * no nível 1 (título, "Parte 1"…) e capítulos no nível 2, são os do nível 2 (uma parte nova também fecha o capítulo);
+ * senão, o nível 1. Subseções (###) não contam.
+ */
+export function limitesDeCapitulo(toc: TocItem[]): number[] {
+  const n1 = toc.filter((t) => t.level === 1).length, n2 = toc.filter((t) => t.level === 2).length;
+  const nivel = n2 > 0 && (n1 <= 3 || n2 >= n1 * 2) ? 2 : n1 > 0 ? 1 : Math.min(...toc.map((t) => t.level));
+  return [...new Set(toc.filter((t) => t.level <= nivel).map((t) => Number(t.location.slice(2))).filter((n) => Number.isFinite(n)))].sort((a, b) => a - b);
 }

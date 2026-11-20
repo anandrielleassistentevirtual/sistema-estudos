@@ -67,6 +67,15 @@ export interface ReaderProps {
   onSecao?: (ordem: number) => void;
   /** página na tela: palavras e se é a última */
   onView?: (words: number, last: boolean) => void;
+  /** páginas que ainda faltam no capítulo depois desta (0 = última página do capítulo); null = o livro não tem capítulos */
+  onCapitulo?: (faltam: number | null) => void;
+}
+
+/** "3 páginas restantes no capítulo" (como no Livros da Apple) */
+export function textoFaltamNoCapitulo(faltam: number | null, nome = "capítulo"): string {
+  if (faltam === null || faltam < 0) return "";
+  if (faltam === 0) return `última página do ${nome}`;
+  return `${faltam} ${faltam === 1 ? "página restante" : "páginas restantes"} no ${nome}`;
 }
 
 /** Cores do tema (o leitor recebe o tema já resolvido; "auto" cai no claro por segurança). */

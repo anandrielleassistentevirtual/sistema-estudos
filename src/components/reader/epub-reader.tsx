@@ -66,6 +66,9 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
         const label = b.navigation?.get?.(loc.start.href)?.label?.trim?.() ?? "";
         cb.current.onLocation(loc.start.cfi, progressOf(next), label);
         cb.current.onSecao?.(loc.start.index);
+        // páginas que faltam neste capítulo (a seção do EPUB na tela)
+        const d = loc.start.displayed;
+        cb.current.onCapitulo?.(d && d.total > 0 ? Math.max(0, d.total - d.page) : null);
       });
       r.on("selected", async (cfiRange: string) => {
         const range = await Promise.resolve(b.getRange(cfiRange));

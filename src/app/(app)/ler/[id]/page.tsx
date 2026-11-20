@@ -8,7 +8,7 @@ import { EpubReader } from "@/components/reader/epub-reader";
 import { PrefsPanel } from "@/components/reader/prefs-panel";
 import { TextReader } from "@/components/reader/text-reader";
 import { Sumario } from "@/components/reader/sumario";
-import { DEFAULT_PREFS, HL_COLORS, ReaderHandle, ReaderPrefs, THEMES, TocItem } from "@/components/reader/types";
+import { DEFAULT_PREFS, HL_COLORS, ReaderHandle, ReaderPrefs, THEMES, TocItem, textoFaltamNoCapitulo } from "@/components/reader/types";
 import { downloadBook, ppmDosLivros, saveBookFile } from "@/lib/books";
 import { fmtClock, fmtDuration, nf } from "@/lib/dates";
 import { addBasicNote } from "@/lib/anki";
@@ -38,6 +38,7 @@ export default function Ler() {
   const [location, setLocation] = useState("");
   const [secao, setSecao] = useState<number | null>(null); // EPUB: capítulo na tela (para o sumário)
   const [ritmo, setRitmo] = useState(0);
+  const [faltamCap, setFaltamCap] = useState<number | null>(null);
   useEffect(() => { void ppmDosLivros().then((v) => setRitmo(v ?? 0)); }, []);
   const [sel, setSel] = useState<{ location: string; quote: string } | null>(null);
   const [selNote, setSelNote] = useState("");
@@ -271,11 +272,11 @@ export default function Ler() {
       <div className="relative flex-1 min-h-0">
         {blob && book && (
           book.format === "epub" ? (
-            <EpubReader ref={reader} data={blob} format="epub" startAt={book.last_location} prefs={view} annotations={anns} onSecao={setSecao}
+            <EpubReader ref={reader} data={blob} format="epub" startAt={book.last_location} prefs={view} annotations={anns} onSecao={setSecao} onCapitulo={setFaltamCap}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
               onAnnotationClick={() => setShowAnns(true)} onToc={setToc} onView={(w, last) => tracker.current?.see(w, last)} />
           ) : (
-            <TextReader ref={reader} data={blob} format={book.format as "txt" | "md"} startAt={book.last_location} prefs={view} annotations={anns}
+            <TextReader ref={reader} data={blob} format={book.format as "txt" | "md"} startAt={book.last_location} prefs={view} annotations={anns} onCapitulo={setFaltamCap}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
               onAnnotationClick={() => setShowAnns(true)} onToc={setToc} onView={(w, last) => tracker.current?.see(w, last)} />
           )
@@ -360,6 +361,7 @@ export default function Ler() {
         <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: tema === "escuro" ? "#2f2f2c" : "#00000012" }}>
           <div className="h-full rounded-full opacity-90" style={{ width: `${progress * 100}%`, background: "var(--area-leitura)" }} />
         </div>
+        {faltamCap !== null && <span className="whitespace-nowrap tabular-nums" title="Páginas que faltam até o próximo capítulo">{textoFaltamNoCapitulo(faltamCap)}</span>}
         <button className="p-1" onClick={() => reader.current?.next()}><ChevronRight size={16} /></button>
         {foco && (
           <>

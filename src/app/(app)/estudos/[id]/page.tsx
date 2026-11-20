@@ -11,7 +11,7 @@ import { BotaoFoco, DicaNaoPerturbe, SairDoFoco, useModoFoco } from "@/component
 import { Sumario } from "@/components/reader/sumario";
 import { PrefsPanel } from "@/components/reader/prefs-panel";
 import { stepZoom, useEffectiveTheme, useReaderPrefs, zoomOf, ZOOM } from "@/components/reader/prefs";
-import { THEMES, type ReaderHandle, type TocItem } from "@/components/reader/types";
+import { THEMES, textoFaltamNoCapitulo, type ReaderHandle, type TocItem } from "@/components/reader/types";
 import { ReadingTracker } from "@/lib/reading-tracker";
 import { useTimerEstado } from "@/components/timer-context";
 import { supabase, fire } from "@/lib/supabase/client";
@@ -56,6 +56,7 @@ export default function AulaAberta() {
   const reader = useRef<ReaderHandle>(null);
   const tracker = useRef<ReadingTracker | null>(null);
   const raiz = useRef<HTMLDivElement>(null);
+  const [faltamCap, setFaltamCap] = useState<number | null>(null);
   const { foco, entrar: entrarFoco, sair: sairFoco, dica, fecharDica } = useModoFoco(raiz);
   const timer = useTimerEstado();
   const timerOn = useRef(false);
@@ -288,7 +289,7 @@ export default function AulaAberta() {
               annotations={[]} knownWords={null}
               onTurn={(w, fwd) => tracker.current?.turn(w, fwd)}
               onView={(w, last) => tracker.current?.see(w, last)}
-              onToc={setToc}
+              onToc={setToc} onCapitulo={setFaltamCap}
               onLocation={(loc, p, l) => {
                 if (loc) setLocal(loc);
                 setProgresso(p);
@@ -361,6 +362,7 @@ export default function AulaAberta() {
           <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: linha }}>
             <div className="h-full rounded-full opacity-90" style={{ width: `${progresso * 100}%`, background: "var(--area-estudos)" }} />
           </div>
+          {faltamCap !== null && <span className="whitespace-nowrap tabular-nums" title="Páginas que faltam até a próxima parte da aula">{textoFaltamNoCapitulo(faltamCap, "trecho")}</span>}
           <button className="p-1" onClick={() => reader.current?.next()} aria-label="Próxima página"><ChevronRight size={16} /></button>
           {foco && (
             <>
