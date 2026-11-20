@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { TextReader } from "@/components/reader/text-reader";
 import { TarefasDaAula } from "@/components/tarefas-da-aula";
+import { BotaoFoco, DicaNaoPerturbe, SairDoFoco, useModoFoco } from "@/components/reader/modo-foco";
 import { Sumario } from "@/components/reader/sumario";
 import { PrefsPanel } from "@/components/reader/prefs-panel";
 import { stepZoom, useEffectiveTheme, useReaderPrefs, zoomOf, ZOOM } from "@/components/reader/prefs";
@@ -54,6 +55,8 @@ export default function AulaAberta() {
   useEffect(() => { void ppmMedio().then((r) => setPpmBase(r.ppm)); }, []);
   const reader = useRef<ReaderHandle>(null);
   const tracker = useRef<ReadingTracker | null>(null);
+  const raiz = useRef<HTMLDivElement>(null);
+  const { foco, entrar: entrarFoco, sair: sairFoco, dica, fecharDica } = useModoFoco(raiz);
   const timer = useTimerEstado();
   const timerOn = useRef(false);
   timerOn.current = timer.running && timer.phase === "foco";
@@ -194,7 +197,8 @@ export default function AulaAberta() {
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex flex-col pt-safe pb-safe" style={{ background: t.bg, color: t.fg }}>
+    <div ref={raiz} className="fixed inset-0 z-20 flex flex-col pt-safe pb-safe" style={{ background: t.bg, color: t.fg }}>
+      {!foco && (
       <header className="flex items-center gap-1.5 px-3 h-12 border-b shrink-0" style={{ borderColor: linha }}>
         <button onClick={() => { void flush(); router.push("/estudos"); }} className="p-2 opacity-70 hover:opacity-100" title="Voltar aos Estudos"><ChevronLeft size={18} /></button>
         <div className="min-w-0 flex-1">
@@ -235,6 +239,7 @@ export default function AulaAberta() {
           <>
             <button className="p-2 opacity-70 hover:opacity-100 hidden sm:block" title="Editar a transcrição" onClick={() => { setEditar(true); setPainel(null); }}><Pencil size={17} /></button>
             <button className="p-2 opacity-70 hover:opacity-100 hidden sm:block" title="Baixar a transcrição (.md)" onClick={() => aula && void baixarAula(aula)}><Download size={17} /></button>
+            <BotaoFoco className="mx-1" onClick={() => { setPainel(null); void entrarFoco(); }} />
             {toc.length > 0 && (
               <button className="p-2 opacity-70 hover:opacity-100" title="Sumário" onClick={() => setPainel(painel === "sumario" ? null : "sumario")}><ListTree size={18} /></button>
             )}
@@ -256,7 +261,8 @@ export default function AulaAberta() {
           {!!aula?.anotacoes?.trim() && !notas && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-current" />}
         </button>
       </header>
-      {aula && !editar && aula.situacao !== "lendo" && (
+      )}
+      {aula && !editar && !foco && aula.situacao !== "lendo" && (
         <div className="shrink-0 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-3 py-1.5 text-xs border-b" style={{ borderColor: linha }}>
           <span className="opacity-70">
             {aula.situacao === "concluida" ? "Aula concluída — folheando: não conta nos indicadores." : "Folheando: não conta nos indicadores nem muda a porcentagem."}
@@ -320,6 +326,7 @@ export default function AulaAberta() {
               {aviso}
             </div>
           )}
+          {dica && foco && <DicaNaoPerturbe onFechar={fecharDica} />}
         </div>
 
         {/* minhas anotações, ao lado do texto */}
@@ -349,12 +356,24 @@ export default function AulaAberta() {
       )}
 
       {!editar && (
-        <footer className="shrink-0 flex items-center gap-2 px-3 h-9 text-xs opacity-80">
+        <footer className={`shrink-0 flex items-center gap-2 px-3 h-9 text-xs transition-opacity ${foco ? "opacity-30 hover:opacity-100" : "opacity-80"}`}>
           <button className="p-1" onClick={() => reader.current?.prev()} aria-label="Página anterior"><ChevronLeft size={16} /></button>
           <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: linha }}>
             <div className="h-full rounded-full opacity-90" style={{ width: `${progresso * 100}%`, background: "var(--area-estudos)" }} />
           </div>
           <button className="p-1" onClick={() => reader.current?.next()} aria-label="Próxima página"><ChevronRight size={16} /></button>
+          {foco && (
+            <>
+              <span className="hidden sm:flex items-center gap-3 tabular-nums font-mono ml-1" title="Esta sessão de leitura">
+                <span>{fmtClock(sessao.seconds)}</span><span>{nf.format(sessao.words)} pal.</span>
+                {aula?.situacao === "lendo" && <span>{Math.round(progresso * 100)}%</span>}
+              </span>
+              <button className={`flex items-center gap-1 hover:opacity-100 ${notas ? "opacity-100" : ""}`} title="Minhas anotações" onClick={() => setNotas(!notas)}>
+                <NotebookPen size={12} /> <span className="hidden sm:inline">anotações</span>
+              </button>
+              <SairDoFoco onClick={sairFoco} />
+            </>
+          )}
         </footer>
       )}
     </div>

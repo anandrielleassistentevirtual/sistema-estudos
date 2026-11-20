@@ -17,6 +17,7 @@ import { supabase, fire } from "@/lib/supabase/client";
 import type { Annotation, Book } from "@/lib/types";
 import { useTimerEstado } from "@/components/timer-context";
 import { literaryFromHighlight } from "@/lib/zettel";
+import { BotaoFoco, DicaNaoPerturbe, SairDoFoco, useModoFoco } from "@/components/reader/modo-foco";
 
 const PREFS_KEY = "leitor-prefs-v2";
 /** Níveis de zoom (100% = Times 12 pt). */
@@ -70,6 +71,8 @@ export default function Ler() {
   const bookRef = useRef<Book | null>(null);
   bookRef.current = book;
   const timer = useTimerEstado();
+  const raiz = useRef<HTMLDivElement>(null);
+  const { foco, entrar: entrarFoco, sair: sairFoco, dica, fecharDica } = useModoFoco(raiz);
   const timerOn = useRef(false);
   timerOn.current = timer.running && timer.phase === "foco";
 
@@ -217,7 +220,8 @@ export default function Ler() {
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex flex-col pt-safe pb-safe" style={{ background: t.bg, color: t.fg }}>
+    <div ref={raiz} className="fixed inset-0 z-20 flex flex-col pt-safe pb-safe" style={{ background: t.bg, color: t.fg }}>
+      {!foco && (
       <header className="flex items-center gap-2 px-3 h-12 border-b shrink-0" style={{ borderColor: tema === "escuro" ? "#2f2f2c" : "#00000014" }}>
         <Link href="/biblioteca" className="p-2 opacity-70 hover:opacity-100" title="Voltar"><ChevronLeft size={18} /></Link>
         <div className="min-w-0 flex-1">
@@ -241,6 +245,7 @@ export default function Ler() {
         {book && book.format !== "fisico" && (
           <button className="p-2 opacity-70 hover:opacity-100 hidden sm:block" title="Baixar o arquivo do livro" onClick={() => book && void saveBookFile(book)}><Download size={18} /></button>
         )}
+        <BotaoFoco className="mx-1" onClick={() => { setShowPrefs(false); setShowAnns(false); setShowToc(false); void entrarFoco(); }} />
         {toc.length > 0 && (
           <button className="p-2 opacity-70 hover:opacity-100" onClick={() => { setShowToc(!showToc); setShowPrefs(false); setShowAnns(false); }} title="Sumário"><ListTree size={18} /></button>
         )}
@@ -250,7 +255,8 @@ export default function Ler() {
           {anns.length > 0 && <span className="absolute top-1 right-0.5 text-[9px] font-bold">{anns.length}</span>}
         </button>
       </header>
-      {book && book.status !== "lendo" && (
+      )}
+      {book && book.status !== "lendo" && !foco && (
         <div className="shrink-0 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-3 py-1.5 text-xs border-b" style={{ borderColor: tema === "escuro" ? "#2f2f2c" : "#00000014" }}>
           <span className="opacity-70">
             {book.status === "consulta" ? "Obra de consulta: abre onde você parou e nada conta nos indicadores."
@@ -346,14 +352,24 @@ export default function Ler() {
             {toast}
           </div>
         )}
+        {dica && foco && <DicaNaoPerturbe onFechar={fecharDica} />}
       </div>
 
-      <footer className="shrink-0 flex items-center gap-2 px-3 h-9 text-xs opacity-80">
+      <footer className={`shrink-0 flex items-center gap-2 px-3 h-9 text-xs transition-opacity ${foco ? "opacity-30 hover:opacity-100" : "opacity-80"}`}>
         <button className="p-1" onClick={() => reader.current?.prev()}><ChevronLeft size={16} /></button>
         <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: tema === "escuro" ? "#2f2f2c" : "#00000012" }}>
           <div className="h-full rounded-full opacity-90" style={{ width: `${progress * 100}%`, background: "var(--area-leitura)" }} />
         </div>
         <button className="p-1" onClick={() => reader.current?.next()}><ChevronRight size={16} /></button>
+        {foco && (
+          <>
+            <span className="hidden sm:flex items-center gap-3 tabular-nums font-mono ml-1" title="Esta sessão de leitura">
+              <span>{fmtClock(session.seconds)}</span><span>{nf.format(session.words)} pal.</span>
+              {book?.status === "lendo" && <span>{Math.round(progress * 100)}%</span>}
+            </span>
+            <SairDoFoco onClick={sairFoco} />
+          </>
+        )}
       </footer>
     </div>
   );
