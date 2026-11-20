@@ -23,6 +23,7 @@ import {
 import { NovaMeta, type Livro, type AulaT, type BaralhoT } from "./nova-meta";
 import { corDaNota } from "@/lib/cores";
 import { DetalheDaMeta, type ItemDaMeta } from "./detalhe-meta";
+import { VisaoAno } from "./visao-ano";
 
 const fmtData = (k: string) => parseDay(k).toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
 /** Arredonda um plano para um número redondo na unidade. */
@@ -70,6 +71,10 @@ export default function Temporadas() {
   }
   const [idiomas, setIdiomas] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(true);
+  /** a temporada (plano, metas, semanas) ou o ano (as 4 estações lado a lado) */
+  const [visao, setVisaoEstado] = useState<"temporada" | "ano">("temporada");
+  useEffect(() => { try { if (localStorage.getItem("temporadas-visao") === "ano") setVisaoEstado("ano"); } catch {} }, []);
+  const setVisao = (v: "temporada" | "ano") => { setVisaoEstado(v); try { localStorage.setItem("temporadas-visao", v); } catch {} };
 
   const carregar = useCallback(async () => {
     const sb = supabase();
@@ -411,7 +416,15 @@ export default function Temporadas() {
   );
 
   return (
-    <Page denso title="Temporadas" subtitle="O ano em 12 semanas, no ritmo das estações: planeje cada temporada com o seu ritmo real.">
+    <Page denso title="Temporadas" subtitle="O ano em 12 semanas, no ritmo das estações: planeje cada temporada com o seu ritmo real."
+      actions={
+        <div className="seg" role="tablist" aria-label="Visão">
+          {([["temporada", "Temporada"], ["ano", "Ano"]] as const).map(([k, l]) => (
+            <button key={k} role="tab" aria-selected={visao === k} aria-pressed={visao === k} onClick={() => setVisao(k)}>{l}</button>
+          ))}
+        </div>
+      }>
+      {visao === "ano" ? <VisaoAno onAbrir={(estacao, ano) => { setSel({ estacao, ano }); setVisao("temporada"); }} /> : <>
       {/* estações: anterior · esta · seguinte */}
       {/* no celular as setas ficam dentro do cartão, nas pontas do nome (o cartão ocupa a largura toda) */}
       <div className="flex items-center gap-2 mb-3">
@@ -681,7 +694,8 @@ export default function Temporadas() {
       </section>
       </div>
 
-      {metaAberta && (() => {
+      </>}
+      {metaAberta && visao === "temporada" && (() => {
         const m = minhasMetas.find((x) => x.id === metaAberta);
         const p = m && previsoes.get(m.id!);
         if (!m || !p) return null;
