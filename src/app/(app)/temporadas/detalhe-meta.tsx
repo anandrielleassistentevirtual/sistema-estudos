@@ -4,7 +4,7 @@
  * e item a item (cada livro ou aula: progresso, o que foi lido na temporada, o que falta e a previsão).
  */
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import { addDays, dayKey, fmtDuration, nf, parseDay } from "@/lib/dates";
@@ -22,13 +22,17 @@ export interface ResumoDaMeta {
 const fmtData = (k: string) => parseDay(k).toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
 const N = (v: number) => nf.format(v > 0 && v < 10 && v % 1 ? Math.round(v * 10) / 10 : Math.round(v));
 
-export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDias, minutosPorDia, onClose }: {
+export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDias, minutosPorDia, onClose, onEditar, onTirar }: {
   meta: Meta; cor: string; area: string; resumo: ResumoDaMeta;
   comecaEm: string; hoje: string;
   ankiDias: { day: string; baralho: string; reviews: number; criados: number }[];
   /** metas de horas: minutos por dia na área */
   minutosPorDia: (dia: string) => number;
   onClose: () => void;
+  /** abre o editor da meta (trocar livros/aulas, alvo, nome…) */
+  onEditar?: () => void;
+  /** tira um livro ou uma aula da meta */
+  onTirar?: (id: string) => void;
 }) {
   // o que é contado por dia, e o nome da unidade
   const [porDia, setPorDia] = useState<Map<string, number> | null>(null);
@@ -100,6 +104,11 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-xs font-medium rounded-full px-2 py-0.5" style={{ color: resumo.corSelo, background: `color-mix(in srgb, ${resumo.corSelo} 14%, transparent)` }}>{resumo.selo}</span>
+            {onEditar && (
+              <button className="btn text-xs py-1" onClick={onEditar} title="Trocar livros ou aulas, mudar o alvo ou o nome">
+                <Pencil size={13} /> Editar
+              </button>
+            )}
             <button onClick={onClose} className="p-1.5 -m-1.5 sm:p-0 sm:m-0 text-muted hover:text-ink" aria-label="Fechar"><X size={18} /></button>
           </div>
         </div>
@@ -144,7 +153,14 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
         {/* item a item: livros ou aulas */}
         {resumo.itens && resumo.itens.length > 0 && (
           <>
-            <h3 className="text-sm font-medium mt-5 mb-2">{meta.tipo === "livros" ? "Livros" : "Aulas"} <span className="text-[11px] text-muted font-normal">na ordem da meta · previsão pelo seu ritmo</span></h3>
+            <h3 className="text-sm font-medium mt-5 mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
+              <span>{meta.tipo === "livros" ? "Livros" : "Aulas"} <span className="text-[11px] text-muted font-normal">na ordem da meta · previsão pelo seu ritmo</span></span>
+              {onEditar && (
+                <button className="text-xs font-normal text-muted hover:text-ink underline-offset-2 hover:underline" onClick={onEditar}>
+                  {meta.tipo === "livros" ? "adicionar, trocar ou reordenar livros" : "adicionar ou trocar aulas"}
+                </button>
+              )}
+            </h3>
             {/* celular: um bloco por item (título, barra e os números numa linha) */}
             <ul className="sm:hidden divide-y divide-line border-t border-line">
               {resumo.itens.map((it) => {
@@ -154,7 +170,10 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
                   <li key={it.id} className="py-2 text-sm">
                     <div className="flex items-baseline justify-between gap-3">
                       <span className={`min-w-0 line-clamp-2 break-words ${it.feito ? "text-muted line-through" : ""}`}>{it.titulo}</span>
-                      <span className="shrink-0 text-xs tabular-nums" style={{ color: it.feito ? "var(--good)" : it.ok ? "var(--muted)" : "var(--warn)" }}>{it.feito ? "✓ feito" : it.quando ?? "—"}</span>
+                      <span className="shrink-0 flex items-center gap-1">
+                        <span className="text-xs tabular-nums" style={{ color: it.feito ? "var(--good)" : it.ok ? "var(--muted)" : "var(--warn)" }}>{it.feito ? "✓ feito" : it.quando ?? "—"}</span>
+                        {onTirar && <button className="p-1.5 -m-1 text-faint hover:text-critical" title="Tirar da meta" aria-label={`Tirar “${it.titulo}” da meta`} onClick={() => onTirar(it.id)}><X size={14} /></button>}
+                      </span>
                     </div>
                     <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted tabular-nums">
                       <span className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${pct * 100}%`, background: cor }} /></span>
@@ -176,7 +195,8 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
                     <th className="w-36">Progresso</th>
                     <th>Lido na temporada</th>
                     <th>Falta</th>
-                    <th className="!pr-0">Previsão</th>
+                    <th className={onTirar ? "" : "!pr-0"}>Previsão</th>
+                    {onTirar && <th className="!pr-0 w-6"><span className="sr-only">Tirar</span></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -196,7 +216,12 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
                           {x?.palavras ? `${nf.format(x.palavras)} pal.` : "—"}{x?.segundos ? ` · ${fmtDuration(x.segundos)}` : ""}
                         </td>
                         <td className="text-muted text-xs">{it.feito ? "—" : `${nf.format(Math.round(it.falta))} pal.`}</td>
-                        <td className="!pr-0 text-xs" style={{ color: it.feito ? "var(--good)" : it.ok ? "var(--muted)" : "var(--warn)" }}>{it.feito ? "✓ feito" : it.quando ?? "—"}</td>
+                        <td className={`${onTirar ? "" : "!pr-0"} text-xs`} style={{ color: it.feito ? "var(--good)" : it.ok ? "var(--muted)" : "var(--warn)" }}>{it.feito ? "✓ feito" : it.quando ?? "—"}</td>
+                        {onTirar && (
+                          <td className="!pr-0">
+                            <button className="text-faint hover:text-critical align-middle" title="Tirar da meta" aria-label={`Tirar “${it.titulo}” da meta`} onClick={() => onTirar(it.id)}><X size={14} /></button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

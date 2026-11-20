@@ -54,6 +54,20 @@ export default function Temporadas() {
   /** metas com a lista de livros/aulas aberta */
   /** a meta aberta no detalhamento */
   const [metaAberta, setMetaAberta] = useState<string | null>(null);
+  /** a meta foi editada a partir do detalhamento: ao salvar (ou cancelar), volta para ele */
+  const [voltarAoDetalhe, setVoltarAoDetalhe] = useState<string | null>(null);
+  /** tira um livro ou uma aula da meta (o nome automático acompanha: "Fazer 15 aulas" → "Fazer 14 aulas") */
+  async function tirarDaMeta(m: Meta, id: string) {
+    const item = m.tipo === "livros" ? livros.find((b) => b.id === id)?.title : aulas.find((a) => a.id === id)?.title;
+    if (!confirm(`Tirar “${item ?? "este item"}” da meta “${m.titulo}”?`)) return;
+    const refs = m.refs.filter((x) => x !== id);
+    const n = refs.length;
+    const auto = m.tipo === "livros" ? /^Ler \d+ livros?$/ : /^Fazer \d+ aulas?$/;
+    const titulo = auto.test(m.titulo) ? (m.tipo === "livros" ? `Ler ${n} ${n === 1 ? "livro" : "livros"}` : `Fazer ${n} ${n === 1 ? "aula" : "aulas"}`) : m.titulo;
+    const { data, error } = await supabase().from("temporada_metas").update({ refs, titulo }).eq("id", m.id!).select().single();
+    if (error) return alert(`Não consegui salvar: ${error.message}`);
+    setMetas((l) => l.map((x) => (x.id === m.id ? (data as Meta) : x)));
+  }
   const [idiomas, setIdiomas] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(true);
 
@@ -554,7 +568,7 @@ export default function Temporadas() {
                       <span className="font-medium line-clamp-2 sm:line-clamp-1 break-words flex-1 min-w-0 leading-snug">{m.titulo}</span>
                       <span className="text-[11px] font-medium rounded-full px-2 py-0.5 shrink-0 whitespace-nowrap mt-px sm:mt-0"
                         style={{ color: COR[p.estado], background: `color-mix(in srgb, ${COR[p.estado]} 14%, transparent)` }}>{p.selo}</span>
-                      <span className="flex sm:hidden sm:group-hover:flex sm:group-focus-within:flex items-center sm:gap-1.5 shrink-0 -my-1.5 -mr-1.5 sm:m-0">
+                      <span className="flex items-center sm:gap-1.5 shrink-0 -my-1.5 -mr-1.5 sm:m-0">
                         <button className="p-1.5 sm:p-0 text-faint hover:text-ink" title="Editar a meta" aria-label="Editar a meta" onClick={() => setEditando(m)}><Pencil size={13} /></button>
                         <button className="p-1.5 sm:p-0 text-faint hover:text-critical" title="Apagar a meta" aria-label="Apagar a meta" onClick={async () => {
                           if (!confirm(`Apagar a meta “${m.titulo}”?`)) return;
@@ -675,12 +689,15 @@ export default function Temporadas() {
         return (
           <DetalheDaMeta meta={m} cor={g?.area.cor ?? "var(--accent)"} area={g?.nome ?? ""} comecaEm={t.comeca_em} hoje={ateHoje} ankiDias={ankiDias}
             minutosPorDia={(d) => feitoEm(reg, m.area, "min", d, d)} onClose={() => setMetaAberta(null)}
+            onEditar={passada ? undefined : () => { setVoltarAoDetalhe(m.id!); setMetaAberta(null); setEditando(m); }}
+            onTirar={passada || !(m.tipo === "livros" || m.tipo === "aulas") || m.refs.length <= 1 ? undefined : (id) => void tirarDaMeta(m, id)}
             resumo={{ numeros: p.numeros, selo: p.selo, corSelo: COR[p.estado], sub: p.sub, pct: p.pct, itens: p.itens, precisa: p.precisaN, ritmo: p.ritmoN }} />
         );
       })()}
       {editando && registro && (
         <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} aulas={aulas} baralhos={baralhos} posicao={editando.posicao ?? 0} editar={editando} fimPadrao={dayKey(addDays(new Date(), 13))}
-          onClose={() => setEditando(null)} onSalva={(m) => { setMetas((l) => l.map((x) => (x.id === m.id ? m : x))); setEditando(null); }} />
+          onClose={() => { setEditando(null); if (voltarAoDetalhe) { setMetaAberta(voltarAoDetalhe); setVoltarAoDetalhe(null); } }}
+          onSalva={(m) => { setMetas((l) => l.map((x) => (x.id === m.id ? m : x))); setEditando(null); if (voltarAoDetalhe) { setMetaAberta(voltarAoDetalhe); setVoltarAoDetalhe(null); } }} />
       )}
       {novaMeta && registro && (
         <NovaMeta temporadaId={registro.id!} livros={livros} pastas={pastas} aulas={aulas} baralhos={baralhos} posicao={minhasMetas.length}
