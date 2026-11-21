@@ -3,7 +3,7 @@
  * Balão das notas: ao passar o mouse sobre um trecho destacado, mostra a(s) nota(s) dele — juntas, quando
  * o mesmo trecho tem mais de uma anotação ou destaques se sobrepõem. Destaque sem nota não abre balão.
  */
-import { HL_COLORS, type NotaHover } from "./types";
+import { HL_COLORS, type NotaDoLivro, type NotaHover } from "./types";
 import type { Annotation } from "@/lib/types";
 
 export function NotasBalao({ hover, anotacoes }: { hover: NotaHover | null; anotacoes: Annotation[] }) {
@@ -28,6 +28,25 @@ export function NotasBalao({ hover, anotacoes }: { hover: NotaHover | null; anot
         ))}
       </ul>
       <div className="text-[10.5px] text-faint mt-2">clique no trecho para abrir as anotações</div>
+    </div>
+  );
+}
+
+/** Balão de uma nota do próprio livro (rodapé/fim): o número e o texto, junto da chamada. */
+export function NotaLivroBalao({ nota, onFechar }: { nota: NotaDoLivro | null; onFechar: () => void }) {
+  if (!nota) return null;
+  const largura = 380;
+  const meio = (nota.left + nota.right) / 2;
+  const left = Math.max(12, Math.min(window.innerWidth - largura - 12, meio - largura / 2));
+  const emCima = nota.top > window.innerHeight / 2;
+  return (
+    <div role="tooltip" className={`fixed z-[70] card shadow-2xl px-4 py-3 text-sm text-ink ${nota.fixa ? "" : "pointer-events-none"}`}
+      style={{ left, width: largura, ...(emCima ? { bottom: window.innerHeight - nota.top + 8 } : { top: nota.bottom + 8 }) }}>
+      <div className="flex items-start gap-2.5">
+        <span className="shrink-0 text-xs font-medium tabular-nums rounded px-1.5 py-0.5 bg-surface-2" title="Nota do livro">{nota.rotulo}</span>
+        <p className="leading-snug max-h-72 overflow-y-auto whitespace-pre-wrap font-serif text-[14.5px]">{nota.texto}</p>
+        {nota.fixa && <button className="shrink-0 -mr-1 text-muted hover:text-ink" aria-label="Fechar a nota" onClick={onFechar}>×</button>}
+      </div>
     </div>
   );
 }

@@ -581,3 +581,10 @@ html { -webkit-tap-highlight-color: transparent; touch-action: manipulation; -we
   .modal, .modal > .card, .toast, .popover { animation: none; }
   .btn:active:not(:disabled) { transform: none; }
 }
+
+/* chamada de nota do próprio livro (rodapé/fim): passar o mouse ou tocar abre o balão com o texto da nota */
+.nota-ref {
+  font-size: 0.68em; line-height: 0; vertical-align: super; font-family: var(--font-sans, system-ui), sans-serif;
+  color: var(--area-leitura); cursor: pointer; padding: 0 0.12em; border-radius: 3px; font-weight: 600;
+}
+.nota-ref:hover, .nota-ref:focus-visible { background: color-mix(in srgb, var(--area-leitura) 16%, transparent); outline: none; }

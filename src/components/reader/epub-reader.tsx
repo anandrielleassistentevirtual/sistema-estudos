@@ -35,6 +35,68 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
       rendition.current = r;
       // livro convertido de PDF (uma linha por parágrafo): junta as linhas antes de montar as páginas
       r.hooks.content.register((contents: any) => { try { repararCapitulo(contents.document); } catch {} });
+      // notas do próprio livro: passar o mouse (ou tocar) numa chamada mostra o texto da nota, sem sair da página
+      const cacheNotas = new Map<string, string>();
+      const ehChamada = (a: HTMLAnchorElement) => {
+        const href = a.getAttribute("href") ?? "";
+        if (!href.includes("#")) return false;
+        const tipo = `${a.getAttribute("epub:type") ?? ""} ${a.getAttributeNS?.("http://www.idpf.org/2007/ops", "type") ?? ""} ${a.getAttribute("role") ?? ""}`;
+        if (/noteref/.test(tipo)) return true;
+        const t = (a.textContent ?? "").trim();
+        return t.length <= 6 && (!!a.closest("sup") || /^[\[(]?[\d*†‡]{1,4}[\])]?$/.test(t));
+      };
+      const resolver = (base: string, rel: string) => {
+        const partes = base.split("/").slice(0, -1);
+        for (const p of rel.split("/")) { if (p === "..") partes.pop(); else if (p && p !== ".") partes.push(p); }
+        return partes.join("/");
+      };
+      async function textoDaNota(contents: any, href: string): Promise<string> {
+        const [arq, id0] = href.split("#");
+        const id = decodeURIComponent(id0 ?? "");
+        const chave = `${arq}#${id}`;
+        if (cacheNotas.has(chave)) return cacheNotas.get(chave)!;
+        let raiz: Document | Element | null = null;
+        if (!arq) raiz = contents.document;
+        else {
+          const base = b.spine.get(contents.sectionIndex)?.href ?? "";
+          const sec = b.spine.get(resolver(base, arq)) ?? b.spine.get(arq);
+          if (sec) raiz = await sec.load(b.load.bind(b));
+        }
+        let el: Element | null = null;
+        try { el = raiz?.querySelector(`[id="${id.replace(/"/g, '\\"')}"]`) ?? null; } catch { el = null; }
+        // a âncora da nota costuma ser o número (ou um link de volta): o texto é o do bloco em volta
+        const bloco = el && (el.textContent ?? "").trim().length < 12 ? el.closest("p,li,aside,div,section,dd") ?? el : el;
+        const texto = (bloco?.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+        cacheNotas.set(chave, texto);
+        return texto;
+      }
+      r.hooks.content.register((contents: any) => {
+        try {
+          const doc: Document = contents.document;
+          let atual: HTMLAnchorElement | null = null;
+          const mostrar = async (a: HTMLAnchorElement, fixa: boolean) => {
+            atual = a;
+            const texto = await textoDaNota(contents, a.getAttribute("href") ?? "");
+            if (atual !== a) return;
+            const q = a.getBoundingClientRect();
+            const f = (doc.defaultView?.frameElement as HTMLElement | null)?.getBoundingClientRect();
+            const dx = f?.left ?? 0, dy = f?.top ?? 0;
+            cb.current.onNotaLivro?.({ rotulo: (a.textContent ?? "").trim(), texto: texto || "(nota não encontrada)", left: q.left + dx, right: q.right + dx, top: q.top + dy, bottom: q.bottom + dy, fixa });
+          };
+          doc.addEventListener("mouseover", (e) => {
+            const a = (e.target as Element)?.closest?.("a[href]") as HTMLAnchorElement | null;
+            if (a && ehChamada(a)) { if (a !== atual) void mostrar(a, false); }
+            else if (atual) { atual = null; cb.current.onNotaLivro?.(null); }
+          });
+          doc.addEventListener("click", (e) => {
+            const a = (e.target as Element)?.closest?.("a[href]") as HTMLAnchorElement | null;
+            if (!a || !ehChamada(a)) return;
+            // o clique na chamada abre o balão em vez de ir para a página das notas
+            e.preventDefault(); e.stopPropagation();
+            void mostrar(a, true);
+          }, true);
+        } catch {}
+      });
       // passar o mouse sobre um destaque: o balão com as notas (todas as que se sobrepõem ali)
       r.hooks.content.register((contents: any) => {
         try {
@@ -101,6 +163,7 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
         cb.current.onLocation(loc.start.cfi, progressOf(next), label);
         cb.current.onSecao?.(loc.start.index);
         cb.current.onNotaHover?.(null);
+        cb.current.onNotaLivro?.(null);
         // páginas que faltam neste capítulo (a seção do EPUB na tela)
         const d = loc.start.displayed;
         cb.current.onCapitulo?.(d && d.total > 0 ? Math.max(0, d.total - d.page) : null);
