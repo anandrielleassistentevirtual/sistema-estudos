@@ -71,8 +71,12 @@ export interface ReaderProps {
   onCapitulo?: (faltam: number | null) => void;
   /** o mouse está sobre destaques (ids, todos os que se sobrepõem ali) e onde eles estão na tela; null = saiu */
   onNotaHover?: (h: NotaHover | null) => void;
+  /** a chamada de uma nota do livro sob o mouse (ou tocada); null = saiu */
+  onNotaLivro?: (n: NotaDoLivro | null) => void;
 }
 export interface NotaHover { ids: string[]; left: number; right: number; top: number; bottom: number }
+/** uma nota do próprio livro (rodapé/fim) sob o mouse: o número, o texto e onde está a chamada; fixa = aberta por toque/clique */
+export interface NotaDoLivro { rotulo: string; texto: string; left: number; right: number; top: number; bottom: number; fixa?: boolean }
 
 /** "3 páginas restantes no capítulo" (como no Livros da Apple) */
 export function textoFaltamNoCapitulo(faltam: number | null, nome = "capítulo"): string {

@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { aoDesfazerSelecao, FONTS, HL_COLORS, ReaderHandle, ReaderProps, themeColors, TocItem } from "./types";
 import { paginar } from "./paginar";
+import { chamadasTxt, extrairNotas, prepararMd } from "./notas-do-livro";
 
 /** Leitor paginado para TXT e Markdown: páginas de ~320 palavras, quebrando em parágrafos. */
 export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextReader(props, ref) {
@@ -21,6 +22,8 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [text]);
 
+  // as notas do próprio livro (rodapé/fim), para o balão das chamadas
+  const notas = useMemo(() => extrairNotas(text ?? ""), [text]);
   useEffect(() => {
     if (pages.length) cb.current.onToc?.(toc);
   }, [pages, toc]);
@@ -55,6 +58,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     setPage(to);
     report(to);
     cb.current.onNotaHover?.(null);
+    cb.current.onNotaLivro?.(null);
     cb.current.onSelect(null);
     box.current?.scrollTo({ top: 0 });
   }
@@ -106,7 +110,11 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
 !current ? (
           <p className="opacity-60">Carregando…</p>
         ) : props.format === "md" ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{current.text}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+            a: ({ href, children, node: _n, ...p }) => (href?.startsWith("#nota-")
+              ? <sup className="nota-ref" data-nota={decodeURIComponent(href.slice(6))} role="button" tabIndex={0}>{children}</sup>
+              : <a href={href} {...p}>{children}</a>),
+          }}>{prepararMd(current.text)}</ReactMarkdown>
         ) : (
           current.text.split("\n\n").map((p, i) => {
             const h = p.match(/^(#{1,3})\s+(.+?)\s*#*$/);
@@ -114,13 +122,25 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
               const Tag = (["h1", "h2", "h3"] as const)[h[1].length - 1];
               return <Tag key={i} style={{ textAlign: "left" }}>{h[2]}</Tag>;
             }
-            return <p key={i} dangerouslySetInnerHTML={{ __html: highlight(escape(p), marks.map((m) => ({ ...m, quote: escape(m.quote) }))) }} />;
+            return <p key={i} dangerouslySetInnerHTML={{ __html: chamadasTxt(highlight(escape(p), marks.map((m) => ({ ...m, quote: escape(m.quote) })))) }} />;
           })
         )
   ), [current, marks, props.format]); // eslint-disable-line react-hooks/exhaustive-deps
   const sobre = useRef("");
   /** o mouse sobre uma marca: as notas dela e das marcas por fora (trechos que se sobrepõem) */
+  const notaSobre = useRef("");
+  /** a chamada de uma nota do livro: o balão com o texto dela */
+  function notaDoLivro(alvo: EventTarget | null, fixa = false) {
+    const el = (alvo as Element | null)?.closest?.("[data-nota]") as HTMLElement | null;
+    const id = el?.dataset.nota ?? "";
+    if (!fixa && id === notaSobre.current) return;
+    notaSobre.current = id;
+    if (!el || !id) return cb.current.onNotaLivro?.(null);
+    const r = el.getBoundingClientRect();
+    cb.current.onNotaLivro?.({ rotulo: id, texto: notas.get(id) ?? "(nota não encontrada no livro)", left: r.left, right: r.right, top: r.top, bottom: r.bottom, fixa });
+  }
   function hover(e: React.MouseEvent) {
+    notaDoLivro(e.target);
     const m = (e.target as Element).closest?.("mark[data-anns]") as HTMLElement | null;
     const ids: string[] = [];
     for (let x: HTMLElement | null = m; x; x = x.parentElement?.closest("mark[data-anns]") as HTMLElement | null) ids.push(...(x.dataset.anns ?? "").split(",").filter(Boolean));
@@ -134,9 +154,9 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
 
   return (
     <div ref={box} className="w-full h-full overflow-y-auto" style={{ background: t.bg, color: t.fg }} onMouseUp={onMouseUp} onTouchEnd={onMouseUp}
-      onMouseMove={hover} onMouseLeave={() => { sobre.current = ""; cb.current.onNotaHover?.(null); }}
-      onScroll={() => { if (sobre.current) { sobre.current = ""; cb.current.onNotaHover?.(null); } }}
-      onClick={(e) => { const m = (e.target as Element).closest?.("mark[data-anns]") as HTMLElement | null; const id = m?.dataset.anns?.split(",")[0]; if (id && !window.getSelection()?.toString().trim()) cb.current.onAnnotationClick(id); }}>
+      onMouseMove={hover} onMouseLeave={() => { sobre.current = ""; cb.current.onNotaHover?.(null); notaSobre.current = ""; cb.current.onNotaLivro?.(null); }}
+      onScroll={() => { if (sobre.current) { sobre.current = ""; cb.current.onNotaHover?.(null); } if (notaSobre.current) { notaSobre.current = ""; cb.current.onNotaLivro?.(null); } }}
+      onClick={(e) => { if ((e.target as Element).closest?.("[data-nota]")) { notaDoLivro(e.target, true); return; } const m = (e.target as Element).closest?.("mark[data-anns]") as HTMLElement | null; const id = m?.dataset.anns?.split(",")[0]; if (id && !window.getSelection()?.toString().trim()) cb.current.onAnnotationClick(id); }}>
       <article
         className="reading-page prose-notes mx-auto max-w-[68ch] px-6 pt-10 pb-28" /* espaço no fim: Anterior/Próxima ficam acima do Menu e do cronômetro */
         style={{
