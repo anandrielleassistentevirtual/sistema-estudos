@@ -1,16 +1,14 @@
 /**
- * Os quatro níveis de leitura de Mortimer Adler e Charles Van Doren ("Como ler livros"). São cumulativos — cada um
- * contém os anteriores:
- *  - Elementar: entender as frases (o caso de um livro em outro idioma, ou numa linguagem que ainda não domina).
- *  - Inspecional: tirar o máximo de um livro num tempo curto (pré-leitura e leitura superficial).
- *  - Analítica: a leitura lenta e completa, para entender (três estágios, quinze regras).
- *  - Sintópica: vários livros sobre o mesmo assunto, para a sua própria pergunta (pesquisa).
- * Cada etapa é um item para marcar e, quando pede, uma resposta escrita — o "roteiro" do livro.
+ * "Como ler livros", de Mortimer Adler e Charles Van Doren — como o resume o artigo da Brasil Paralelo
+ * (brasilparalelo.com.br/artigos/como-ler-livros). Duas classificações para cada livro:
+ *  - o MOTIVO de leitura (por que se lê): entretenimento, informação ou conhecimento;
+ *  - o NÍVEL de leitura (como se lê): elementar, inspecional, analítico ou sintópico — cumulativos.
+ * Para cada nível, as etapas do método (as 11 regras no analítico), para marcar e responder enquanto lê.
  */
 
 export type NivelLeitura = "elementar" | "inspecional" | "analitica" | "sintopica";
-/** na leitura analítica: livro expositivo (transmite conhecimento) ou literatura imaginativa (romance, poesia, teatro) */
-export type Variante = "expositivo" | "imaginativo";
+/** Regra 1: que tipo de livro é — expositivo teórico ou prático, imaginativo (ficção, poesia, teatro) ou de história */
+export type Variante = "teorico" | "pratico" | "imaginativo" | "historia";
 
 export interface Etapa {
   id: string;
@@ -21,138 +19,178 @@ export interface Etapa {
   campo?: string;
   /** a resposta é uma escolha */
   opcoes?: string[];
+  /** escolhas extras (várias), mostradas quando a resposta for esta opção: as formas de discordar */
+  extras?: { quando: string; id: string; opcoes: string[] };
 }
 export interface Estagio { nome: string; resumo?: string; etapas: Etapa[] }
-export interface Nivel { id: NivelLeitura; nome: string; curto: string; ritmo: string; pergunta: string; estagios: Estagio[] }
+export interface Nivel { id: NivelLeitura; nome: string; curto: string; descricao: string; pergunta: string; estagios: Estagio[] }
 
 const ELEMENTAR: Nivel = {
-  id: "elementar", nome: "Elementar", curto: "entender as frases", ritmo: "devagar · frase a frase",
-  pergunta: "O que esta frase diz?",
+  id: "elementar", nome: "Elementar", curto: "o que diz a frase?",
+  descricao: "É a alfabetização, a decodificação das frases para saber o que está sendo dito. Neste nível, o leitor deve ser capaz de responder à seguinte pergunta: O que diz a frase?",
+  pergunta: "O que diz a frase?",
   estagios: [
     {
-      nome: "Ler", resumo: "O obstáculo é a língua: vencê-lo frase a frase.",
+      nome: "Prontidão para a leitura",
       etapas: [
-        { id: "palavras", texto: "Anotar e procurar as palavras que não conhece", campo: "vocabulario", dica: "Uma por linha, com o sentido que tem aqui." },
-        { id: "frases", texto: "Entender cada frase antes de passar à seguinte", dica: "Se uma frase resistir, destaque-a e volte depois." },
-        { id: "voz", texto: "Reler em voz alta as passagens difíceis" },
+        { id: "fisica", texto: "Prontidão física", dica: "Estar descansado, com boa luz e sem distrações." },
+        { id: "intelectual", texto: "Prontidão intelectual" },
+        { id: "linguistica", texto: "Prontidão linguística", dica: "Domínio da língua do texto (num livro em outro idioma, é aqui que está o trabalho)." },
       ],
     },
     {
-      nome: "Conclusão",
+      nome: "Vocabulário e contexto",
       etapas: [
-        { id: "parafrase", texto: "Dizer, com as suas palavras, o que leu", campo: "parafrase" },
-        { id: "pronto", texto: "Já entende o texto sem tropeçar na língua?", opcoes: ["Sim: passar à inspecional", "Ainda não"] },
+        { id: "palavras", texto: "Dominar o vocabulário: anotar e procurar as palavras que não conhece", campo: "vocabulario", dica: "Uma por linha, com o sentido que tem aqui." },
+        { id: "frase", texto: "O que diz a frase? Dizer com as suas palavras o que leu", campo: "parafrase" },
       ],
     },
   ],
 };
 
 const INSPECIONAL: Nivel = {
-  id: "inspecional", nome: "Inspecional", curto: "ler por cima, com método", ritmo: "rápida · horas, não dias",
-  pergunta: "Do que trata este livro? Ele merece uma leitura analítica?",
+  id: "inspecional", nome: "Inspecional", curto: "o máximo em pouco tempo",
+  descricao: "É a extração do máximo do livro em um curto espaço de tempo. É preciso folheá-lo sistematicamente para saber qual é seu tema principal.",
+  pergunta: "Nenhum livro deve ser lido mais lentamente do que merece, e nenhum livro deve ser lido mais rapidamente do que seu aproveitamento e compreensão exigirem.",
   estagios: [
     {
-      nome: "Pré-leitura", resumo: "Folhear de modo sistemático, em pouco tempo.",
+      nome: "Pré-leitura ou sondagem sistemática", resumo: "Descobrir o conteúdo, o tipo e a intenção do autor.",
       etapas: [
-        { id: "titulo", texto: "Ler o título e o prefácio", dica: "Repare no subtítulo e em como o autor apresenta o livro." },
-        { id: "sumario", texto: "Estudar o sumário", dica: "Ele é o mapa da estrutura do livro." },
-        { id: "indice", texto: "Consultar o índice remissivo", dica: "Os termos mais citados mostram os temas principais." },
-        { id: "orelha", texto: "Ler a orelha e a contracapa" },
-        { id: "centrais", texto: "Ler os capítulos que parecem centrais", dica: "Sobretudo os resumos no começo ou no fim deles." },
-        { id: "folhear", texto: "Folhear: um parágrafo aqui, outro ali, e as últimas páginas" },
+        { id: "rosto", texto: "Examinar a folha de rosto, o prefácio e o sumário" },
+        { id: "indice", texto: "Consultar o índice remissivo" },
+        { id: "capa", texto: "Ler a contracapa e a sobrecapa" },
+        { id: "centrais", texto: "Examinar os capítulos que pareçam conter o argumento principal" },
+        { id: "folhear", texto: "Folhear o livro" },
+        { id: "finais", texto: "Ler duas ou três páginas finais e o epílogo" },
       ],
     },
     {
-      nome: "Leitura superficial", resumo: "Ler do começo ao fim sem parar.",
+      nome: "Leitura superficial",
       etapas: [
-        { id: "direto", texto: "Ler de uma vez, sem parar no que não entende", dica: "Não consulte notas nem dicionário agora: o que ficar obscuro volta na leitura analítica." },
+        { id: "direto", texto: "Ler sem parar, sem se deter nos trechos mais espinhosos", dica: "Sem refletir nos pontos que ainda permanecem incompreensíveis: isso permite uma compreensão maior na segunda leitura." },
       ],
     },
     {
-      nome: "Conclusão",
+      nome: "Ler como um detetive", resumo: "No final, saber onde na estante o livro deve ficar.",
       etapas: [
-        { id: "tipo", texto: "Que tipo de livro é?", campo: "tipo", dica: "Ficção ou expositivo? Prático ou teórico? História, ciência, filosofia…" },
-        { id: "assunto", texto: "De que trata o livro como um todo?", campo: "assunto" },
-        { id: "vale", texto: "Merece uma leitura analítica?", opcoes: ["Sim", "Talvez, em partes", "Não"] },
+        { id: "tipo", texto: "Que tipo de livro é?", campo: "tipo" },
+        { id: "assunto", texto: "O livro fala sobre o quê?", campo: "assunto" },
+        { id: "vale", texto: "Merece uma leitura analítica?", opcoes: ["Sim", "Em partes", "Não"] },
       ],
     },
   ],
 };
 
-const ANALITICA_EXPOSITIVO: Estagio[] = [
+/** As quatro perguntas da leitura exigente (valem para todo livro lido de verdade) */
+const QUATRO_PERGUNTAS: Estagio = {
+  nome: "As quatro perguntas", resumo: "A técnica da leitura exigente.",
+  etapas: [
+    { id: "q1", texto: "O livro fala sobre o quê?", campo: "q_sobre" },
+    { id: "q2", texto: "O que exatamente está sendo dito, e como?", campo: "q_dito" },
+    { id: "q3", texto: "O livro é verdadeiro? Em todo ou em parte?", campo: "q_verdade" },
+    { id: "q4", texto: "E daí?", campo: "q_edai", dica: "Qual a diferença que o livro fez na sua vida: o que a leitura acrescentou." },
+  ],
+};
+
+/** Regra 1 depende do tipo; as regras 2 a 11 valem para os livros expositivos (teóricos e práticos) */
+const REGRAS_EXPOSITIVO = (pratico: boolean): Estagio[] => [
   {
-    nome: "1 · Do que trata o livro", resumo: "A estrutura.",
+    nome: "Estrutura", resumo: "Regras 1 a 4: radiografar o livro.",
     etapas: [
-      { id: "classificar", texto: "Classificar o livro pelo tipo e pelo assunto", campo: "classificacao", dica: "Prático (o que fazer) ou teórico (o que é)? História, ciência, filosofia, ciência social…" },
-      { id: "unidade", texto: "Dizer do que trata o livro inteiro, com a maior brevidade possível", campo: "unidade", dica: "Uma ou duas frases." },
-      { id: "partes", texto: "Enumerar as partes principais e como elas se organizam", campo: "partes", dica: "O esboço: como cada parte desenvolve a unidade." },
-      { id: "problemas", texto: "Definir os problemas que o autor procura resolver", campo: "problemas", dica: "As perguntas que ele tenta responder." },
+      { id: "r1", texto: "Regra 1 · Saber que tipo de livro está lendo antes mesmo de começar", campo: "classificacao",
+        dica: pratico ? "Prático: conhecimento orientado para a ação, “como fazer”." : "Teórico: ensina algo (história, filosofia, ciência…). Classifique pelo título e pelo assunto." },
+      { id: "r2", texto: "Regra 2 · Expressar a unidade do livro em uma única frase ou em algumas poucas", campo: "unidade", dica: "Sobre o que é o livro? O tema central, o ponto principal." },
+      { id: "r3", texto: "Regra 3 · Expor as partes principais e como estão ordenadas em relação ao todo", campo: "partes", dica: "As partes em ordem, em relação ao fio condutor do começo ao fim." },
+      { id: "r4", texto: "Regra 4 · Descobrir quais foram os problemas do autor", campo: "problemas", dica: "A principal pergunta que o próprio autor tentou responder." },
     ],
   },
   {
-    nome: "2 · Interpretar o conteúdo", resumo: "Entender o que o autor diz.",
+    nome: "Interpretação", resumo: "Regras 5 a 8: entender o que o autor diz.",
     etapas: [
-      { id: "termos", texto: "Chegar a um acordo com o autor: as palavras-chave e o que significam", campo: "termos" },
-      { id: "proposicoes", texto: "Apreender as proposições principais (as frases mais importantes)", campo: "proposicoes" },
-      { id: "argumentos", texto: "Conhecer os argumentos que sustentam as proposições", campo: "argumentos" },
-      { id: "resolvidos", texto: "Determinar quais problemas o autor resolveu e quais não", campo: "resolvidos" },
+      { id: "r5", texto: "Regra 5 · Encontrar as palavras importantes e, por elas, entrar em acordo com o autor", campo: "termos", dica: "As palavras que o autor enfatiza e repete: quantos sentidos têm? Uma por linha." },
+      { id: "r6", texto: "Regra 6 · Marcar as frases mais importantes e descobrir as proposições que contêm", campo: "proposicoes", dica: "Muitas vezes as mais difíceis, ou as que o autor passa mais tempo explicando. Explique-as com as suas palavras." },
+      { id: "r7", texto: "Regra 7 · Localizar ou formular os argumentos básicos, pelas conexões entre as frases", campo: "argumentos", dica: "Qual é a suposição e o que precisa ser provado? Dedutivo ou indutivo?" },
+      { id: "r8", texto: "Regra 8 · Descobrir as soluções do autor: ele conseguiu resolver o que propôs?", campo: "resolvidos" },
     ],
   },
   {
-    nome: "3 · Criticar", resumo: "Só depois de entender.",
+    nome: "Crítica", resumo: "Regras 9 a 11: a crítica é uma resposta ao autor.",
     etapas: [
-      { id: "entendo", texto: "Poder dizer “entendo” antes de concordar ou discordar", dica: "Não comece a criticar antes de terminar o esboço e a interpretação." },
-      { id: "juizo", texto: "Concordar, discordar ou suspender o juízo", opcoes: ["Concordo", "Discordo", "Suspendo o juízo"] },
-      { id: "razoes", texto: "Dar as razões (conhecimento, não opinião pessoal)", campo: "critica", dica: "Se discordar, mostre onde o autor está desinformado, mal informado, é ilógico ou deixou a análise incompleta." },
+      { id: "r9", texto: "Regra 9 · Dizer “eu entendo” antes de dizer “concordo”, “discordo” ou “suspendo meu julgamento”",
+        opcoes: ["Concordo", "Discordo", "Suspendo meu julgamento"],
+        extras: { quando: "Discordo", id: "formas", opcoes: ["Desinformado (qual conhecimento falta?)", "Mal informado (o que não é verdadeiro?)", "Ilógico (falácia)", "Análise incompleta (problema não resolvido)"] } },
+      { id: "r10", texto: "Regra 10 · Quando discordar, fazê-lo de maneira sensata, sem gerar disputas", dica: "O mais importante é conhecer a verdade, não vencer o debate." },
+      { id: "r11", texto: "Regra 11 · Respeitar a diferença entre conhecimento e opinião, dando as razões do julgamento", campo: "critica",
+        dica: pratico ? "No livro prático: as regras funcionam? Elas cumprem o que propõem? O que o autor quer que façamos?" : "Deixe as emoções de lado, explique as premissas e seja imparcial." },
     ],
   },
 ];
 
-const ANALITICA_IMAGINATIVO: Estagio[] = [
+const HISTORIA: Estagio[] = [
+  ...REGRAS_EXPOSITIVO(false),
   {
-    nome: "1 · A estrutura da obra",
+    nome: "Livro de história",
     etapas: [
-      { id: "classificar", texto: "Classificar a obra: romance, conto, poesia, teatro…", campo: "classificacao" },
-      { id: "unidade", texto: "Apreender a unidade: o enredo em uma ou duas frases", campo: "unidade" },
-      { id: "partes", texto: "Os episódios principais e como se encadeiam", campo: "partes" },
-    ],
-  },
-  {
-    nome: "2 · Interpretar", resumo: "Entrar no mundo da obra.",
-    etapas: [
-      { id: "termos", texto: "Os personagens e os acontecimentos (os “termos” da ficção)", campo: "termos" },
-      { id: "proposicoes", texto: "O mundo da obra: o que é verossímil dentro dela", campo: "proposicoes" },
-      { id: "argumentos", texto: "O movimento da história: de onde parte e aonde chega", campo: "argumentos" },
-    ],
-  },
-  {
-    nome: "3 · Criticar", resumo: "Só depois de apreciar.",
-    etapas: [
-      { id: "entendo", texto: "Apreciar a obra por inteiro antes de julgar", dica: "Deixe a obra agir sobre você; não procure argumentos nela." },
-      { id: "juizo", texto: "Gostei ou não gostei?", opcoes: ["Gostei", "Não gostei", "Em parte"] },
-      { id: "razoes", texto: "Por quê? O que achou belo, verdadeiro, falho", campo: "critica" },
+      { id: "relatos", texto: "Ler mais de um relato sobre o acontecimento ou o período", campo: "relatos" },
+      { id: "pratica", texto: "O evento em estudo possui importância prática? O que ensina sobre como os homens agem?", campo: "importancia" },
     ],
   },
 ];
 
-const SINTOPICA: Nivel = {
-  id: "sintopica", nome: "Sintópica", curto: "vários livros, uma pergunta", ritmo: "pesquisa · o tema manda, não o livro",
-  pergunta: "O que os autores dizem sobre a minha pergunta?",
+const IMAGINATIVO: Estagio[] = [
+  {
+    nome: "Regras estruturais",
+    etapas: [
+      { id: "i1", texto: "Classificar: teatro, romance, novela, poema, epopeia…", campo: "classificacao" },
+      { id: "i2", texto: "Descobrir a unidade narrativa: o enredo", campo: "unidade" },
+      { id: "i3", texto: "Descobrir como o todo é composto das suas partes", campo: "partes" },
+    ],
+  },
+  {
+    nome: "Regras interpretativas", resumo: "Abrir-se às impressões que a obra deseja causar.",
+    etapas: [
+      { id: "i4", texto: "Criar familiaridade com os personagens e viver com eles os eventos", campo: "termos" },
+      { id: "i5", texto: "Familiarizar-se com o mundo em que vivem (a “verdade” da ficção é a verossimilhança)", campo: "proposicoes" },
+      { id: "i6", texto: "Segui-los nas suas aventuras", dica: "Narrativas: ler rapidamente. Peças: imaginar a representação no palco. Poesia lírica: até o fim sem parar, depois de novo em voz alta." },
+    ],
+  },
+  {
+    nome: "Regras críticas",
+    etapas: [
+      { id: "i7", texto: "Não criticar antes de ter vivido e apreciado a experiência que o autor desejava" },
+      { id: "i8", texto: "Gostei ou não gostei?", opcoes: ["Gostei", "Não gostei", "Em parte"] },
+      { id: "i9", texto: "Por quê? (a beleza está no prazer de conhecer bem a obra)", campo: "critica" },
+    ],
+  },
+];
+
+const ANALITICO: Nivel = {
+  id: "analitica", nome: "Analítico", curto: "completa, intensa e ativa",
+  descricao: "É a leitura completa, intensa e ativa. O livro é “mastigado e digerido”.",
+  pergunta: "Ler é conversar com o autor.",
+  estagios: REGRAS_EXPOSITIVO(false),
+};
+
+const SINTOPICO: Nivel = {
+  id: "sintopica", nome: "Sintópico", curto: "muitos livros, um assunto",
+  descricao: "É a leitura de muitos livros, ordenando-os em relação ao assunto principal abordado em todos. A comparação entre eles é feita e, a partir dela, pode surgir uma análise que não está em nenhum deles.",
+  pergunta: "A conversa com vários autores sobre o mesmo assunto.",
   estagios: [
     {
-      nome: "Preparar",
+      nome: "Primeira parte · Inspeção de campo preparatória",
       etapas: [
-        { id: "bibliografia", texto: "Montar a bibliografia: os livros do tema", dica: "Dê o mesmo tema a cada livro (acima). Faça uma leitura inspecional de cada um." },
+        { id: "bibliografia", texto: "Preparar a bibliografia provisória", dica: "Consultando orientadores, bibliotecas, bibliografias, dicionários, enciclopédias. Dê o mesmo assunto a cada livro (acima)." },
+        { id: "inspecionar", texto: "Inspecionar os livros da bibliografia provisória", dica: "Para ter certeza — ou não — de que abordam o que precisamos." },
       ],
     },
     {
-      nome: "Os cinco passos",
+      nome: "Segunda parte · Como proceder",
       etapas: [
-        { id: "passagens", texto: "Encontrar as passagens relevantes para a sua pergunta", campo: "passagens", dica: "Não o livro inteiro: os trechos que importam ao tema (os destaques ajudam)." },
-        { id: "terminologia", texto: "Levar os autores a um acordo: uma terminologia neutra", campo: "terminologia", dica: "Os seus termos, que valem para todos os autores." },
-        { id: "perguntas", texto: "Formular proposições neutras: as perguntas", campo: "perguntas" },
-        { id: "questoes", texto: "Definir as questões: onde os autores respondem de modo diferente", campo: "questoes" },
-        { id: "analise", texto: "Analisar a discussão, sem tomar partido", campo: "analise" },
+        { id: "passagens", texto: "Encontrar passagens relevantes", campo: "passagens", dica: "Os destaques nos livros ajudam." },
+        { id: "acordo", texto: "Fazer os autores entrarem em acordo", campo: "terminologia", dica: "Termos seus, que valham para todos os autores." },
+        { id: "questoes", texto: "Esclarecer questões", campo: "perguntas" },
+        { id: "divergencias", texto: "Definir divergências", campo: "questoes" },
+        { id: "analise", texto: "Analisar a discussão", campo: "analise" },
       ],
     },
   ],
@@ -161,13 +199,19 @@ const SINTOPICA: Nivel = {
 export const NIVEIS_LEITURA: Record<NivelLeitura, Nivel> = {
   elementar: ELEMENTAR,
   inspecional: INSPECIONAL,
-  analitica: {
-    id: "analitica", nome: "Analítica", curto: "lenta, para entender", ritmo: "lenta · qualitativa",
-    pergunta: "O que o livro diz, como diz, é verdade? E daí?",
-    estagios: ANALITICA_EXPOSITIVO,
-  },
-  sintopica: SINTOPICA,
+  analitica: ANALITICO,
+  sintopica: SINTOPICO,
 };
+
+/** Os motivos de leitura: por que se lê o livro. */
+export type MotivoLeitura = "entretenimento" | "informacao" | "conhecimento";
+export const MOTIVOS_LEITURA: Record<MotivoLeitura, { nome: string; descricao: string; niveis: NivelLeitura[] }> = {
+  entretenimento: { nome: "Entretenimento", descricao: "Ler por prazer.", niveis: ["elementar", "inspecional"] },
+  informacao: { nome: "Informação", descricao: "Ler para saber: o livro diz algo que eu não sabia.", niveis: ["inspecional"] },
+  conhecimento: { nome: "Conhecimento", descricao: "Entender um conteúdo é passar de um entendimento inferior para um superior. “Ao terminar a leitura, o ideal é saber mais do que antes dela.”", niveis: ["analitica", "sintopica"] },
+};
+export const ORDEM_MOTIVOS: MotivoLeitura[] = ["entretenimento", "informacao", "conhecimento"];
+
 export const ORDEM_NIVEIS: NivelLeitura[] = ["elementar", "inspecional", "analitica", "sintopica"];
 export const COR_NIVEL: Record<NivelLeitura, string> = {
   elementar: "var(--area-idiomas)",
@@ -176,20 +220,35 @@ export const COR_NIVEL: Record<NivelLeitura, string> = {
   sintopica: "var(--area-estudos)",
 };
 
-/** As respostas do roteiro de um livro. */
+/** Tipos de livro (regra 1), na leitura analítica */
+export const VARIANTES: { id: Variante; nome: string }[] = [
+  { id: "teorico", nome: "Teórico" },
+  { id: "pratico", nome: "Prático" },
+  { id: "imaginativo", nome: "Imaginativo" },
+  { id: "historia", nome: "História" },
+];
+
+/** As respostas de um livro. */
 export interface Roteiro {
   /** etapas marcadas */
   feitas?: string[];
   /** respostas escritas, pelo id do campo */
   campos?: Record<string, string>;
-  /** respostas de escolha, pelo id da etapa */
+  /** respostas de escolha, pelo id da etapa (e as escolhas extras, pelo id delas, separadas por "|") */
   escolhas?: Record<string, string>;
-  /** leitura analítica: livro expositivo ou literatura imaginativa */
-  variante?: Variante;
+  /** leitura analítica: o tipo de livro */
+  variante?: Variante | "expositivo";
 }
 
-export function estagiosDe(nivel: NivelLeitura, variante: Variante = "expositivo"): Estagio[] {
-  if (nivel === "analitica") return variante === "imaginativo" ? ANALITICA_IMAGINATIVO : ANALITICA_EXPOSITIVO;
+const tipoDe = (v?: Roteiro["variante"]): Variante => (v === "expositivo" || !v ? "teorico" : v);
+export const varianteDe = tipoDe;
+
+export function estagiosDe(nivel: NivelLeitura, variante?: Roteiro["variante"]): Estagio[] {
+  if (nivel === "analitica") {
+    const v = tipoDe(variante);
+    const base = v === "imaginativo" ? IMAGINATIVO : v === "historia" ? HISTORIA : REGRAS_EXPOSITIVO(v === "pratico");
+    return [...base, QUATRO_PERGUNTAS];
+  }
   return NIVEIS_LEITURA[nivel].estagios;
 }
 
@@ -204,3 +263,10 @@ export function progressoDoRoteiro(nivel: NivelLeitura, r: Roteiro): { feitas: n
   const etapas = estagiosDe(nivel, r.variante).flatMap((s) => s.etapas);
   return { feitas: etapas.filter((e) => etapaFeita(e, r)).length, total: etapas.length };
 }
+
+/** Os três tipos de anotação (para o leitor lembrar enquanto destaca) */
+export const TIPOS_DE_ANOTACAO = [
+  { nome: "Estruturais", texto: "Qual o tipo do livro? O que ele diz? Qual a estrutura e os conceitos do argumento? (de preferência no sumário)" },
+  { nome: "Conceituais", texto: "As ideias que você tem durante a leitura, anotadas ao longo do livro." },
+  { nome: "Sobre o perfil do debate", texto: "Dialéticas, normalmente em papéis à parte." },
+];

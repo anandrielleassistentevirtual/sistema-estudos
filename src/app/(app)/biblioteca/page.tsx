@@ -20,7 +20,7 @@ import { fmtDuration, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import { RoteiroLeitura } from "@/components/roteiro-leitura";
-import { COR_NIVEL, NIVEIS_LEITURA, progressoDoRoteiro, type Roteiro } from "@/lib/adler";
+import { COR_NIVEL, MOTIVOS_LEITURA, NIVEIS_LEITURA, progressoDoRoteiro, type Roteiro } from "@/lib/adler";
 import { Book, BookStatus, Folder as F, STATUS_LABEL, progressoDoLivro } from "@/lib/types";
 
 type Sel = "todos" | "sem-pasta" | string;
@@ -228,8 +228,8 @@ export default function Biblioteca() {
                 return (
                   <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium"
                     style={{ color: COR_NIVEL[b.nivel_leitura], background: `color-mix(in srgb, ${COR_NIVEL[b.nivel_leitura]} 12%, transparent)` }}
-                    title={`Leitura ${NIVEIS_LEITURA[b.nivel_leitura].nome.toLowerCase()} (Adler) · roteiro: ${pr.feitas} de ${pr.total} etapas${b.tema ? ` · tema: ${b.tema}` : ""}`}>
-                    {NIVEIS_LEITURA[b.nivel_leitura].nome}{b.tema ? ` · ${b.tema}` : ""}
+                    title={`Nível ${NIVEIS_LEITURA[b.nivel_leitura].nome.toLowerCase()} (Adler) · ${pr.feitas} de ${pr.total} etapas${b.motivo_leitura ? ` · motivo: ${MOTIVOS_LEITURA[b.motivo_leitura].nome.toLowerCase()}` : ""}${b.tema ? ` · tema: ${b.tema}` : ""}`}>
+                    {NIVEIS_LEITURA[b.nivel_leitura].nome}{b.motivo_leitura ? ` · ${MOTIVOS_LEITURA[b.motivo_leitura].nome}` : ""}{b.tema ? ` · ${b.tema}` : ""}
                   </span>
                 );
               })()}
@@ -275,7 +275,7 @@ export default function Biblioteca() {
             onClick: async () => { setToast("Preparando o download…"); try { await saveBookFile(b); setToast(null); } catch (e) { setToast((e as Error).message); } },
           }] : []),
           { label: "Editar título, autor e pasta", icon: Pencil, onClick: () => setEditing(b) },
-          { label: b.nivel_leitura ? `Roteiro de leitura · ${NIVEIS_LEITURA[b.nivel_leitura].nome}` : "Como vou ler? (Adler)", icon: Compass, onClick: () => setRoteiroDe(b) },
+          { label: "Motivo e nível de leitura (Adler)", icon: Compass, onClick: () => setRoteiroDe(b) },
           naFila
             ? { label: "Tirar da fila", icon: X, onClick: () => dequeue(b), separar: true }
             : { label: "Adicionar à fila", icon: ListOrdered, disabled: b.status === "lido" || b.status === "consulta", separar: true,
@@ -515,7 +515,7 @@ export default function Biblioteca() {
           <div className="w-full max-w-lg h-[min(88vh,820px)] rounded-xl overflow-hidden shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="px-4 pt-3 pb-2 bg-surface border-b border-line text-sm"><span className="text-muted">Livro:</span> <span className="font-medium">{roteiroDe.title}</span></div>
             <RoteiroLeitura className="flex-1 min-h-0 !border-l-0" livro={roteiroDe}
-              outros={books.map((x) => ({ id: x.id, title: x.title, author: x.author, nivel_leitura: x.nivel_leitura, tema: x.tema, format: x.format }))}
+              outros={books.map((x) => ({ id: x.id, title: x.title, author: x.author, nivel_leitura: x.nivel_leitura, motivo_leitura: x.motivo_leitura, tema: x.tema, format: x.format }))}
               onFechar={() => setRoteiroDe(null)}
               onMudou={(patch) => setBooks((all) => all.map((x) => (x.id === roteiroDe.id ? ({ ...x, ...patch } as Book) : x)))} />
           </div>

@@ -31,6 +31,7 @@ export interface Book {
   finished_at: string | null;
   /** como vai ser lido (os níveis de Adler) e o roteiro do método; tema = assunto da leitura sintópica */
   nivel_leitura?: "elementar" | "inspecional" | "analitica" | "sintopica" | null;
+  motivo_leitura?: "entretenimento" | "informacao" | "conhecimento" | null;
   roteiro?: Record<string, unknown> | null;
   tema?: string | null;
 }

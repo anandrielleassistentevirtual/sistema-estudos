@@ -20,7 +20,7 @@ import { literaryFromHighlight } from "@/lib/zettel";
 import { BotaoFoco, DicaNaoPerturbe, SairDoFoco, useModoFoco } from "@/components/reader/modo-foco";
 import { NotasBalao } from "@/components/reader/notas-balao";
 import { RoteiroLeitura, type LivroRoteiro } from "@/components/roteiro-leitura";
-import { COR_NIVEL, NIVEIS_LEITURA, progressoDoRoteiro, type Roteiro } from "@/lib/adler";
+import { COR_NIVEL, MOTIVOS_LEITURA, NIVEIS_LEITURA, progressoDoRoteiro, type Roteiro } from "@/lib/adler";
 import type { NotaHover } from "@/components/reader/types";
 
 const PREFS_KEY = "leitor-prefs-v2";
@@ -43,7 +43,7 @@ export default function Ler() {
   const [outros, setOutros] = useState<LivroRoteiro[]>([]);
   useEffect(() => {
     if (!showRoteiro || outros.length) return;
-    void supabase().from("books").select("id,title,author,nivel_leitura,tema,format").order("title").then(({ data }) => setOutros((data as LivroRoteiro[] | null) ?? []));
+    void supabase().from("books").select("id,title,author,nivel_leitura,motivo_leitura,tema,format").order("title").then(({ data }) => setOutros((data as LivroRoteiro[] | null) ?? []));
   }, [showRoteiro]); // eslint-disable-line react-hooks/exhaustive-deps
   const [toc, setToc] = useState<TocItem[]>([]);
   const [location, setLocation] = useState("");
@@ -264,10 +264,10 @@ export default function Ler() {
           return (
             <button className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs hover:opacity-100 ${showRoteiro ? "opacity-100" : "opacity-80"}`}
               style={{ borderColor: nv ? COR_NIVEL[nv] : "color-mix(in srgb, currentColor 22%, transparent)" }}
-              title={nv ? `Leitura ${NIVEIS_LEITURA[nv].nome.toLowerCase()} — roteiro (Adler): ${pr?.feitas} de ${pr?.total} etapas` : "Como vou ler este livro? (os níveis de leitura de Adler)"}
+              title={nv ? `Nível ${NIVEIS_LEITURA[nv].nome.toLowerCase()}${book.motivo_leitura ? ` · ${MOTIVOS_LEITURA[book.motivo_leitura].nome.toLowerCase()}` : ""} (Adler): ${pr?.feitas} de ${pr?.total} etapas` : "Motivo e nível de leitura (Adler, Como ler livros)"}
               onClick={() => { setShowRoteiro(!showRoteiro); setShowAnns(false); setShowPrefs(false); setShowToc(false); }}>
               <Compass size={14} style={nv ? { color: COR_NIVEL[nv] } : undefined} />
-              <span className="hidden sm:inline">{nv ? NIVEIS_LEITURA[nv].nome : "Roteiro"}</span>
+              <span className="hidden sm:inline">{nv ? NIVEIS_LEITURA[nv].nome : "Como ler"}</span>
               {pr && <span className="hidden md:inline tabular-nums opacity-70">{pr.feitas}/{pr.total}</span>}
             </button>
           );
@@ -294,7 +294,7 @@ export default function Ler() {
           )}
           {!book.nivel_leitura && book.status !== "lido" && book.status !== "consulta" && (
             <button className="text-xs underline underline-offset-2 opacity-80 hover:opacity-100" onClick={() => { setShowRoteiro(true); setShowAnns(false); setShowPrefs(false); setShowToc(false); }}>
-              Como vai ler este livro? (Adler)
+              Motivo e nível de leitura (Adler)
             </button>
           )}
         </div>
