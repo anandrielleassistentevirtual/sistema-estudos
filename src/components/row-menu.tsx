@@ -35,7 +35,15 @@ export function RowMenu({ items, label = "Mais ações", botaoClass = "p-2 sm:p-
     };
     const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") { setPos(null); botao.current?.focus(); } };
     // rolar (fora do menu) ou mudar o tamanho da tela fecha o menu (ele ficaria longe do botão)
-    const fechar = (e?: Event) => { if (e?.type === "scroll" && menu.current?.contains(e.target as Node)) return; setPos(null); };
+    // (rolagens mínimas logo ao abrir — o navegador ajustando a posição do botão — não contam)
+    const abertoEm = performance.now(), y0 = window.scrollY;
+    const fechar = (e?: Event) => {
+      if (e?.type === "scroll") {
+        if (menu.current?.contains(e.target as Node)) return;
+        if (performance.now() - abertoEm < 300 && Math.abs(window.scrollY - y0) < 24) return;
+      }
+      setPos(null);
+    };
     document.addEventListener("mousedown", fora);
     document.addEventListener("keydown", tecla);
     window.addEventListener("scroll", fechar, true);

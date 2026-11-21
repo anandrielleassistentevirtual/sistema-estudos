@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BookMarked, BookOpen, ChevronDown, ChevronUp, Download, ChevronRight, Folder, FolderOpen, FolderPlus, Library, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
+  ArrowDown, ArrowUp, BookMarked, BookOpen, ChevronDown, Compass, ChevronUp, Download, ChevronRight, Folder, FolderOpen, FolderPlus, Library, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { ACCEPT, addPhysicalBook, deleteBook, enqueue, limparCacheDeLivros, ppmDosLivros, saveBookFile, uploadBook } from "@/lib/books";
@@ -19,6 +19,8 @@ import { FolderSelect } from "@/components/folder-select";
 import { fmtDuration, nf } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
+import { RoteiroLeitura } from "@/components/roteiro-leitura";
+import { COR_NIVEL, NIVEIS_LEITURA, progressoDoRoteiro, type Roteiro } from "@/lib/adler";
 import { Book, BookStatus, Folder as F, STATUS_LABEL, progressoDoLivro } from "@/lib/types";
 
 type Sel = "todos" | "sem-pasta" | string;
@@ -45,6 +47,8 @@ export default function Biblioteca() {
   const router = useRouter();
   const [physical, setPhysical] = useState(false);
   const [editing, setEditing] = useState<Book | null>(null);
+  /** o roteiro de leitura (níveis de Adler) aberto para um livro */
+  const [roteiroDe, setRoteiroDe] = useState<Book | null>(null);
   const [folderModal, setFolderModal] = useState<null | { edit?: F; parentId: string | null }>(null);
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (toast) { const x = setTimeout(() => setToast(null), toast.length > 60 ? 6000 : 3000); return () => clearTimeout(x); } }, [toast]);
@@ -166,8 +170,11 @@ export default function Biblioteca() {
   }
 
   const queued = useMemo(() => visible.filter((b) => queueNo.has(b.id)).sort((a, b) => queueNo.get(a.id)! - queueNo.get(b.id)!), [visible, queueNo]);
-  // fora da fila: os já lidos continuam aparecendo, mas no fim
-  const rest = useMemo(() => visible.filter((b) => !queueNo.has(b.id) && b.status !== "consulta").sort((a, b) => Number(a.status === "lido") - Number(b.status === "lido")), [visible, queueNo]);
+  // fora da fila: só o que ainda vai ser lido; os lidos aparecem no filtro "Lido" (ou numa busca)
+  const mostraLidos = status === "lido" || !!q.trim();
+  const rest = useMemo(() => visible.filter((b) => !queueNo.has(b.id) && b.status !== "consulta" && (mostraLidos || b.status !== "lido"))
+    .sort((a, b) => Number(a.status === "lido") - Number(b.status === "lido")), [visible, queueNo, mostraLidos]);
+  const lidosEscondidos = mostraLidos ? 0 : visible.filter((b) => !queueNo.has(b.id) && b.status === "lido").length;
   // obras de consulta: abaixo de tudo, à parte
   const consulta = useMemo(() => visible.filter((b) => b.status === "consulta"), [visible]);
   const queueLeft = queued.reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
@@ -216,6 +223,16 @@ export default function Biblioteca() {
                   Nº {String(queueNo.get(b.id)).padStart(2, "0")}
                 </span>
               )}
+              {b.nivel_leitura && (() => {
+                const pr = progressoDoRoteiro(b.nivel_leitura, (b.roteiro as Roteiro) ?? {});
+                return (
+                  <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium"
+                    style={{ color: COR_NIVEL[b.nivel_leitura], background: `color-mix(in srgb, ${COR_NIVEL[b.nivel_leitura]} 12%, transparent)` }}
+                    title={`Leitura ${NIVEIS_LEITURA[b.nivel_leitura].nome.toLowerCase()} (Adler) · roteiro: ${pr.feitas} de ${pr.total} etapas${b.tema ? ` · tema: ${b.tema}` : ""}`}>
+                    {NIVEIS_LEITURA[b.nivel_leitura].nome}{b.tema ? ` · ${b.tema}` : ""}
+                  </span>
+                );
+              })()}
               {pasta ? (
                 <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px]" title={`Pasta: ${folderLabel(pasta)}`}>
                   {pasta.code && <span className="font-mono font-medium">{pasta.code}</span>}
@@ -258,6 +275,7 @@ export default function Biblioteca() {
             onClick: async () => { setToast("Preparando o download…"); try { await saveBookFile(b); setToast(null); } catch (e) { setToast((e as Error).message); } },
           }] : []),
           { label: "Editar título, autor e pasta", icon: Pencil, onClick: () => setEditing(b) },
+          { label: b.nivel_leitura ? `Roteiro de leitura · ${NIVEIS_LEITURA[b.nivel_leitura].nome}` : "Como vou ler? (Adler)", icon: Compass, onClick: () => setRoteiroDe(b) },
           naFila
             ? { label: "Tirar da fila", icon: X, onClick: () => dequeue(b), separar: true }
             : { label: "Adicionar à fila", icon: ListOrdered, disabled: b.status === "lido" || b.status === "consulta", separar: true,
@@ -465,7 +483,8 @@ export default function Biblioteca() {
                 <section>
                   <div className="flex items-baseline justify-between mb-2 px-1">
                     <h2 className="card-title text-muted">{queued.length ? "Fora da fila" : "Livros"}</h2>
-                    <span className="text-xs text-muted">{rest.length} {rest.length === 1 ? "livro" : "livros"} · use ☰ para pôr na fila</span>
+                    <span className="text-xs text-muted">{rest.length} {rest.length === 1 ? "livro" : "livros"} · use ☰ para pôr na fila
+                      {lidosEscondidos > 0 && <> · <button className="underline underline-offset-2 hover:text-ink" onClick={() => setStatus("lido")}>{lidosEscondidos} {lidosEscondidos === 1 ? "lido" : "lidos"}</button></>}</span>
                   </div>
                   <div className="card divide-y divide-line">
                     {rest.map((b) => renderRow(b))}
@@ -490,6 +509,17 @@ export default function Biblioteca() {
       {folderModal && (
         <FolderModal folders={folders} edit={folderModal.edit} parentId={folderModal.parentId} onClose={() => setFolderModal(null)}
           onSaved={(id) => { setFolderModal(null); void load(); if (id) setSel(id); }} />
+      )}
+      {roteiroDe && (
+        <div className="modal fixed inset-0 z-[62] grid place-items-center p-3 md:p-6 bg-black/45" onClick={() => setRoteiroDe(null)}>
+          <div className="w-full max-w-lg h-[min(88vh,820px)] rounded-xl overflow-hidden shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 pt-3 pb-2 bg-surface border-b border-line text-sm"><span className="text-muted">Livro:</span> <span className="font-medium">{roteiroDe.title}</span></div>
+            <RoteiroLeitura className="flex-1 min-h-0 !border-l-0" livro={roteiroDe}
+              outros={books.map((x) => ({ id: x.id, title: x.title, author: x.author, nivel_leitura: x.nivel_leitura, tema: x.tema, format: x.format }))}
+              onFechar={() => setRoteiroDe(null)}
+              onMudou={(patch) => setBooks((all) => all.map((x) => (x.id === roteiroDe.id ? ({ ...x, ...patch } as Book) : x)))} />
+          </div>
+        </div>
       )}
       {editing && (
         <EditBookModal book={editing} folders={folders} coverUrl={covers[editing.id]} onClose={() => setEditing(null)}

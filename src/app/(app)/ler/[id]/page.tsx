@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Download, Highlighter, Layers, ListTree, Trash2, Type, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Compass, Download, Highlighter, Layers, ListTree, Trash2, Type, X, ZoomIn, ZoomOut } from "lucide-react";
 import { loadPrefs, useEffectiveTheme } from "@/components/reader/prefs";
 import { EpubReader } from "@/components/reader/epub-reader";
 import { PrefsPanel } from "@/components/reader/prefs-panel";
@@ -19,6 +19,8 @@ import { useTimerEstado } from "@/components/timer-context";
 import { literaryFromHighlight } from "@/lib/zettel";
 import { BotaoFoco, DicaNaoPerturbe, SairDoFoco, useModoFoco } from "@/components/reader/modo-foco";
 import { NotasBalao } from "@/components/reader/notas-balao";
+import { RoteiroLeitura, type LivroRoteiro } from "@/components/roteiro-leitura";
+import { COR_NIVEL, NIVEIS_LEITURA, progressoDoRoteiro, type Roteiro } from "@/lib/adler";
 import type { NotaHover } from "@/components/reader/types";
 
 const PREFS_KEY = "leitor-prefs-v2";
@@ -36,6 +38,13 @@ export default function Ler() {
   const [showPrefs, setShowPrefs] = useState(false);
   const [showAnns, setShowAnns] = useState(false);
   const [showToc, setShowToc] = useState(false);
+  /** o roteiro de leitura (níveis de Adler) e os outros livros, para a bibliografia da leitura sintópica */
+  const [showRoteiro, setShowRoteiro] = useState(false);
+  const [outros, setOutros] = useState<LivroRoteiro[]>([]);
+  useEffect(() => {
+    if (!showRoteiro || outros.length) return;
+    void supabase().from("books").select("id,title,author,nivel_leitura,tema,format").order("title").then(({ data }) => setOutros((data as LivroRoteiro[] | null) ?? []));
+  }, [showRoteiro]); // eslint-disable-line react-hooks/exhaustive-deps
   const [toc, setToc] = useState<TocItem[]>([]);
   const [location, setLocation] = useState("");
   const [secao, setSecao] = useState<number | null>(null); // EPUB: capítulo na tela (para o sumário)
@@ -249,12 +258,26 @@ export default function Ler() {
         {book && book.format !== "fisico" && (
           <button className="p-2 opacity-70 hover:opacity-100 hidden sm:block" title="Baixar o arquivo do livro" onClick={() => book && void saveBookFile(book)}><Download size={18} /></button>
         )}
-        <BotaoFoco className="mx-1" onClick={() => { setShowPrefs(false); setShowAnns(false); setShowToc(false); void entrarFoco(); }} />
+        {book && (() => {
+          const nv = book.nivel_leitura ?? null;
+          const pr = nv ? progressoDoRoteiro(nv, (book.roteiro as Roteiro) ?? {}) : null;
+          return (
+            <button className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs hover:opacity-100 ${showRoteiro ? "opacity-100" : "opacity-80"}`}
+              style={{ borderColor: nv ? COR_NIVEL[nv] : "color-mix(in srgb, currentColor 22%, transparent)" }}
+              title={nv ? `Leitura ${NIVEIS_LEITURA[nv].nome.toLowerCase()} — roteiro (Adler): ${pr?.feitas} de ${pr?.total} etapas` : "Como vou ler este livro? (os níveis de leitura de Adler)"}
+              onClick={() => { setShowRoteiro(!showRoteiro); setShowAnns(false); setShowPrefs(false); setShowToc(false); }}>
+              <Compass size={14} style={nv ? { color: COR_NIVEL[nv] } : undefined} />
+              <span className="hidden sm:inline">{nv ? NIVEIS_LEITURA[nv].nome : "Roteiro"}</span>
+              {pr && <span className="hidden md:inline tabular-nums opacity-70">{pr.feitas}/{pr.total}</span>}
+            </button>
+          );
+        })()}
+        <BotaoFoco className="mx-1" onClick={() => { setShowPrefs(false); setShowAnns(false); setShowToc(false); setShowRoteiro(false); void entrarFoco(); }} />
         {toc.length > 0 && (
-          <button className="p-2 opacity-70 hover:opacity-100" onClick={() => { setShowToc(!showToc); setShowPrefs(false); setShowAnns(false); }} title="Sumário"><ListTree size={18} /></button>
+          <button className="p-2 opacity-70 hover:opacity-100" onClick={() => { setShowToc(!showToc); setShowPrefs(false); setShowAnns(false); setShowRoteiro(false); }} title="Sumário"><ListTree size={18} /></button>
         )}
-        <button className="p-2 opacity-70 hover:opacity-100" onClick={() => { setShowPrefs(!showPrefs); setShowAnns(false); setShowToc(false); }} title="Aparência"><Type size={18} /></button>
-        <button className="p-2 opacity-70 hover:opacity-100 relative" onClick={() => { setShowAnns(!showAnns); setShowPrefs(false); setShowToc(false); }} title="Anotações">
+        <button className="p-2 opacity-70 hover:opacity-100" onClick={() => { setShowPrefs(!showPrefs); setShowAnns(false); setShowToc(false); setShowRoteiro(false); }} title="Aparência"><Type size={18} /></button>
+        <button className="p-2 opacity-70 hover:opacity-100 relative" onClick={() => { setShowAnns(!showAnns); setShowPrefs(false); setShowToc(false); setShowRoteiro(false); }} title="Anotações">
           <Highlighter size={18} />
           {anns.length > 0 && <span className="absolute top-1 right-0.5 text-[9px] font-bold">{anns.length}</span>}
         </button>
@@ -268,6 +291,11 @@ export default function Ler() {
           </span>
           {book.status !== "lido" && book.status !== "consulta" && (
             <button className="btn text-xs py-0.5" onClick={() => void comecarALer()}>{book.status === "pausado" ? "Retomar a leitura" : "Começar a ler"}</button>
+          )}
+          {!book.nivel_leitura && book.status !== "lido" && book.status !== "consulta" && (
+            <button className="text-xs underline underline-offset-2 opacity-80 hover:opacity-100" onClick={() => { setShowRoteiro(true); setShowAnns(false); setShowPrefs(false); setShowToc(false); }}>
+              Como vai ler este livro? (Adler)
+            </button>
           )}
         </div>
       )}
@@ -295,6 +323,15 @@ export default function Ler() {
         )}
 
         {showPrefs && <PrefsPanel prefs={prefs} setPrefs={setPrefs} />}
+
+        {showRoteiro && book && (
+          <RoteiroLeitura className="absolute right-0 top-0 bottom-0 z-30 w-full sm:w-[400px] shadow-xl"
+            livro={book} outros={outros} onFechar={() => setShowRoteiro(false)}
+            onMudou={(patch) => {
+              setBook((b) => (b ? { ...b, ...patch } as Book : b));
+              setOutros((l) => l.map((x) => (x.id === book.id ? { ...x, ...patch } : x)));
+            }} />
+        )}
 
         {showAnns && (
           <aside className="absolute right-0 top-0 bottom-0 z-30 w-full sm:w-96 bg-surface text-ink border-l border-line flex flex-col shadow-xl">
