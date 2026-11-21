@@ -35,5 +35,6 @@ export function prepararMd(md: string): string {
 export function chamadasTxt(html: string): string {
   return html
     .replace(/^\[\^([^\]\s]+)\]:[ \t]*/gm, "<b>$1.</b> ")
-    .replace(/\[\^([^\]\s]+)\](?!:)/g, '<sup class="nota-ref" data-nota="$1">$1</sup>');
+    .replace(/\[\^([^\]\s]+)\](?!:)/g, '<sup class="nota-ref" data-nota="$1">$1</sup>')
+    .replace(/\[([^\]\n]{1,6})\]\(#nota-([\w-]+)\)/g, (_, v: string, id: string) => `<sup class="nota-ref" data-nota="${id}">${v.replace(/\\\*/g, "*")}</sup>`);
 }

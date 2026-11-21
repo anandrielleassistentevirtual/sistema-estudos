@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import { aoDesfazerSelecao, FONTS, HL_COLORS, ReaderHandle, ReaderProps, themeColors, TocItem } from "./types";
 import { paginar } from "./paginar";
 import { chamadasTxt, extrairNotas, prepararMd } from "./notas-do-livro";
+import { aplicarLigacoes, ligarNotas } from "./notas-auto";
 
 /** Leitor paginado para TXT e Markdown: páginas de ~320 palavras, quebrando em parágrafos. */
 export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextReader(props, ref) {
@@ -22,8 +23,10 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [text]);
 
-  // as notas do próprio livro (rodapé/fim), para o balão das chamadas
-  const notas = useMemo(() => extrairNotas(text ?? ""), [text]);
+  // as notas do próprio livro (rodapé/fim), para o balão das chamadas: as marcadas ([^1]) e as reconhecidas
+  // sozinhas (chamada colada “perfeito1.”, “\*”, “(1)”, “²” + o texto da nota no pé da página ou numa seção de notas)
+  const ligacoes = useMemo(() => ligarNotas(text ?? ""), [text]);
+  const notas = useMemo(() => new Map([...extrairNotas(text ?? ""), ...ligacoes.notas]), [text, ligacoes]);
   useEffect(() => {
     if (pages.length) cb.current.onToc?.(toc);
   }, [pages, toc]);
@@ -114,7 +117,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
             a: ({ href, children, node: _n, ...p }) => (href?.startsWith("#nota-")
               ? <sup className="nota-ref" data-nota={decodeURIComponent(href.slice(6))} role="button" tabIndex={0}>{children}</sup>
               : <a href={href} {...p}>{children}</a>),
-          }}>{prepararMd(current.text)}</ReactMarkdown>
+          }}>{prepararMd(aplicarLigacoes(current.text, ligacoes))}</ReactMarkdown>
         ) : (
           current.text.split("\n\n").map((p, i) => {
             const h = p.match(/^(#{1,3})\s+(.+?)\s*#*$/);
@@ -122,10 +125,10 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
               const Tag = (["h1", "h2", "h3"] as const)[h[1].length - 1];
               return <Tag key={i} style={{ textAlign: "left" }}>{h[2]}</Tag>;
             }
-            return <p key={i} dangerouslySetInnerHTML={{ __html: chamadasTxt(highlight(escape(p), marks.map((m) => ({ ...m, quote: escape(m.quote) })))) }} />;
+            return <p key={i} dangerouslySetInnerHTML={{ __html: chamadasTxt(highlight(escape(aplicarLigacoes(p, ligacoes)), marks.map((m) => ({ ...m, quote: escape(m.quote) })))) }} />;
           })
         )
-  ), [current, marks, props.format]); // eslint-disable-line react-hooks/exhaustive-deps
+  ), [current, marks, props.format, ligacoes]); // eslint-disable-line react-hooks/exhaustive-deps
   const sobre = useRef("");
   /** o mouse sobre uma marca: as notas dela e das marcas por fora (trechos que se sobrepõem) */
   const notaSobre = useRef("");
@@ -137,7 +140,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     notaSobre.current = id;
     if (!el || !id) return cb.current.onNotaLivro?.(null);
     const r = el.getBoundingClientRect();
-    cb.current.onNotaLivro?.({ rotulo: id, texto: notas.get(id) ?? "(nota não encontrada no livro)", left: r.left, right: r.right, top: r.top, bottom: r.bottom, fixa });
+    cb.current.onNotaLivro?.({ rotulo: el.textContent?.replace(/[()]/g, "").trim() || id, texto: notas.get(id) ?? "(nota não encontrada no livro)", left: r.left, right: r.right, top: r.top, bottom: r.bottom, fixa });
   }
   function hover(e: React.MouseEvent) {
     notaDoLivro(e.target);
