@@ -18,6 +18,8 @@ import type { Annotation, Book } from "@/lib/types";
 import { useTimerEstado } from "@/components/timer-context";
 import { literaryFromHighlight } from "@/lib/zettel";
 import { BotaoFoco, DicaNaoPerturbe, SairDoFoco, useModoFoco } from "@/components/reader/modo-foco";
+import { NotasBalao } from "@/components/reader/notas-balao";
+import type { NotaHover } from "@/components/reader/types";
 
 const PREFS_KEY = "leitor-prefs-v2";
 /** Níveis de zoom (100% = Times 12 pt). */
@@ -39,6 +41,7 @@ export default function Ler() {
   const [secao, setSecao] = useState<number | null>(null); // EPUB: capítulo na tela (para o sumário)
   const [ritmo, setRitmo] = useState(0);
   const [faltamCap, setFaltamCap] = useState<number | null>(null);
+  const [notaHover, setNotaHover] = useState<NotaHover | null>(null);
   useEffect(() => { void ppmDosLivros().then((v) => setRitmo(v ?? 0)); }, []);
   const [sel, setSel] = useState<{ location: string; quote: string } | null>(null);
   const [selNote, setSelNote] = useState("");
@@ -272,11 +275,11 @@ export default function Ler() {
       <div className="relative flex-1 min-h-0">
         {blob && book && (
           book.format === "epub" ? (
-            <EpubReader ref={reader} data={blob} format="epub" startAt={book.last_location} prefs={view} annotations={anns} onSecao={setSecao} onCapitulo={setFaltamCap}
+            <EpubReader ref={reader} data={blob} format="epub" startAt={book.last_location} prefs={view} annotations={anns} onSecao={setSecao} onCapitulo={setFaltamCap} onNotaHover={setNotaHover}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
               onAnnotationClick={() => setShowAnns(true)} onToc={setToc} onView={(w, last) => tracker.current?.see(w, last)} />
           ) : (
-            <TextReader ref={reader} data={blob} format={book.format as "txt" | "md"} startAt={book.last_location} prefs={view} annotations={anns} onCapitulo={setFaltamCap}
+            <TextReader ref={reader} data={blob} format={book.format as "txt" | "md"} startAt={book.last_location} prefs={view} annotations={anns} onCapitulo={setFaltamCap} onNotaHover={setNotaHover}
               knownWords={book.word_count} onTurn={onTurn} onLocation={onLocation} onSelect={setSel} onWordCount={onWordCount}
               onAnnotationClick={() => setShowAnns(true)} onToc={setToc} onView={(w, last) => tracker.current?.see(w, last)} />
           )
@@ -354,6 +357,7 @@ export default function Ler() {
           </div>
         )}
         {dica && foco && <DicaNaoPerturbe onFechar={fecharDica} />}
+        {!sel && <NotasBalao hover={notaHover} anotacoes={anns} />}
       </div>
 
       <footer className={`shrink-0 flex items-center gap-2 px-3 h-9 text-xs transition-opacity ${foco ? "opacity-30 hover:opacity-100" : "opacity-80"}`}>

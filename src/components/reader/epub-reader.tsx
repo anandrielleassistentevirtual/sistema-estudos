@@ -35,6 +35,40 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
       rendition.current = r;
       // livro convertido de PDF (uma linha por parágrafo): junta as linhas antes de montar as páginas
       r.hooks.content.register((contents: any) => { try { repararCapitulo(contents.document); } catch {} });
+      // passar o mouse sobre um destaque: o balão com as notas (todas as que se sobrepõem ali)
+      r.hooks.content.register((contents: any) => {
+        try {
+          const doc: Document = contents.document;
+          let quadro = 0, chave = "";
+          const sair = () => { if (chave) { chave = ""; cb.current.onNotaHover?.(null); } };
+          const mover = (e: MouseEvent) => {
+            if (quadro) return;
+            quadro = requestAnimationFrame(() => {
+              quadro = 0;
+              const ids: string[] = [];
+              let caixa: DOMRect | null = null;
+              for (const a of cb.current.annotations) {
+                let range: Range | null = null;
+                try { range = contents.range(a.location); } catch { range = null; }
+                if (!range) continue;
+                for (const q of Array.from(range.getClientRects())) {
+                  if (e.clientX >= q.left && e.clientX <= q.right && e.clientY >= q.top - 1 && e.clientY <= q.bottom + 1) { ids.push(a.id); caixa = caixa ?? q; break; }
+                }
+              }
+              const k = ids.join(",");
+              if (k === chave) return;
+              chave = k;
+              if (!ids.length || !caixa) return cb.current.onNotaHover?.(null);
+              const f = (doc.defaultView?.frameElement as HTMLElement | null)?.getBoundingClientRect();
+              const dx = f?.left ?? 0, dy = f?.top ?? 0;
+              cb.current.onNotaHover?.({ ids, left: caixa.left + dx, right: caixa.right + dx, top: caixa.top + dy, bottom: caixa.bottom + dy });
+            });
+          };
+          doc.addEventListener("mousemove", mover);
+          doc.addEventListener("mouseleave", sair);
+          contents.on?.("destroy", () => { doc.removeEventListener("mousemove", mover); doc.removeEventListener("mouseleave", sair); sair(); });
+        } catch {}
+      });
       // cada capítulo é um iframe: desfazer a seleção lá dentro também fecha a barra de anotação
       r.hooks.content.register((contents: any) => {
         try {
@@ -66,6 +100,7 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
         const label = b.navigation?.get?.(loc.start.href)?.label?.trim?.() ?? "";
         cb.current.onLocation(loc.start.cfi, progressOf(next), label);
         cb.current.onSecao?.(loc.start.index);
+        cb.current.onNotaHover?.(null);
         // páginas que faltam neste capítulo (a seção do EPUB na tela)
         const d = loc.start.displayed;
         cb.current.onCapitulo?.(d && d.total > 0 ? Math.max(0, d.total - d.page) : null);

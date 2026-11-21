@@ -2,7 +2,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { aoDesfazerSelecao, FONTS, ReaderHandle, ReaderProps, themeColors, TocItem } from "./types";
+import { aoDesfazerSelecao, FONTS, HL_COLORS, ReaderHandle, ReaderProps, themeColors, TocItem } from "./types";
 import { paginar } from "./paginar";
 
 /** Leitor paginado para TXT e Markdown: páginas de ~320 palavras, quebrando em parágrafos. */
@@ -54,6 +54,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     cb.current.onTurn(pages[page].words, to === page + 1);
     setPage(to);
     report(to);
+    cb.current.onNotaHover?.(null);
     cb.current.onSelect(null);
     box.current?.scrollTo({ top: 0 });
   }
@@ -89,21 +90,20 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
 
   const t = themeColors(props.prefs.theme);
   const current = pages[page];
-  const marks = props.annotations.filter((a) => a.location === `p:${page}`).map((a) => a.quote);
-
-  return (
-    <div ref={box} className="w-full h-full overflow-y-auto" style={{ background: t.bg, color: t.fg }} onMouseUp={onMouseUp} onTouchEnd={onMouseUp}>
-      <article
-        className="reading-page prose-notes mx-auto max-w-[68ch] px-6 pt-10 pb-28" /* espaço no fim: Anterior/Próxima ficam acima do Menu e do cronômetro */
-        style={{
-          fontSize: `${props.prefs.sizePt}pt`,
-          lineHeight: props.prefs.lineHeight,
-          fontFamily: FONTS[props.prefs.font].css,
-          textAlign: props.prefs.justify ? "justify" : "left",
-          hyphens: "auto",
-        }}
-      >
-        {!current ? (
+  // destaques desta página, juntos pelo trecho (o mesmo trecho destacado duas vezes vira uma marca com as duas notas)
+  const marks = useMemo(() => {
+    const m = new Map<string, { ids: string[]; cor: string }>();
+    for (const a of props.annotations.filter((x) => x.location === `p:${page}`)) {
+      const g = m.get(a.quote) ?? { ids: [], cor: HL_COLORS[a.color] ?? HL_COLORS.amarelo };
+      g.ids.push(a.id);
+      m.set(a.quote, g);
+    }
+    return [...m.entries()].map(([quote, g]) => ({ quote, ...g }));
+  }, [props.annotations, page]);
+  // o texto da página só é refeito quando a página ou os destaques mudam: qualquer outra atualização da tela
+  // (a barra de anotação abrindo, o relógio…) reaproveita os mesmos parágrafos, sem apagar a seleção
+  const corpo = useMemo(() => (
+!current ? (
           <p className="opacity-60">Carregando…</p>
         ) : props.format === "md" ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{current.text}</ReactMarkdown>
@@ -114,9 +114,40 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
               const Tag = (["h1", "h2", "h3"] as const)[h[1].length - 1];
               return <Tag key={i} style={{ textAlign: "left" }}>{h[2]}</Tag>;
             }
-            return <p key={i} dangerouslySetInnerHTML={{ __html: highlight(escape(p), marks.map(escape)) }} />;
+            return <p key={i} dangerouslySetInnerHTML={{ __html: highlight(escape(p), marks.map((m) => ({ ...m, quote: escape(m.quote) }))) }} />;
           })
-        )}
+        )
+  ), [current, marks, props.format]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sobre = useRef("");
+  /** o mouse sobre uma marca: as notas dela e das marcas por fora (trechos que se sobrepõem) */
+  function hover(e: React.MouseEvent) {
+    const m = (e.target as Element).closest?.("mark[data-anns]") as HTMLElement | null;
+    const ids: string[] = [];
+    for (let x: HTMLElement | null = m; x; x = x.parentElement?.closest("mark[data-anns]") as HTMLElement | null) ids.push(...(x.dataset.anns ?? "").split(",").filter(Boolean));
+    const chave = ids.join(",");
+    if (chave === sobre.current) return;
+    sobre.current = chave;
+    if (!m) return cb.current.onNotaHover?.(null);
+    const r = m.getBoundingClientRect();
+    cb.current.onNotaHover?.({ ids: [...new Set(ids)], left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+  }
+
+  return (
+    <div ref={box} className="w-full h-full overflow-y-auto" style={{ background: t.bg, color: t.fg }} onMouseUp={onMouseUp} onTouchEnd={onMouseUp}
+      onMouseMove={hover} onMouseLeave={() => { sobre.current = ""; cb.current.onNotaHover?.(null); }}
+      onScroll={() => { if (sobre.current) { sobre.current = ""; cb.current.onNotaHover?.(null); } }}
+      onClick={(e) => { const m = (e.target as Element).closest?.("mark[data-anns]") as HTMLElement | null; const id = m?.dataset.anns?.split(",")[0]; if (id && !window.getSelection()?.toString().trim()) cb.current.onAnnotationClick(id); }}>
+      <article
+        className="reading-page prose-notes mx-auto max-w-[68ch] px-6 pt-10 pb-28" /* espaço no fim: Anterior/Próxima ficam acima do Menu e do cronômetro */
+        style={{
+          fontSize: `${props.prefs.sizePt}pt`,
+          lineHeight: props.prefs.lineHeight,
+          fontFamily: FONTS[props.prefs.font].css,
+          textAlign: props.prefs.justify ? "justify" : "left",
+          hyphens: "auto",
+        }}
+      >
+        {corpo}
         {current && (
           <div className="flex justify-between items-center mt-10 text-sm opacity-70 font-sans">
             <button className="rounded-lg border border-current/20 px-3 py-1.5 hover:bg-current/5 disabled:opacity-40" onClick={() => go(page - 1)} disabled={page === 0}>← Anterior</button>
@@ -133,11 +164,15 @@ function escape(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function highlight(html: string, quotes: string[]) {
+/** Marca cada trecho destacado (com os ids das anotações, para o balão das notas). Os mais longos primeiro: um trecho
+ *  menor dentro de outro fica como marca dentro da marca, e o balão junta as notas dos dois. */
+function highlight(html: string, marks: { quote: string; ids: string[]; cor: string }[]) {
   let out = html;
-  for (const q of quotes) {
-    if (!q || q.includes("\n")) continue;
-    out = out.split(q).join(`<mark>${q}</mark>`);
+  for (const m of [...marks].sort((a, b) => b.quote.length - a.quote.length)) {
+    if (!m.quote || m.quote.includes("\n")) continue;
+    // só troca no texto, nunca dentro de uma etiqueta (<mark …>) já inserida
+    out = out.split(/(<[^>]*>)/).map((pedaco) => (pedaco.startsWith("<") ? pedaco
+      : pedaco.split(m.quote).join(`<mark data-anns="${m.ids.join(",")}" style="background: color-mix(in srgb, ${m.cor} 32%, transparent); cursor: pointer">${m.quote}</mark>`))).join("");
   }
   return out;
 }

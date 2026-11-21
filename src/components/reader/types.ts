@@ -69,7 +69,10 @@ export interface ReaderProps {
   onView?: (words: number, last: boolean) => void;
   /** páginas que ainda faltam no capítulo depois desta (0 = última página do capítulo); null = o livro não tem capítulos */
   onCapitulo?: (faltam: number | null) => void;
+  /** o mouse está sobre destaques (ids, todos os que se sobrepõem ali) e onde eles estão na tela; null = saiu */
+  onNotaHover?: (h: NotaHover | null) => void;
 }
+export interface NotaHover { ids: string[]; left: number; right: number; top: number; bottom: number }
 
 /** "3 páginas restantes no capítulo" (como no Livros da Apple) */
 export function textoFaltamNoCapitulo(faltam: number | null, nome = "capítulo"): string {
