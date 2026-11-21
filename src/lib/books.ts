@@ -169,12 +169,3 @@ export async function addPhysicalBook(input: {
   if (error) throw new Error(error.message);
   return data as Book;
 }
-
-export async function enqueue(book: Book) {
-  const sb = supabase();
-  const { data } = await sb.from("books").select("queue_position").not("queue_position", "is", null)
-    .order("queue_position", { ascending: false }).limit(1);
-  const next = ((data?.[0]?.queue_position as number | undefined) ?? 0) + 1;
-  await sb.from("books").update({ queue_position: next }).eq("id", book.id);
-  return next;
-}

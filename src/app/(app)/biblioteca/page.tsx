@@ -1,820 +1,289 @@
 "use client";
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ArrowDown, ArrowUp, BookMarked, BookOpen, ChevronDown, Compass, ChevronUp, Download, ChevronRight, Folder, FolderOpen, FolderPlus, Library, ListOrdered, Pencil, Plus, Search, Timer, Trash2, Upload, X,
-} from "lucide-react";
-import { Empty, Page } from "@/components/page";
-import { ACCEPT, addPhysicalBook, deleteBook, enqueue, limparCacheDeLivros, ppmDosLivros, saveBookFile, uploadBook } from "@/lib/books";
-import { useTimerEstado } from "@/components/timer-context";
+/**
+ * Plano de leitura: o que ler, em que ordem e como está indo — num lugar só.
+ * As mesas SÃO a fila: a ordem das mesas e a ordem dos livros dentro delas dizem o que vem depois.
+ * (Antes, fila e mesas guardavam a mesma ordem duas vezes.)
+ */
+import { useEffect, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, BookOpen, ChevronDown, ClipboardPaste, Pencil, Play, Plus, Trash2, Trophy, Upload, X } from "lucide-react";
+import { Empty } from "@/components/page";
 import { Cover } from "@/components/cover";
 import { RowMenu } from "@/components/row-menu";
-import { BibliotecaTabs } from "@/components/biblioteca-tabs";
-import { OPCOES_LIVRO, StatusPill } from "@/components/status-pill";
-import { useRouter } from "next/navigation";
-import { coverUrls, epubCover, removeCover, setCover, setCoverFromLink } from "@/lib/covers";
-import { downloadBook } from "@/lib/books";
-import { cddCompare, flatTree, folderLabel, shelfOrder } from "@/lib/folders";
-import { FolderSelect } from "@/components/folder-select";
-import { fmtDuration, nf } from "@/lib/dates";
+import { ACCEPT } from "@/lib/books";
+import { fmtDuration } from "@/lib/dates";
+import { PERFIS, dominioDe, faixaDe, palavrasCurto, pct, perfilDe } from "@/lib/leitura";
+import type { ItemObjetivo, Objetivo } from "@/lib/objetivos";
 import { supabase } from "@/lib/supabase/client";
-import { todas } from "@/lib/supabase/todas";
-import { RoteiroLeitura } from "@/components/roteiro-leitura";
-import { COR_NIVEL, MOTIVOS_LEITURA, NIVEIS_LEITURA, progressoDoRoteiro, type Roteiro } from "@/lib/adler";
-import { Book, BookStatus, Folder as F, STATUS_LABEL, progressoDoLivro } from "@/lib/types";
+import { progressoDoLivro, type Book } from "@/lib/types";
+import { faltaDe, useBiblioteca, useMesas } from "@/components/biblioteca/dados";
+import { LivroLinha } from "@/components/biblioteca/linha";
+import { BibliotecaPagina, Painel } from "@/components/biblioteca/painel";
+import { BarraMarcos, EtiquetaPerfil, Selos } from "@/components/biblioteca/visual";
 
-type Sel = "todos" | "sem-pasta" | string;
-const STATUS: BookStatus[] = ["aguardando", "lendo", "pausado", "lido", "consulta"];
-const DEFAULT_WPM = 220;
+export default function Plano() {
+  const d = useBiblioteca();
+  const mesas = useMesas();
+  const [abertas, setAbertas] = useState<Set<string> | null>(null);
 
-export default function Biblioteca() {
-  const [folders, setFolders] = useState<F[]>([]);
-  const [books, setBooks] = useState<Book[]>([]);
-  const [covers, setCovers] = useState<Record<string, string>>({});
-  const [sel, setSelBruto] = useState<Sel>("todos");
-  // celular: a árvore de pastas fica recolhida atrás de um botão e fecha ao escolher
-  const [pastasNoCelular, setPastasNoCelular] = useState(false);
-  const setSel = (v: Sel) => { setSelBruto(v); setPastasNoCelular(false); };
-  const [status, setStatus] = useState<BookStatus | "todos">("todos");
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState<Set<string>>(new Set());
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [drag, setDrag] = useState(false);
-  const [wpm, setWpm] = useState(DEFAULT_WPM);
+  // abre a mesa do próximo livro (ou a do link /biblioteca#mesa-…)
+  useEffect(() => {
+    if (!d.carregado || abertas) return;
+    const doLink = typeof location !== "undefined" && location.hash.startsWith("#mesa-") ? location.hash.slice(6) : null;
+    const atual = mesas.find((m) => m.prog.pct < 1)?.mesa.id;
+    setAbertas(new Set([doLink ?? atual].filter((x): x is string => !!x)));
+    if (doLink) setTimeout(() => document.getElementById(`mesa-${doLink}`)?.scrollIntoView({ block: "start" }), 50);
+  }, [d.carregado, mesas, abertas]);
+
+  const lendo = d.livros.filter((b) => b.status === "lendo").sort((a, b) => progressoDoLivro(b) - progressoDoLivro(a));
+  const fora = d.livros.filter((b) => !d.lugar.has(b.id) && b.status !== "lido");
   const fileRef = useRef<HTMLInputElement>(null);
-  const timer = useTimerEstado();
-  const router = useRouter();
-  const [physical, setPhysical] = useState(false);
-  const [editing, setEditing] = useState<Book | null>(null);
-  /** o roteiro de leitura (níveis de Adler) aberto para um livro */
-  const [roteiroDe, setRoteiroDe] = useState<Book | null>(null);
-  const [folderModal, setFolderModal] = useState<null | { edit?: F; parentId: string | null }>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  useEffect(() => { if (toast) { const x = setTimeout(() => setToast(null), toast.length > 60 ? 6000 : 3000); return () => clearTimeout(x); } }, [toast]);
-
-  async function readPhysical(b: Book) {
-    // ligado ao MAR com tempo contado: pergunta se encerra antes (não → nada muda)
-    if (!(await timer.trocar({ category: "Leitura", bookId: b.id, bookTitle: b.title, bookPhysical: true }))) return;
-    timer.start(); // (já rodando: continua como está)
-    setToast(`Timer ligado para “${b.title}”. Ao encerrar, informe a página onde parou.`);
-  }
-
-  const load = useCallback(async () => {
-    const sb = supabase();
-    const [f, b, ritmo] = await Promise.all([
-      sb.from("folders").select("*").order("position").order("name"),
-      todas<Book>((de, ate) => sb.from("books").select("*").order("title").order("id").range(de, ate)),
-      ppmDosLivros(),
-    ]);
-    setFolders((f.data as F[]) ?? []);
-    setBooks(b);
-    void coverUrls(b).then(setCovers);
-    void limparCacheDeLivros(b.map((x) => x.file_path));
-    if (ritmo) setWpm(ritmo);
-  }, []);
-  useEffect(() => { void load(); }, [load]);
-
-  const children = useMemo(() => {
-    const m = new Map<string | null, F[]>();
-    for (const f of folders) m.set(f.parent_id, [...(m.get(f.parent_id) ?? []), f]);
-    for (const list of m.values()) list.sort(cddCompare);
-    return m;
-  }, [folders]);
-
-  const descendants = useCallback((id: string): Set<string> => {
-    const out = new Set([id]);
-    const walk = (x: string) => (children.get(x) ?? []).forEach((c) => { out.add(c.id); walk(c.id); });
-    walk(id);
-    return out;
-  }, [children]);
-
-  const inFolder = useCallback((id: string) => {
-    const ids = descendants(id);
-    return books.filter((b) => b.folder_id && ids.has(b.folder_id));
-  }, [books, descendants]);
-
-  const path = useMemo(() => {
-    if (sel === "todos" || sel === "sem-pasta") return [];
-    const byId = new Map(folders.map((f) => [f.id, f]));
-    const out: F[] = [];
-    let cur = byId.get(sel);
-    while (cur) { out.unshift(cur); cur = cur.parent_id ? byId.get(cur.parent_id) : undefined; }
-    return out;
-  }, [sel, folders]);
-
-  const tree = useMemo(() => flatTree(folders), [folders]);
-  const folderById = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
-  /** Nº do livro = posição na fila de leitura (só livros na fila e ainda não lidos). */
-  const queueNo = useMemo(() => {
-    const q = books.filter((b) => b.queue_position != null && b.status !== "lido" && b.status !== "consulta")
-      .sort((a, b) => (a.queue_position ?? 0) - (b.queue_position ?? 0));
-    return new Map(q.map((b, i) => [b.id, i + 1]));
-  }, [books]);
-  const shelfIndex = useMemo(() => new Map(tree.map((t, i) => [t.folder.id, i])), [tree]);
-
-  const visible = useMemo(() => {
-    let list = sel === "todos" ? books : sel === "sem-pasta" ? books.filter((b) => !b.folder_id) : inFolder(sel);
-    if (status !== "todos") list = list.filter((b) => b.status === status);
-    if (q.trim()) {
-      const t = q.toLowerCase();
-      list = list.filter((b) => b.title.toLowerCase().includes(t) || (b.author ?? "").toLowerCase().includes(t)
-        || (b.folder_id ? folderById.get(b.folder_id)?.code ?? "" : "").includes(t));
-    }
-    // ordem de estante: pela pasta (ordem CDD) e, dentro dela, pela numeração
-    return [...list].sort((a, b) => {
-      const fa = a.folder_id ? shelfIndex.get(a.folder_id) ?? 1e6 : 1e7;
-      const fb = b.folder_id ? shelfIndex.get(b.folder_id) ?? 1e6 : 1e7;
-      if (fa !== fb) return fa - fb;
-      return (queueNo.get(a.id) ?? 1e6) - (queueNo.get(b.id) ?? 1e6) || (a.author ?? "").localeCompare(b.author ?? "", "pt-BR") || a.title.localeCompare(b.title, "pt-BR");
-    });
-  }, [books, sel, status, q, inFolder, folderById, queueNo, shelfIndex]);
-
-  const currentFolderId = sel === "todos" || sel === "sem-pasta" ? null : sel;
-
-  async function onFiles(files: FileList | File[]) {
-    setError(null);
-    for (const f of Array.from(files)) {
-      setUploading(`Enviando ${f.name}…`);
-      try {
-        const novo = await uploadBook(f, currentFolderId, (msg) => setUploading(`${f.name}: ${msg}`));
-        // sem pasta escolhida, o livro vai para "Sem pasta" (e não aparece dentro das pastas CDD): avisa
-        if (!currentFolderId) setToast(`“${novo.title}” entrou em “Sem pasta”. Use ••• → Editar para escolher a pasta.`);
-      } catch (e) { setError((e as Error).message); }
-    }
-    setUploading(null);
-    void load();
-  }
-
-  function newFolder(parentId: string | null = currentFolderId) {
-    setFolderModal({ parentId });
-  }
-
-  async function removeFolder(f: F) {
-    if (!confirm(`Apagar a pasta "${folderLabel(f)}" e suas subpastas? Os livros continuam na biblioteca, sem pasta.`)) return;
-    await supabase().from("folders").delete().eq("id", f.id);
-    setSel(f.parent_id ?? "todos");
-    void load();
-  }
-
-  async function update(b: Book, patch: Partial<Book>) {
-    if (patch.status === "lido") patch.finished_at = new Date().toISOString();
-    if (patch.status === "consulta") patch.queue_position = null; // obra de consulta não entra na fila
-    if (patch.status === "lendo" && !b.started_at) patch.started_at = new Date().toISOString();
-    if ("folder_id" in patch && patch.folder_id !== b.folder_id) {
-      const target = books.filter((x) => x.folder_id === patch.folder_id && x.id !== b.id);
-      patch.position = target.length ? Math.max(...shelfOrder(target).map((x, i) => x.position ?? i + 1)) + 1 : 1;
-    }
-    setBooks((all) => all.map((x) => (x.id === b.id ? { ...x, ...patch } : x)));
-    await supabase().from("books").update(patch).eq("id", b.id);
-  }
-
-  const queued = useMemo(() => visible.filter((b) => queueNo.has(b.id)).sort((a, b) => queueNo.get(a.id)! - queueNo.get(b.id)!), [visible, queueNo]);
-  // fora da fila: só o que ainda vai ser lido; os lidos aparecem no filtro "Lido" (ou numa busca)
-  const mostraLidos = status === "lido" || !!q.trim();
-  const rest = useMemo(() => visible.filter((b) => !queueNo.has(b.id) && b.status !== "consulta" && (mostraLidos || b.status !== "lido"))
-    .sort((a, b) => Number(a.status === "lido") - Number(b.status === "lido")), [visible, queueNo, mostraLidos]);
-  const lidosEscondidos = mostraLidos ? 0 : visible.filter((b) => !queueNo.has(b.id) && b.status === "lido").length;
-  // obras de consulta: abaixo de tudo, à parte
-  const consulta = useMemo(() => visible.filter((b) => b.status === "consulta"), [visible]);
-  const queueLeft = queued.reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
-  // em leitura (na pasta escolhida), os mais adiantados primeiro: o mesmo "Lendo agora" dos Estudos
-  const lendoAgora = useMemo(() => visible.filter((b) => b.status === "lendo").sort((a, b) => progressoDoLivro(b) - progressoDoLivro(a)), [visible]);
-  const lendoFalta = lendoAgora.reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
-
-  /** Reordena a fila (troca com o vizinho) e renumera 1, 2, 3… */
-  async function moveQueue(b: Book, dir: -1 | 1) {
-    const q = books.filter((x) => queueNo.has(x.id)).sort((x, y) => queueNo.get(x.id)! - queueNo.get(y.id)!);
-    const i = q.findIndex((x) => x.id === b.id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= q.length) return;
-    [q[i], q[j]] = [q[j], q[i]];
-    const pos = new Map(q.map((x, k) => [x.id, k + 1]));
-    setBooks((all) => all.map((x) => (pos.has(x.id) ? { ...x, queue_position: pos.get(x.id)! } : x)));
-    const sb = supabase();
-    await Promise.all(q.map((x, k) => sb.from("books").update({ queue_position: k + 1 }).eq("id", x.id)));
-  }
-
-  async function dequeue(b: Book) {
-    setBooks((all) => all.map((x) => (x.id === b.id ? { ...x, queue_position: null } : x)));
-    await supabase().from("books").update({ queue_position: null }).eq("id", b.id);
-  }
-
-  const renderRow = (b: Book) => {
-    const naFila = queueNo.has(b.id);
-    const pasta = b.folder_id ? folderById.get(b.folder_id) : undefined;
-    return (
-      <div key={b.id} className="group relative flex items-center gap-1 sm:gap-2 pr-1.5 sm:pr-2 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
-        <Link href={b.format === "fisico" ? "#" : `/ler/${b.id}`} onClick={(e) => { if (b.format === "fisico") { e.preventDefault(); void readPhysical(b); } }}
-          title={b.format === "fisico" ? "Ler (liga o timer)" : "Abrir no leitor"}
-          className="flex items-start sm:items-center gap-3 min-w-0 flex-1 p-3">
-          <Cover book={b} url={covers[b.id]} className="w-10 h-14 shrink-0" />
-          <span className="min-w-0">
-            {/* no celular o título usa até três linhas (cortar em uma esconde quase tudo) */}
-            <span className="line-clamp-3 sm:line-clamp-1 break-words leading-snug" title={`${b.author ?? "Autor desconhecido"} — ${b.title}`}>
-              {b.author ? <span className="font-medium">{b.author}</span> : <span className="text-faint">Autor desconhecido</span>}
-              <span className="text-faint"> — </span>
-              <span className="font-medium">{b.title}</span>
-            </span>
-            <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted mt-0.5">
-              {naFila && (
-                <span className="inline-flex items-center rounded-md border border-line px-1.5 py-0.5 text-[11px] font-mono font-medium text-ink"
-                  title="Posição na fila de leitura">
-                  Nº {String(queueNo.get(b.id)).padStart(2, "0")}
-                </span>
-              )}
-              {b.nivel_leitura && (() => {
-                const pr = progressoDoRoteiro(b.nivel_leitura, (b.roteiro as Roteiro) ?? {});
-                return (
-                  <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium"
-                    style={{ color: COR_NIVEL[b.nivel_leitura], background: `color-mix(in srgb, ${COR_NIVEL[b.nivel_leitura]} 12%, transparent)` }}
-                    title={`Nível ${NIVEIS_LEITURA[b.nivel_leitura].nome.toLowerCase()} (Adler) · ${pr.feitas} de ${pr.total} etapas${b.motivo_leitura ? ` · motivo: ${MOTIVOS_LEITURA[b.motivo_leitura].nome.toLowerCase()}` : ""}${b.tema ? ` · tema: ${b.tema}` : ""}`}>
-                    {NIVEIS_LEITURA[b.nivel_leitura].nome}{b.motivo_leitura ? ` · ${MOTIVOS_LEITURA[b.motivo_leitura].nome}` : ""}{b.tema ? ` · ${b.tema}` : ""}
-                  </span>
-                );
-              })()}
-              {pasta ? (
-                <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px]" title={`Pasta: ${folderLabel(pasta)}`}>
-                  {pasta.code && <span className="font-mono font-medium">{pasta.code}</span>}
-                  <span className="truncate max-w-[180px]">{pasta.name}</span>
-                </span>
-              ) : (
-                <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px]">sem pasta</span>
-              )}
-              <span className="sm:truncate">
-                {b.status === "lendo" && progressoDoLivro(b) > 0 ? ` · ${Math.round(progressoDoLivro(b) * 100)}%` : ""}
-                {b.status === "consulta" ? " · para consulta (não conta nos indicadores)" : b.word_count
-                  ? b.status === "lendo"
-                    // em leitura: o que falta, no seu ritmo
-                    ? ` · faltam ${nf.format(Math.round(b.word_count * (1 - progressoDoLivro(b))))} palavras · ≈ ${fmtDuration((b.word_count * (1 - progressoDoLivro(b)) / wpm) * 60)}`
-                    : ` · ${nf.format(b.word_count)} palavras · ≈ ${fmtDuration((b.word_count / wpm) * 60)}`
-                  : ""}
-                {b.format === "fisico" ? ` · físico${b.total_pages ? ` · p. ${b.current_page ?? 0}/${b.total_pages}` : ""}` : ""}
-              </span>
-            </span>
-            {/* espaço para o status, que no celular fica embaixo do texto */}
-            <span className="block h-8 sm:hidden" aria-hidden />
-          </span>
-        </Link>
-        {naFila && (
-          <span className="hidden sm:flex flex-col opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-            <button className="p-0.5 text-faint hover:text-ink disabled:opacity-30" title="Subir na fila" disabled={queueNo.get(b.id) === 1} onClick={() => moveQueue(b, -1)}><ChevronUp size={15} /></button>
-            <button className="p-0.5 text-faint hover:text-ink disabled:opacity-30" title="Descer na fila" disabled={queueNo.get(b.id) === queueNo.size} onClick={() => moveQueue(b, 1)}><ChevronDown size={15} /></button>
-          </span>
-        )}
-        <span className="absolute left-16 bottom-3 sm:static">
-          <StatusPill label="Status do livro" value={b.status} options={OPCOES_LIVRO} onChange={(st) => update(b, { status: st })} />
-        </span>
-        <RowMenu items={[
-          // livro físico de consulta: sem "ler com timer" (consulta não conta nos indicadores)
-          ...(b.format === "fisico"
-            ? (b.status === "consulta" ? [] : [{ label: "Ler (liga o timer)", icon: Timer, onClick: () => void readPhysical(b) }])
-            : [{ label: "Abrir no leitor", icon: BookOpen, onClick: () => router.push(`/ler/${b.id}`) }]),
-          ...(b.format !== "fisico" ? [{
-            label: `Baixar o arquivo (${b.format.toUpperCase()})`, icon: Download,
-            onClick: async () => { setToast("Preparando o download…"); try { await saveBookFile(b); setToast(null); } catch (e) { setToast((e as Error).message); } },
-          }] : []),
-          { label: "Editar título, autor e pasta", icon: Pencil, onClick: () => setEditing(b) },
-          { label: "Motivo e nível de leitura (Adler)", icon: Compass, onClick: () => setRoteiroDe(b) },
-          naFila
-            ? { label: "Tirar da fila", icon: X, onClick: () => dequeue(b), separar: true }
-            : { label: "Adicionar à fila", icon: ListOrdered, disabled: b.status === "lido" || b.status === "consulta", separar: true,
-                onClick: async () => { const p = await enqueue(b); setBooks((all) => all.map((x) => (x.id === b.id ? { ...x, queue_position: p } : x))); } },
-          ...(naFila ? [
-            { label: "Subir na fila", icon: ArrowUp, disabled: queueNo.get(b.id) === 1, onClick: () => moveQueue(b, -1) },
-            { label: "Descer na fila", icon: ArrowDown, disabled: queueNo.get(b.id) === queueNo.size, onClick: () => moveQueue(b, 1) },
-          ] : []),
-          { label: "Apagar livro", icon: Trash2, danger: true, separar: true,
-            onClick: async () => { if (confirm(`Apagar "${b.title}" e suas anotações?`)) { await deleteBook(b); void load(); } } },
-        ]} />
-      </div>
-    );
-  };
-
-  const stats = (list: Book[]) => {
-    const total = list.reduce((a, b) => a + (b.word_count ?? 0), 0);
-    const left = list.filter((b) => b.status !== "lido" && b.status !== "consulta").reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
-    const done = list.filter((b) => b.status === "lido").length;
-    return { total, left, done, waiting: list.filter((b) => b.status === "aguardando").length, n: list.length };
-  };
-
-  function Tree({ parent, depth }: { parent: string | null; depth: number }) {
-    return (
-      <>
-        {(children.get(parent) ?? []).map((f) => {
-          const kids = children.get(f.id)?.length ?? 0;
-          const isOpen = open.has(f.id);
-          const n = inFolder(f.id).filter((b) => b.status !== "lido" && b.status !== "consulta").length;
-          return (
-            <div key={f.id}>
-              <div
-                className={`group flex items-center gap-1 rounded-md pr-1 text-sm cursor-pointer ${sel === f.id ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}
-                style={{ paddingLeft: 4 + depth * 14 }}
-                onClick={() => {
-                  // com subpastas, o painel continua aberto no celular para descer na árvore
-                  if (kids) { setSelBruto(f.id); setOpen((o) => new Set(o).add(f.id)); } else setSel(f.id);
-                }}
-              >
-                <button
-                  className={`p-1.5 -m-1 md:p-0.5 md:m-0 text-faint ${kids ? "" : "invisible"}`}
-                  onClick={(e) => { e.stopPropagation(); setOpen((o) => { const x = new Set(o); if (x.has(f.id)) x.delete(f.id); else x.add(f.id); return x; }); }}
-                >
-                  {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                </button>
-                {sel === f.id ? <FolderOpen size={15} className="text-icon" /> : <Folder size={15} className="text-muted" />}
-                <span className="truncate flex-1 py-2.5 md:py-1.5" title={folderLabel(f)}>
-                  {f.code && <span className={`font-mono text-xs mr-1 ${depth === 0 ? "font-medium text-ink" : "text-muted"}`}>{f.code} –</span>}
-                  <span className={depth === 0 ? "font-medium" : ""}>{f.name}</span>
-                </span>
-                {n > 0 && <span className="text-xs text-faint tabular-nums group-hover:hidden">{n}</span>}
-                <button className="hidden group-hover:block p-0.5 text-faint hover:text-accent" title="Nova subpasta aqui"
-                  onClick={(e) => { e.stopPropagation(); setOpen((o) => new Set(o).add(f.id)); newFolder(f.id); }}>
-                  <FolderPlus size={14} />
-                </button>
-              </div>
-              {isOpen && <Tree parent={f.id} depth={depth + 1} />}
-            </div>
-          );
-        })}
-      </>
-    );
-  }
-
-  const cur = currentFolderId ? folders.find((f) => f.id === currentFolderId) : null;
-  const all = stats(books);
 
   return (
-    <Page
-      wide
-      tabs={<BibliotecaTabs />}
-      title="Biblioteca"
-      subtitle={`${all.waiting} livros aguardando · ≈ ${fmtDuration((all.left / wpm) * 60)} de leitura pela frente a ${wpm} ppm`}
-      actions={
+    <BibliotecaPagina actions={
+      <>
+        <button className="btn" onClick={() => d.abrir({ tipo: "mesa" })}><Plus size={15} /> Nova mesa</button>
+        <button className="btn btn-primary" onClick={() => fileRef.current?.click()} disabled={!!d.enviando}><Upload size={15} /> {d.enviando ? "Enviando…" : "Enviar livros"}</button>
+        <input ref={fileRef} type="file" multiple accept={ACCEPT} hidden onChange={(e) => e.target.files && void d.enviar(e.target.files, null)} />
+      </>
+    }>
+      {d.enviando && <p className="text-sm text-muted mb-3" aria-live="polite">{d.enviando}</p>}
+      {!d.carregado ? <p className="text-sm text-muted">Carregando…</p> : (
         <>
-          <button className="btn" onClick={() => newFolder()}><FolderPlus size={15} /> {currentFolderId ? "Subpasta aqui" : "Nova pasta"}</button>
-          <button className="btn" onClick={() => setPhysical(true)}><Plus size={15} /> Livro físico</button>
-          <button className="btn btn-primary" onClick={() => fileRef.current?.click()} disabled={!!uploading}>
-            <Upload size={15} /> {uploading ? "Enviando…" : "Enviar livros"}
-          </button>
-          <input ref={fileRef} type="file" multiple accept={ACCEPT} hidden onChange={(e) => e.target.files && onFiles(e.target.files)} />
+          <Painel />
+
+          {/* ── agora ── */}
+          <Secao titulo="Agora" sub="O que está em leitura e o próximo do plano.">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {lendo.map((b) => <CartaoLendo key={b.id} livro={b} />)}
+              {d.proximo && <CartaoProximo livro={d.proximo} />}
+              {!lendo.length && !d.proximo && (
+                <Empty icone={BookOpen}>Nada em leitura. Monte uma mesa com os livros que quer ler e o primeiro dela aparece aqui.</Empty>
+              )}
+            </div>
+          </Secao>
+
+          {/* ── as mesas: a fila ── */}
+          <Secao titulo="Mesas" sub="A ordem das mesas, e dos livros dentro delas, é a sua fila de leitura."
+            extra={<button className="btn btn-ghost text-sm" onClick={() => d.abrir({ tipo: "colar" })}><ClipboardPaste size={14} /> Colar uma lista</button>}>
+            {mesas.length === 0 ? (
+              <Empty>Nenhuma mesa ainda. Crie uma (por exemplo, “Aprender a estudar”) ou cole uma lista com os seus blocos e livros.</Empty>
+            ) : (
+              <div className="space-y-3">
+                {mesas.map((m, k) => (
+                  <Mesa key={m.mesa.id} k={k} total={mesas.length} mesa={m.mesa} itens={m.itens} prog={m.prog}
+                    aberta={!!abertas?.has(m.mesa.id)}
+                    alternar={() => setAbertas((s) => { const x = new Set(s); if (x.has(m.mesa.id)) x.delete(m.mesa.id); else x.add(m.mesa.id); return x; })} />
+                ))}
+              </div>
+            )}
+          </Secao>
+
+          {fora.length > 0 && (
+            <Secao titulo="Fora do plano" sub="Livros que ainda não estão em nenhuma mesa: use ••• → Pôr numa mesa.">
+              <div className="card divide-y divide-line overflow-hidden">
+                {fora.map((b) => <LivroLinha key={b.id} livro={b} mostrarMesa={false} />)}
+              </div>
+            </Secao>
+          )}
         </>
-      }
-    >
-      <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4">
-        <button type="button" className="md:hidden card flex items-center gap-2 px-3 py-2.5 text-sm text-left"
-          aria-expanded={pastasNoCelular} onClick={() => setPastasNoCelular((v) => !v)}>
-          {pastasNoCelular ? <FolderOpen size={16} className="text-icon shrink-0" /> : <Folder size={16} className="text-muted shrink-0" />}
-          <span className="text-muted shrink-0">Pasta:</span>
-          <span className="font-medium truncate flex-1">
-            {sel === "todos" ? "Toda a biblioteca" : sel === "sem-pasta" ? "Sem pasta" : (() => { const f = folders.find((x) => x.id === sel); return f ? folderLabel(f) : "—"; })()}
-          </span>
-          <ChevronDown size={16} className={`text-faint shrink-0 transition-transform ${pastasNoCelular ? "rotate-180" : ""}`} />
+      )}
+    </BibliotecaPagina>
+  );
+}
+
+function Secao({ titulo, sub, extra, children }: { titulo: string; sub?: string; extra?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="mb-8">
+      <div className="flex flex-wrap items-end justify-between gap-2 mb-3 px-0.5">
+        <div>
+          <h2 className="text-[1.0625rem] font-semibold tracking-tight">{titulo}</h2>
+          {sub && <p className="text-xs text-muted mt-0.5">{sub}</p>}
+        </div>
+        {extra}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Um livro em leitura: capa, avanço com marcos e a medida que importa para ele. */
+function CartaoLendo({ livro: b }: { livro: Book }) {
+  const d = useBiblioteca();
+  const perfil = perfilDe(b);
+  const cor = perfil ? PERFIS[perfil].cor : "var(--area-leitura)";
+  const p = progressoDoLivro(b);
+  const falta = faltaDe(b);
+  const uso = d.uso.get(b.id);
+  const ritmo = uso && uso.segundos > 120 ? Math.round(uso.palavras / (uso.segundos / 60)) : null;
+  const dom = perfil === "conhecimento" ? dominioDe(b, d.marcas.get(b.id) ?? 0).total : null;
+  const onde = d.lugar.get(b.id);
+  return (
+    <article className="card p-4 flex gap-4 min-w-0" style={{ borderTop: `3px solid ${cor}` }}>
+      <button onClick={() => d.abrir({ tipo: "ficha", id: b.id })} className="shrink-0 flex self-start" title="Ficha do livro">
+        <Cover book={b} url={d.capas[b.id]} className="w-16 h-[92px]" />
+      </button>
+      <div className="min-w-0 flex-1 flex flex-col">
+        <button onClick={() => d.abrir({ tipo: "ficha", id: b.id })} className="text-left">
+          <div className="font-semibold leading-snug line-clamp-2">{b.title}</div>
+          <div className="text-xs text-muted truncate mt-0.5">{b.author ?? "Autor desconhecido"}</div>
         </button>
-        <aside className={`card p-2 h-fit md:sticky md:top-4 ${pastasNoCelular ? "" : "hidden md:block"}`}>
-          {(["todos", "sem-pasta"] as const).map((k) => (
-            <div key={k} onClick={() => setSel(k)}
-              className={`flex items-center justify-between rounded-md px-2 py-2.5 md:py-1.5 text-sm cursor-pointer ${sel === k ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
-              <span>{k === "todos" ? "Toda a biblioteca" : "Sem pasta"}</span>
-              <span className="text-xs text-faint">{k === "todos" ? books.length : books.filter((b) => !b.folder_id).length}</span>
+        <div className="flex flex-wrap items-center gap-1.5 mt-1.5"><EtiquetaPerfil livro={b} /><Selos livro={b} /></div>
+        <div className="mt-auto pt-3">
+          <div className="flex items-baseline justify-between text-xs mb-1.5 tabular-nums">
+            <b className="text-base font-semibold">{Math.round(p * 100)}%</b>
+            <span className="text-muted">
+              {perfil === "conhecimento" && dom !== null ? <>domínio <b className="text-ink font-medium">{Math.round(dom * 100)}%</b> · {faixaDe(dom).nome}</>
+                : perfil === "informacao" && ritmo ? `${ritmo} ppm · faltam ≈ ${fmtDuration((falta / ritmo) * 60)}`
+                : falta ? `faltam ≈ ${fmtDuration((falta / d.ppm) * 60)}` : ""}
+            </span>
+          </div>
+          <BarraMarcos valor={p} cor={cor} />
+          <div className="flex items-center justify-between gap-2 mt-3">
+            <span className="text-[11px] text-faint truncate">{onde ? `Mesa ${onde.mesaN} · ${onde.mesa.titulo}` : "fora do plano"}</span>
+            <button className="btn btn-primary py-1 text-xs shrink-0" onClick={() => d.ler(b)}><Play size={13} /> Continuar</button>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** O próximo livro do plano (o que vem depois, quando a vez dele chegar). */
+function CartaoProximo({ livro: b }: { livro: Book }) {
+  const d = useBiblioteca();
+  const onde = d.lugar.get(b.id);
+  return (
+    <article className="rounded-xl border border-dashed border-line p-4 flex gap-4 min-w-0 bg-surface/40">
+      <button onClick={() => d.abrir({ tipo: "ficha", id: b.id })} className="shrink-0 flex self-start opacity-90"><Cover book={b} url={d.capas[b.id]} className="w-16 h-[92px]" /></button>
+      <div className="min-w-0 flex-1 flex flex-col">
+        <div className="eyebrow">A seguir no plano</div>
+        <button onClick={() => d.abrir({ tipo: "ficha", id: b.id })} className="text-left mt-1">
+          <div className="font-semibold leading-snug line-clamp-2">{b.title}</div>
+          <div className="text-xs text-muted truncate mt-0.5">{b.author ?? "Autor desconhecido"}</div>
+        </button>
+        <div className="mt-1.5"><EtiquetaPerfil livro={b} /></div>
+        <div className="mt-auto pt-3 flex items-center justify-between gap-2">
+          <span className="text-[11px] text-faint truncate">{onde ? `Mesa ${onde.mesaN} · nº ${onde.n}` : ""}{b.word_count ? ` · ≈ ${fmtDuration((b.word_count / d.ppm) * 60)}` : ""}</span>
+          <button className="btn py-1 text-xs shrink-0" onClick={() => d.ler(b)}><BookOpen size={13} /> Começar</button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** Uma mesa: cabeçalho com o avanço e os marcos; aberta, a lista na ordem de leitura. */
+function Mesa({ k, total, mesa, itens, prog, aberta, alternar }: {
+  k: number; total: number; mesa: Objetivo; itens: ItemObjetivo[]; prog: ReturnType<typeof useMesas>[number]["prog"]; aberta: boolean; alternar: () => void;
+}) {
+  const d = useBiblioteca();
+  const completa = prog.livros > 0 && prog.pct >= 1;
+  const proxNaMesa = itens.map((i) => (i.book_id ? d.porId.get(i.book_id) : undefined)).find((b) => b && b.status !== "lido");
+
+  async function moverMesa(dir: -1 | 1) {
+    const lista = [...d.mesas];
+    const j = k + dir;
+    if (j < 0 || j >= lista.length) return;
+    [lista[k], lista[j]] = [lista[j], lista[k]];
+    d.setMesas(lista.map((x, p) => ({ ...x, posicao: p })));
+    const sb = supabase();
+    await Promise.all(lista.map((x, p) => sb.from("objetivos").update({ posicao: p }).eq("id", x.id)));
+  }
+  async function apagar() {
+    if (!confirm(`Apagar a mesa “${mesa.titulo}”? Os livros continuam na biblioteca.`)) return;
+    await supabase().from("objetivos").delete().eq("id", mesa.id);
+    void d.recarregar();
+  }
+  async function moverItem(i: ItemObjetivo, dir: -1 | 1) {
+    const p = itens.indexOf(i), q = p + dir;
+    if (q < 0 || q >= itens.length) return;
+    const a = itens[p], b = itens[q];
+    // troca as posições (e a seção, para o livro poder passar de uma seção para outra)
+    d.setItens((all) => all.map((x) => (x.id === a.id ? { ...x, posicao: b.posicao, secao: b.secao } : x.id === b.id ? { ...x, posicao: a.posicao, secao: a.secao } : x))
+      .sort((x, y) => x.posicao - y.posicao));
+    const sb = supabase();
+    await Promise.all([
+      sb.from("objetivo_itens").update({ posicao: b.posicao, secao: b.secao }).eq("id", a.id),
+      sb.from("objetivo_itens").update({ posicao: a.posicao, secao: a.secao }).eq("id", b.id),
+    ]);
+  }
+  async function tirar(i: ItemObjetivo) {
+    d.setItens((all) => all.filter((x) => x.id !== i.id));
+    await supabase().from("objetivo_itens").delete().eq("id", i.id);
+  }
+
+  // seções na ordem em que aparecem
+  const secoes: [string, ItemObjetivo[]][] = [];
+  for (const i of itens) {
+    const ult = secoes[secoes.length - 1];
+    if (ult && ult[0] === i.secao) ult[1].push(i); else secoes.push([i.secao, [i]]);
+  }
+
+  return (
+    <article id={`mesa-${mesa.id}`} className="card overflow-hidden scroll-mt-4">
+      <div className="flex items-stretch">
+        <button onClick={alternar} aria-expanded={aberta} className="flex-1 min-w-0 flex items-center gap-4 p-4 text-left hover:bg-sel/40 transition-colors">
+          <span className={`w-10 h-10 rounded-full grid place-items-center shrink-0 text-sm font-semibold tabular-nums ${completa ? "text-[var(--bg)]" : "bg-surface-2"}`}
+            style={completa ? { background: "var(--good)" } : undefined} title={completa ? "Mesa concluída" : `Mesa ${k + 1}`}>
+            {completa ? <Trophy size={18} /> : k + 1}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline justify-between gap-3">
+              <span className="font-semibold leading-snug truncate">{mesa.titulo}</span>
+              <span className="text-lg font-semibold tabular-nums tracking-tight shrink-0">{pct(prog.pct)}</span>
+            </span>
+            {mesa.descricao && <span className="block text-xs text-muted line-clamp-1 mt-0.5">{mesa.descricao}</span>}
+            <span className="block mt-2"><BarraMarcos valor={prog.pct} cor={completa ? "var(--good)" : "var(--accent)"} /></span>
+            <span className="flex flex-wrap justify-between gap-x-3 mt-1.5 text-[11.5px] text-muted tabular-nums">
+              <span>{prog.livrosLidos} de {prog.livros} livros · {palavrasCurto(prog.lidas)} de {palavrasCurto(prog.total)} palavras</span>
+              <span>{completa ? "concluída" : `≈ ${fmtDuration((prog.faltam / d.ppm) * 60)} pela frente${!aberta && proxNaMesa ? ` · próximo: ${proxNaMesa.title}` : ""}`}</span>
+            </span>
+          </span>
+          <ChevronDown size={18} className={`text-faint shrink-0 transition-transform ${aberta ? "rotate-180" : ""}`} />
+        </button>
+        <span className="pt-4 pr-2">
+          <RowMenu items={[
+            { label: "Adicionar livro", icon: Plus, onClick: () => d.abrir({ tipo: "adicionar", mesa }) },
+            { label: "Renomear", icon: Pencil, onClick: () => d.abrir({ tipo: "mesa", edit: mesa }) },
+            { label: "Ler esta mesa antes", icon: ArrowUp, disabled: k === 0, separar: true, onClick: () => void moverMesa(-1) },
+            { label: "Ler esta mesa depois", icon: ArrowDown, disabled: k === total - 1, onClick: () => void moverMesa(1) },
+            { label: "Apagar mesa", icon: Trash2, danger: true, separar: true, onClick: () => void apagar() },
+          ]} />
+        </span>
+      </div>
+      {aberta && (
+        <div className="border-t border-line">
+          {secoes.map(([secao, lista], si) => (
+            <div key={`${secao}-${si}`}>
+              {secao && <div className="eyebrow px-4 pt-3 pb-1">{secao}</div>}
+              <div className="divide-y divide-line">
+                {lista.map((i) => {
+                  const b = i.book_id ? d.porId.get(i.book_id) : undefined;
+                  const n = itens.indexOf(i) + 1;
+                  if (!b) {
+                    return (
+                      <div key={i.id} className="flex items-center gap-3 px-3 py-2.5 text-sm text-muted">
+                        <span className="w-5 text-right text-xs text-faint tabular-nums">{n}</span>
+                        <span className="flex-1 truncate">{i.titulo} <span className="text-faint">· saiu da biblioteca</span></span>
+                        <button className="btn btn-ghost px-2 py-1" title="Tirar da mesa" onClick={() => void tirar(i)}><X size={14} /></button>
+                      </div>
+                    );
+                  }
+                  return (
+                    <LivroLinha key={i.id} livro={b} numero={n} mostrarMesa={false} menu={[
+                      { label: "Subir na mesa", icon: ArrowUp, separar: true, disabled: n === 1, onClick: () => void moverItem(i, -1) },
+                      { label: "Descer na mesa", icon: ArrowDown, disabled: n === itens.length, onClick: () => void moverItem(i, 1) },
+                      { label: "Tirar desta mesa", icon: X, onClick: () => void tirar(i) },
+                    ]} />
+                  );
+                })}
+              </div>
             </div>
           ))}
-          <div className="border-t border-line my-2" />
-          <Tree parent={null} depth={0} />
-          {folders.length === 0 && <p className="text-xs text-muted px-2 py-2">Crie pastas por área: Filosofia, Literatura, Idiomas…</p>}
-          <button className="w-full flex items-center gap-1.5 text-xs text-muted hover:text-accent px-2 py-2 mt-1" onClick={() => newFolder(null)}>
-            <FolderPlus size={13} /> Nova pasta principal
-          </button>
-        </aside>
-
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={(e) => { e.preventDefault(); setDrag(false); void onFiles(e.dataTransfer.files); }}
-          className={drag ? "outline-2 outline-dashed outline-accent rounded-xl" : ""}
-        >
-          <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
-            <button className="text-muted hover:text-ink" onClick={() => setSel("todos")}>Biblioteca</button>
-            {path.map((f) => (
-              <span key={f.id} className="flex items-center gap-2">
-                <ChevronRight size={13} className="text-faint" />
-                <button className="hover:text-accent" onClick={() => setSel(f.id)}>{folderLabel(f)}</button>
-              </span>
-            ))}
-            {cur && (
-              <span className="ml-1 flex gap-1">
-                <button className="text-faint hover:text-ink" title="Editar pasta" onClick={() => setFolderModal({ edit: cur, parentId: cur.parent_id })}><Pencil size={13} /></button>
-                <button className="text-faint hover:text-critical" title="Apagar pasta" onClick={() => removeFolder(cur)}><Trash2 size={13} /></button>
-              </span>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-2 items-center mb-3">
-            <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[180px]">
-              <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
-              <input className="input pl-8" placeholder="Buscar título ou autor" value={q} onChange={(e) => setQ(e.target.value)} />
-            </div>
-            <div className="seg flex overflow-x-auto no-scrollbar">
-              {(["todos", ...STATUS] as const).map((s) => (
-                <button key={s} onClick={() => setStatus(s)} aria-pressed={status === s}
-                  className="shrink-0 py-1.5 sm:py-1">
-                  {s === "todos" ? "Todos" : STATUS_LABEL[s]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {error && <p className="text-sm text-critical mb-3">{error}</p>}
-          {uploading && <p className="text-sm text-muted mb-3" aria-live="polite">{uploading}</p>}
-
-          {visible.length === 0 ? (
-            <Empty icone={Library}>
-              Nenhum livro aqui. Arraste arquivos <b>EPUB</b>, <b>TXT</b> ou <b>MD</b> para esta área ou use “Enviar livros”.
-            </Empty>
-          ) : (
-            <>
-              {lendoAgora.length > 0 && status === "todos" && !q.trim() && (
-                <section className="mb-6">
-                  <div className="flex items-baseline justify-between mb-2 px-1">
-                    <h2 className="card-title flex items-center gap-2"><BookOpen size={16} className="text-icon" /> Lendo agora</h2>
-                    {lendoFalta > 0 && <span className="text-xs text-muted tabular-nums">≈ {fmtDuration((lendoFalta / wpm) * 60)} pela frente</span>}
-                  </div>
-                  <div className="card divide-y divide-line">
-                    {lendoAgora.map((b) => {
-                      const pct = Math.round(progressoDoLivro(b) * 100);
-                      const falta = (b.word_count ?? 0) * (1 - progressoDoLivro(b));
-                      return (
-                        <Link key={b.id} href={b.format === "fisico" ? "#" : `/ler/${b.id}`}
-                          onClick={(e) => { if (b.format === "fisico") { e.preventDefault(); readPhysical(b); } }}
-                          title={b.format === "fisico" ? "Ler (liga o timer)" : "Continuar no leitor"}
-                          className="flex items-center gap-3 p-3 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
-                          <Cover book={b} url={covers[b.id]} className="w-8 h-11 shrink-0" />
-                          <span className="min-w-0 flex-1">
-                            <span className="block line-clamp-2 sm:line-clamp-1 break-words leading-snug font-medium">{b.title}</span>
-                            <span className="block truncate text-xs text-muted mt-0.5">{b.author ?? "Autor desconhecido"}{b.format === "fisico" ? " · físico" : ""}</span>
-                            <span className="block h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
-                              <span className="block h-full bg-area-leitura rounded-full" style={{ width: `${pct}%` }} />
-                            </span>
-                          </span>
-                          <span className="text-right shrink-0 tabular-nums">
-                            <span className="block text-sm">{pct}%</span>
-                            {falta > 0 && <span className="block text-xs text-muted">faltam ≈ {fmtDuration((falta / wpm) * 60)}</span>}
-                          </span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-              {queued.length > 0 && (
-                <section className="mb-6">
-                  <div className="flex items-baseline justify-between mb-2 px-1">
-                    <h2 className="card-title flex items-center gap-2"><ListOrdered size={16} className="text-icon" /> Fila de leitura</h2>
-                    <span className="text-xs text-muted">
-                      {queued.length} {queued.length === 1 ? "livro" : "livros"}
-                      {queueLeft ? ` · ≈ ${fmtDuration((queueLeft / wpm) * 60)} de leitura` : ""}
-                    </span>
-                  </div>
-                  <div className="card divide-y divide-line border-[color-mix(in_srgb,var(--area-leitura)_45%,var(--border))]">
-                    {queued.map((b) => renderRow(b))}
-                  </div>
-                </section>
-              )}
-              {rest.length > 0 && (
-                <section>
-                  <div className="flex items-baseline justify-between mb-2 px-1">
-                    <h2 className="card-title text-muted">{queued.length ? "Fora da fila" : "Livros"}</h2>
-                    <span className="text-xs text-muted">{rest.length} {rest.length === 1 ? "livro" : "livros"} · use ☰ para pôr na fila
-                      {lidosEscondidos > 0 && <> · <button className="underline underline-offset-2 hover:text-ink" onClick={() => setStatus("lido")}>{lidosEscondidos} {lidosEscondidos === 1 ? "lido" : "lidos"}</button></>}</span>
-                  </div>
-                  <div className="card divide-y divide-line">
-                    {rest.map((b) => renderRow(b))}
-                  </div>
-                </section>
-              )}
-              {consulta.length > 0 && (
-                <section className={queued.length || rest.length ? "mt-6" : ""}>
-                  <div className="flex items-baseline justify-between mb-2 px-1 gap-3">
-                    <h2 className="card-title text-muted flex items-center gap-2"><BookMarked size={16} className="text-icon" /> Obras de consulta</h2>
-                    <span className="text-xs text-muted text-right">{consulta.length} {consulta.length === 1 ? "livro" : "livros"} · abrem onde você parou e não contam nos indicadores</span>
-                  </div>
-                  <div className="card divide-y divide-line">
-                    {consulta.map((b) => renderRow(b))}
-                  </div>
-                </section>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-      {folderModal && (
-        <FolderModal folders={folders} edit={folderModal.edit} parentId={folderModal.parentId} onClose={() => setFolderModal(null)}
-          onSaved={(id) => { setFolderModal(null); void load(); if (id) setSel(id); }} />
-      )}
-      {roteiroDe && (
-        <div className="modal fixed inset-0 z-[62] grid place-items-center p-3 md:p-6 bg-black/45" onClick={() => setRoteiroDe(null)}>
-          <div className="w-full max-w-lg h-[min(88vh,820px)] rounded-xl overflow-hidden shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="px-4 pt-3 pb-2 bg-surface border-b border-line text-sm"><span className="text-muted">Livro:</span> <span className="font-medium">{roteiroDe.title}</span></div>
-            <RoteiroLeitura className="flex-1 min-h-0 !border-l-0" livro={roteiroDe}
-              outros={books.map((x) => ({ id: x.id, title: x.title, author: x.author, nivel_leitura: x.nivel_leitura, motivo_leitura: x.motivo_leitura, tema: x.tema, format: x.format }))}
-              onFechar={() => setRoteiroDe(null)}
-              onMudou={(patch) => setBooks((all) => all.map((x) => (x.id === roteiroDe.id ? ({ ...x, ...patch } as Book) : x)))} />
-          </div>
+          {!itens.length && <p className="px-4 py-3 text-sm text-muted">Mesa vazia.</p>}
+          <button className="w-full flex items-center justify-center gap-1.5 text-sm text-muted hover:text-ink py-2.5 border-t border-line hover:bg-sel/40"
+            onClick={() => d.abrir({ tipo: "adicionar", mesa })}><Plus size={14} /> Adicionar livro a esta mesa</button>
         </div>
       )}
-      {editing && (
-        <EditBookModal book={editing} folders={folders} coverUrl={covers[editing.id]} onClose={() => setEditing(null)}
-          onCover={(id, url) => setCovers((c) => { const n = { ...c }; if (url) n[id] = url; else delete n[id]; return n; })}
-          onSaved={(b) => { setEditing(null); setBooks((all) => all.map((x) => (x.id === b.id ? b : x)).sort((x, y) => x.title.localeCompare(y.title, "pt-BR"))); }} />
-      )}
-      {physical && (
-        <PhysicalModal folders={folders} folderId={currentFolderId} onClose={() => setPhysical(false)}
-          onSaved={(b) => { setPhysical(false); setBooks((all) => [...all, b].sort((x, y) => x.title.localeCompare(y.title, "pt-BR"))); }} />
-      )}
-      {toast && (
-        <div role="status" className="toast fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top)+1rem)] z-50 max-w-[calc(100vw-2rem)]">{toast}</div>
-      )}
-    </Page>
+    </article>
   );
 }
-
-function PhysicalModal({ folders, folderId, onClose, onSaved }: { folders: F[]; folderId: string | null; onClose: () => void; onSaved: (b: Book) => void }) {
-  const [f, setF] = useState({ title: "", author: "", total_pages: "", current_page: "", words_per_page: "300", folder_id: folderId ?? "" });
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      onSaved(await addPhysicalBook({
-        title: f.title.trim(), author: f.author.trim(), total_pages: Number(f.total_pages) || 0,
-        current_page: Number(f.current_page) || 0, words_per_page: Number(f.words_per_page) || 300, folder_id: f.folder_id || null,
-      }));
-    } catch (x) { setErr((x as Error).message); setBusy(false); }
-  }
-  return (
-    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={onClose}>
-      <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3">
-        <div className="flex justify-between items-center">
-          <h2 className="modal-title">Livro físico</h2>
-          <button type="button" onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
-        </div>
-        <label className="block space-y-1"><span className="label">Título</span>
-          <input className="input" required autoFocus value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
-        </label>
-        <label className="block space-y-1"><span className="label">Autor</span>
-          <input className="input" value={f.author} onChange={(e) => setF({ ...f, author: e.target.value })} />
-        </label>
-        <div className="grid grid-cols-3 gap-3">
-          <label className="space-y-1"><span className="label">Páginas</span>
-            <input className="input" type="number" min={1} required value={f.total_pages} onChange={(e) => setF({ ...f, total_pages: e.target.value })} />
-          </label>
-          <label className="space-y-1"><span className="label">Estou na p.</span>
-            <input className="input" type="number" min={0} value={f.current_page} placeholder="0" onChange={(e) => setF({ ...f, current_page: e.target.value })} />
-          </label>
-          <label className="space-y-1"><span className="label">Palavras/pág.</span>
-            <input className="input" type="number" min={50} max={1000} value={f.words_per_page} onChange={(e) => setF({ ...f, words_per_page: e.target.value })} />
-          </label>
-        </div>
-        <p className="text-xs text-muted">
-          Palavras por página: ~250 em livros de bolso, ~300 no padrão, ~400 em páginas densas. Para afinar, conte as palavras de
-          3 linhas, divida por 3 e multiplique pelo número de linhas da página.
-        </p>
-        <label className="block space-y-1"><span className="label">Pasta</span>
-          <FolderSelect folders={folders} value={f.folder_id} onChange={(id) => setF({ ...f, folder_id: id })} />
-        </label>
-        {err && <p className="text-sm text-critical">{err}</p>}
-        <div className="flex justify-end gap-2">
-          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" disabled={busy}>Salvar</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-/** "Título - Sobrenome, Nome" → { título, "Sobrenome, Nome" } (padrão de catálogo) */
-function splitTitle(title: string): { title: string; author: string } | null {
-  const m = title.match(/^(.+?)\s+[-–—]\s+(.+)$/);
-  if (!m) return null;
-  return { title: m[1].trim(), author: m[2].trim() };
-}
-
-function EditBookModal({ book, folders, coverUrl, onClose, onSaved, onCover }: {
-  book: Book; folders: F[]; coverUrl?: string; onClose: () => void; onSaved: (b: Book) => void; onCover: (id: string, url: string | null) => void;
-}) {
-  const [coverPath, setCoverPath] = useState(book.cover_path ?? null);
-  const [preview, setPreview] = useState<string | undefined>(coverUrl);
-  const [coverBusy, setCoverBusy] = useState<string | null>(null);
-  const coverInput = useRef<HTMLInputElement>(null);
-  const [link, setLink] = useState("");
-
-  async function applyLink(value: string) {
-    setCoverBusy("Buscando a imagem…");
-    setErr(null);
-    try {
-      const r = await setCoverFromLink({ id: book.id, cover_path: coverPath }, value);
-      setCoverPath(r.path);
-      setPreview(r.url);
-      onCover(book.id, r.url);
-      setLink("");
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setCoverBusy(null);
-    }
-  }
-
-  async function applyCover(img: Blob | null, how: string) {
-    if (!img) { setErr(how === "epub" ? "Este EPUB não tem capa embutida." : "Imagem inválida."); return; }
-    setCoverBusy("Salvando capa…");
-    setErr(null);
-    try {
-      const path = await setCover({ id: book.id, cover_path: coverPath }, img);
-      setCoverPath(path);
-      const url = URL.createObjectURL(img);
-      setPreview(url);
-      onCover(book.id, url);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setCoverBusy(null);
-    }
-  }
-
-  function onPaste(e: React.ClipboardEvent) {
-    const item = [...e.clipboardData.items].find((i) => i.type.startsWith("image/"));
-    if (item) { e.preventDefault(); void applyCover(item.getAsFile(), "colar"); return; }
-    const text = e.clipboardData.getData("text").trim();
-    const inField = (e.target as HTMLElement).closest("input[name=titulo],input[name=autor]");
-    if (!inField && /^https?:\/\/\S+$/.test(text)) { e.preventDefault(); setLink(text); void applyLink(text); }
-  }
-
-  const [title, setTitle] = useState(book.title);
-  const [author, setAuthor] = useState(book.author ?? "");
-  const [folderId, setFolderId] = useState(book.folder_id ?? "");
-  const [pages, setPages] = useState(book.total_pages ? String(book.total_pages) : "");
-  const [current, setCurrent] = useState(book.current_page ? String(book.current_page) : "");
-  const [wpp, setWpp] = useState(String(book.words_per_page ?? 300));
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const suggestion = splitTitle(title);
-  const physical = book.format === "fisico";
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    const patch: Partial<Book> = { title: title.trim(), author: author.trim() || null, folder_id: folderId || null };
-    if (physical) {
-      const total = Number(pages) || null;
-      const cur = Number(current) || null;
-      const w = Number(wpp) || 300;
-      Object.assign(patch, {
-        total_pages: total, current_page: cur, words_per_page: w,
-        word_count: total ? total * w : null,
-        progress: total && cur ? Math.min(1, cur / total) : 0,
-      });
-    }
-    const { error } = await supabase().from("books").update(patch).eq("id", book.id);
-    if (error) { setErr(error.message); setBusy(false); return; }
-    onSaved({ ...book, ...patch, cover_path: coverPath });
-  }
-
-  return (
-    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={onClose}>
-      <form onSubmit={save} onPaste={onPaste} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3 max-h-[92vh] overflow-y-auto">
-        <div className="flex justify-between items-center">
-          <h2 className="modal-title">Editar livro</h2>
-          <button type="button" onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
-        </div>
-        <div className="flex gap-4 items-start">
-          <Cover book={book} url={preview} className="w-24 h-36" />
-          <div className="flex flex-col gap-1.5 text-sm">
-            <span className="label">Capa</span>
-            <button type="button" className="btn text-xs py-1" onClick={() => coverInput.current?.click()} disabled={!!coverBusy}>
-              <Upload size={13} /> Enviar imagem
-            </button>
-            {book.format === "epub" && (
-              <button type="button" className="btn text-xs py-1" disabled={!!coverBusy}
-                onClick={async () => { setCoverBusy("Lendo o EPUB…"); try { await applyCover(await epubCover(await downloadBook(book)), "epub"); } finally { setCoverBusy(null); } }}>
-                Usar a capa do EPUB
-              </button>
-            )}
-            {coverPath && (
-              <button type="button" className="btn btn-ghost text-xs py-1 hover:text-critical" disabled={!!coverBusy}
-                onClick={async () => { await removeCover({ id: book.id, cover_path: coverPath }); setCoverPath(null); setPreview(undefined); onCover(book.id, null); }}>
-                <Trash2 size={13} /> Remover capa
-              </button>
-            )}
-            <div className="flex gap-1 mt-1">
-              <input className="input text-xs py-1" placeholder="ou cole o link da imagem" value={link} onChange={(e) => setLink(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (link.trim()) void applyLink(link); } }} />
-              <button type="button" className="btn text-xs py-1 whitespace-nowrap" disabled={!link.trim() || !!coverBusy} onClick={() => applyLink(link)}>Usar link</button>
-            </div>
-            <span className="text-xs text-muted">{coverBusy ?? "também dá para colar uma imagem copiada (Ctrl+V)"}</span>
-            <input ref={coverInput} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void applyCover(f, "arquivo"); e.target.value = ""; }} />
-          </div>
-        </div>
-        <label className="block space-y-1"><span className="label">Título</span>
-          <input className="input" name="titulo" required autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
-        </label>
-        {suggestion && (
-          <button type="button" className="text-xs text-accent text-left"
-            onClick={() => { setTitle(suggestion.title); if (!author.trim()) setAuthor(suggestion.author); }}>
-            Separar: título “{suggestion.title}” · autor “{suggestion.author}”
-          </button>
-        )}
-        <label className="block space-y-1"><span className="label">Autor</span>
-          <input className="input" name="autor" value={author} placeholder="Sobrenome, Nome" onChange={(e) => setAuthor(e.target.value)} />
-        </label>
-        <label className="block space-y-1"><span className="label">Pasta (CDD)</span>
-          <FolderSelect folders={folders} value={folderId} className="input" onChange={setFolderId} />
-        </label>
-        {physical && (
-          <div className="grid grid-cols-3 gap-3">
-            <label className="space-y-1"><span className="label">Páginas</span>
-              <input className="input" type="number" min={1} value={pages} onChange={(e) => setPages(e.target.value)} />
-            </label>
-            <label className="space-y-1"><span className="label">Estou na p.</span>
-              <input className="input" type="number" min={0} value={current} onChange={(e) => setCurrent(e.target.value)} />
-            </label>
-            <label className="space-y-1"><span className="label">Palavras/pág.</span>
-              <input className="input" type="number" min={50} max={1000} value={wpp} onChange={(e) => setWpp(e.target.value)} />
-            </label>
-          </div>
-        )}
-        {err && <p className="text-sm text-critical">{err}</p>}
-        <div className="flex justify-end gap-2">
-          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" disabled={busy}>Salvar</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function FolderModal({ folders, edit, parentId, onClose, onSaved }: {
-  folders: F[]; edit?: F; parentId: string | null; onClose: () => void; onSaved: (id: string | null) => void;
-}) {
-  const [code, setCode] = useState(edit?.code ?? "");
-  const [name, setName] = useState(edit?.name ?? "");
-  const [parent, setParent] = useState<string>(edit ? edit.parent_id ?? "" : parentId ?? "");
-  const [err, setErr] = useState<string | null>(null);
-  // não pode mover a pasta para dentro dela mesma
-  const blocked = useMemo(() => {
-    if (!edit) return new Set<string>();
-    const out = new Set([edit.id]);
-    let grew = true;
-    while (grew) {
-      grew = false;
-      for (const f of folders) if (f.parent_id && out.has(f.parent_id) && !out.has(f.id)) { out.add(f.id); grew = true; }
-    }
-    return out;
-  }, [folders, edit]);
-  const parentFolder = folders.find((f) => f.id === parent);
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    const row = { code: code.trim() || null, name: name.trim(), parent_id: parent || null };
-    if (!row.name) return;
-    const sb = supabase();
-    if (edit) {
-      const { error } = await sb.from("folders").update(row).eq("id", edit.id);
-      if (error) return setErr(error.message);
-      onSaved(edit.id);
-    } else {
-      const siblings = folders.filter((f) => f.parent_id === row.parent_id).length;
-      const { data, error } = await sb.from("folders").insert({ ...row, position: siblings }).select("id").single();
-      if (error) return setErr(error.message);
-      onSaved(data?.id ?? null);
-    }
-  }
-
-  return (
-    <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/40" onClick={onClose}>
-      <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5 space-y-3">
-        <div className="flex justify-between items-center">
-          <h2 className="modal-title">{edit ? "Editar pasta" : parentFolder ? "Nova subpasta" : "Nova pasta"}</h2>
-          <button type="button" onClick={onClose} className="modal-close" aria-label="Fechar"><X size={18} /></button>
-        </div>
-        <label className="block space-y-1"><span className="label">Dentro de</span>
-          <FolderSelect folders={folders} value={parent} onChange={setParent} exclude={blocked} emptyLabel="— pasta principal (nova classe) —" />
-        </label>
-        <div className="grid grid-cols-[110px_1fr] gap-3">
-          <label className="space-y-1"><span className="label">Código CDD</span>
-            <input className="input font-mono" value={code} autoFocus placeholder={parentFolder?.code ? `${parentFolder.code}…` : "ex.: 869.1"} onChange={(e) => setCode(e.target.value)} />
-          </label>
-          <label className="space-y-1"><span className="label">Nome</span>
-            <input className="input" required value={name} placeholder="ex.: Poesia brasileira" onChange={(e) => setName(e.target.value)} />
-          </label>
-        </div>
-        <p className="text-xs text-muted">O código ordena as pastas como numa biblioteca (109 vem antes de 111.85) e forma o número de chamada dos livros (ex.: 869.1-03).</p>
-        {err && <p className="text-sm text-critical">{err}</p>}
-        <div className="flex justify-end gap-2">
-          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary">Salvar</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-

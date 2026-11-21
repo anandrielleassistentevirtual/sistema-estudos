@@ -39,6 +39,4 @@ export const OPCOES_LIVRO: OpcaoStatus<BookStatus>[] = [
   { value: "lendo", label: STATUS_LABEL.lendo, cor: "var(--area-leitura)" },
   { value: "pausado", label: STATUS_LABEL.pausado, cor: "var(--warn)" },
   { value: "lido", label: STATUS_LABEL.lido, cor: "var(--good)" },
-  // obra de consulta: a cor da Pesquisa (é para consultar, não para ler de ponta a ponta)
-  { value: "consulta", label: STATUS_LABEL.consulta, cor: "var(--area-pesquisa)" },
 ];

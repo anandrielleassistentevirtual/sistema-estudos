@@ -113,14 +113,3 @@ export function progressoDaMesa(
   }
   return { total, lidas, faltam: total - lidas, pct: total ? lidas / total : 0, livrosLidos, livros: itens.length };
 }
-
-/** 118000 → "118 mil"; 1250000 → "1,25 mi" */
-export function palavrasCurto(n: number) {
-  if (n >= 1e6) return `${(n / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mi`;
-  if (n >= 1e3) return `${Math.round(n / 1e3).toLocaleString("pt-BR")} mil`;
-  return String(Math.round(n));
-}
-
-/** 0.034 → "3,4%"; 0.42 → "42%" (com uma casa enquanto é pequeno, para o avanço aparecer) */
-export const pctTexto = (p: number) =>
-  `${(p * 100).toLocaleString("pt-BR", { maximumFractionDigits: p > 0 && p < 0.1 ? 1 : 0 })}%`;

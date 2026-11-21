@@ -163,7 +163,7 @@ export function RoteiroLeitura({ livro, outros, onMudou, onFechar, className = "
                 {tema.trim() && (
                   <div className="mt-2">
                     <div className="text-xs text-muted mb-1">Bibliografia provisória · {bibliografia.length + 1} {bibliografia.length ? "livros" : "livro"} com este assunto</div>
-                    {bibliografia.length === 0 ? <p className="text-xs text-faint">Dê o mesmo assunto aos outros livros (em “Como ler” de cada um) para montar a bibliografia.</p> : (
+                    {bibliografia.length === 0 ? <p className="text-xs text-faint">Monte a bibliografia na aba Temas da Biblioteca (ou dê o mesmo assunto a outros livros).</p> : (
                       <ul className="space-y-1">
                         {bibliografia.map((b) => (
                           <li key={b.id} className="text-[13px] truncate">

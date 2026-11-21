@@ -129,7 +129,7 @@ export default function Dashboard() {
   const concluidosAnt = books.filter((b) => naData(b.finished_at, periodo.antDe, periodo.antAte)).length;
   const lastDone = books.filter((b) => b.finished_at).sort((a, b) => (b.finished_at! > a.finished_at! ? 1 : -1))[0];
   const remainingWords = books
-    .filter((b) => b.status !== "lido" && b.status !== "consulta") // obras de consulta não estão "pela frente"
+    .filter((b) => b.status !== "lido")
     .reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
 
   // média simples entre os dois ritmos (a aula falada costuma render mais palavras por minuto que o livro)
@@ -186,7 +186,7 @@ export default function Dashboard() {
           <h2 className="card-title mb-3">Continuar lendo</h2>
           {reading.length === 0 ? (
             <p className="text-sm text-muted">
-              Nada em andamento. Escolha algo na <Link className="text-accent" href="/biblioteca">fila de leitura</Link>.
+              Nada em andamento. Veja o próximo no <Link className="text-accent" href="/biblioteca">plano de leitura</Link>.
             </p>
           ) : (
             <ul className="space-y-1">
@@ -230,9 +230,6 @@ export default function Dashboard() {
               </Link>
             ))}
           </div>
-          {count("consulta") > 0 && (
-            <p className="text-xs text-muted mt-2">+ {count("consulta")} {count("consulta") === 1 ? "obra" : "obras"} de consulta (fora dos indicadores)</p>
-          )}
           <p className="text-xs text-muted mt-2">Concluídos — {periodo.nome.toLowerCase()}: <b className="text-ink font-medium">{concluidos}</b></p>
           {lastDone && (
             <p className="text-xs text-muted mt-1 truncate" title={lastDone.title}>
