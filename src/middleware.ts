@@ -7,5 +7,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   // api/listening: instalação do script pela extensão (sem login; protegida pelo código de 30 min)
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|api/listening/|.*\\.(?:svg|png|jpg|ico)$).*)"],
+  // api/saude: o atalho do iPhone manda passos e sono (sem login; protegido pela chave pessoal)
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|api/listening/|api/saude|.*\\.(?:svg|png|jpg|ico)$).*)"],
 };

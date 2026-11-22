@@ -71,6 +71,7 @@
   --area-pesquisa: #c29a1f;
   --area-exercicio: #e05d5d;
   --area-outro: #8e8e93;
+  --area-sono: #5b63d3;
   /* rubricas da Lectio (℣, ℟ e números dos versículos), em vermelho como nos missais */
   --rubrica: #b3261e;
 }
@@ -138,6 +139,7 @@
     --area-pesquisa: #dcb847;
     --area-exercicio: #f07272;
     --area-outro: #8e8e93;
+    --area-sono: #8b93f2;
     --rubrica: #ff7a6e;
   }
 }
@@ -204,6 +206,7 @@
   --area-pesquisa: #dcb847;
   --area-exercicio: #f07272;
   --area-outro: #8e8e93;
+  --area-sono: #8b93f2;
   --rubrica: #ff7a6e;
 }
 
