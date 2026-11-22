@@ -18,7 +18,10 @@ export function BarChart({
   corParte = "var(--area-idiomas)",
   rotuloParte = "MAR",
   cor = "var(--chart)",
+  fmtValor,
 }: {
+  /** como escrever um valor (eixo, média, meta, dica): ex. horas como "7h30". Sem isto: número + unidade */
+  fmtValor?: (v: number) => string;
   /** parte: um pedaço do valor (ex.: os minutos do MAR), pintado sólido no pé da barra */
   data: { label: string; value: number; detail?: string; parte?: number }[];
   unit: string;
@@ -112,18 +115,18 @@ export function BarChart({
         {/* grade: linhas finas e contínuas (tracejado parece "meta" ou "projeção") */}
         {[0.5, 1].map((f) => (
           <div key={f} className="absolute inset-x-0 border-t border-line/70" style={{ bottom: f * height }}>
-            <span className="absolute -top-2 -right-9 w-8 text-left z-10 text-[10px] text-faint pl-1 tabular-nums">{nf.format(nice * f)}</span>
+            <span className="absolute -top-2 -right-9 w-8 text-left z-10 text-[10px] text-faint pl-1 tabular-nums">{fmtValor ? fmtValor(nice * f) : nf.format(nice * f)}</span>
           </div>
         ))}
         <div className="absolute inset-x-0 bottom-0 border-t border-line" />
         {average !== undefined && average > 0 && (
           <div className="absolute inset-x-0 border-t-2 border-faint/70 pointer-events-none" style={{ bottom: (average / nice) * height }}>
-            <span className="absolute -top-4 left-0 text-[10px] text-muted bg-surface pr-1">média {nf.format(Math.round(average))}</span>
+            <span className="absolute -top-4 left-0 text-[10px] text-muted bg-surface pr-1">média {fmtValor ? fmtValor(average) : nf.format(Math.round(average))}</span>
           </div>
         )}
         {meta !== undefined && meta > 0 && (
           <div className="absolute inset-x-0 border-t border-dashed pointer-events-none" style={{ bottom: (meta / nice) * height, borderColor: "var(--good)" }}>
-            <span className="absolute -top-4 right-0 text-[10px] bg-surface pl-1" style={{ color: "var(--good)" }}>meta {nf.format(Math.round(meta))}</span>
+            <span className="absolute -top-4 right-0 text-[10px] bg-surface pl-1" style={{ color: "var(--good)" }}>meta {fmtValor ? fmtValor(meta) : nf.format(Math.round(meta))}</span>
           </div>
         )}
         {data.map((d, i) => (
@@ -171,19 +174,22 @@ export function BarChart({
           role="status"
         >
           <div className="font-medium tabular-nums">
-            {nf.format(data[sel].value)} {unit}
+            {fmtValor ? fmtValor(data[sel].value) : `${nf.format(data[sel].value)} ${unit}`}
           </div>
           <div className="opacity-80">{data[sel].detail ?? data[sel].label}</div>
         </div>
       )}
       {/* os mesmos números em texto, para leitores de tela */}
-      <table className="sr-only">
+      {/* a tabela fica dentro de um bloco escondido: uma tabela com sr-only ignora a altura de 1px e vaza a página */}
+      <div className="sr-only">
+      <table>
         <tbody>
           {data.map((d, i) => (
-            <tr key={i}><th scope="row">{d.detail ?? d.label}</th><td>{nf.format(d.value)} {unit}{d.parte ? ` (${rotuloParte} ${nf.format(d.parte)})` : ""}</td></tr>
+            <tr key={i}><th scope="row">{d.detail ?? d.label}</th><td>{fmtValor ? fmtValor(d.value) : `${nf.format(d.value)} ${unit}`}{d.parte ? ` (${rotuloParte} ${fmtValor ? fmtValor(d.parte) : nf.format(d.parte)})` : ""}</td></tr>
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
