@@ -2,10 +2,10 @@
 import { supabase, userId } from "./supabase/client";
 import type { Book } from "./types";
 
-/** Reduz a imagem para no máximo 420px de altura (nítida nas miniaturas e no cadastro) e converte para WebP/JPEG leve. */
-async function shrink(img: Blob): Promise<Blob> {
+/** Reduz a imagem (padrão: 420px de altura, nítida nas miniaturas de capa) e converte para WebP/JPEG leve. */
+export async function shrink(img: Blob, maxLado = 420, lado: "altura" | "maior" = "altura"): Promise<Blob> {
   const bmp = await createImageBitmap(img);
-  const scale = Math.min(1, 420 / bmp.height);
+  const scale = Math.min(1, maxLado / (lado === "altura" ? bmp.height : Math.max(bmp.width, bmp.height)));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bmp.width * scale);
   canvas.height = Math.round(bmp.height * scale);
@@ -32,7 +32,7 @@ export async function setCover(book: Pick<Book, "id" | "cover_path">, image: Blo
   return path;
 }
 
-const isLink = (p: string) => /^https?:\/\//.test(p);
+export const isLink = (p: string) => /^https?:\/\//.test(p);
 
 /**
  * Capa a partir do link de uma imagem (como no Notion). Tenta guardar uma cópia;

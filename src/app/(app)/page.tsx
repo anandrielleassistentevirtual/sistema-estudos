@@ -13,6 +13,7 @@ import { addDays, dayKey, fmtDuration, nf, parseDay } from "@/lib/dates";
 import { FiltroPeriodo } from "@/components/filtro-periodo";
 import { Variacao } from "@/components/variacao";
 import { SeasonPainel } from "@/components/season-painel";
+import { QuadroSonhos } from "@/components/quadro-sonhos";
 import { somaNoPeriodo, usePeriodo } from "@/lib/periodo";
 import { DayStats, inicio12Meses, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
@@ -241,6 +242,9 @@ export default function Dashboard() {
           )}
         </div>
       </section>
+
+      {/* para onde tudo isso leva */}
+      <QuadroSonhos />
       </div>
     </Page>
   );
