@@ -1,36 +1,21 @@
 "use client";
 /**
- * Quadro dos sonhos: os sonhos de vida, cada um com imagem, uma frase e a área da vida a que pertence.
+ * Quadro dos sonhos: uma colagem de imagens (o nome do sonho é opcional e não aparece no quadro).
  * As imagens ficam no armazenamento do sistema (reduzidas, como as capas) ou são o link de uma imagem da internet.
  */
 import { supabase, userId } from "./supabase/client";
 import { isLink, shrink } from "./covers";
-import { COR_AREA } from "./cores";
 
 export interface Sonho {
   id: string;
   titulo: string;
   frase: string;
-  area: AreaSonho;
+  area: string;
   imagem: string | null;
   posicao: number;
   realizado_em: string | null;
   created_at: string;
 }
-
-export type AreaSonho = "espiritual" | "intelectual" | "escrita" | "idiomas" | "saude" | "familia" | "viagens" | "trabalho" | "outro";
-export const AREAS_SONHO: { id: AreaSonho; nome: string; cor: string }[] = [
-  { id: "espiritual", nome: "Espiritual", cor: COR_AREA.oracao },
-  { id: "intelectual", nome: "Intelectual", cor: COR_AREA.estudos },
-  { id: "escrita", nome: "Escrita", cor: COR_AREA.escrita },
-  { id: "idiomas", nome: "Idiomas", cor: COR_AREA.idiomas },
-  { id: "saude", nome: "Saúde", cor: COR_AREA.exercicio },
-  { id: "familia", nome: "Família", cor: "#b07d4f" },
-  { id: "viagens", nome: "Viagens", cor: COR_AREA.leitura },
-  { id: "trabalho", nome: "Trabalho", cor: COR_AREA.pesquisa },
-  { id: "outro", nome: "Outro", cor: COR_AREA.outro },
-];
-export const areaDoSonho = (id: string) => AREAS_SONHO.find((a) => a.id === id) ?? AREAS_SONHO[AREAS_SONHO.length - 1];
 
 export async function carregarSonhos(): Promise<Sonho[]> {
   const { data, error } = await supabase().from("sonhos").select("*").order("posicao").order("created_at");
