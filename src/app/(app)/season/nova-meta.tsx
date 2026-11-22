@@ -1,15 +1,13 @@
 "use client";
+import type { AulaT, BaralhoT, Livro } from "@/lib/metas";
+export type { AulaT, BaralhoT, Livro };
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { arvoreDePastas, caminhoDaPasta, faltam, subarvore, type PastaEstudo } from "@/lib/estudos";
 import { nf } from "@/lib/dates";
 import { AREAS, type Area, type Meta } from "@/lib/temporadas";
-import type { BookStatus } from "@/lib/types";
 
-export interface Livro { id: string; title: string; author: string | null; word_count: number | null; progress: number; status: BookStatus; format: string }
-export interface AulaT { id: string; title: string; pasta_id: string | null; palavras: number; progresso: number; situacao: "pendente" | "lendo" | "concluida"; ordem?: number | null }
-export interface BaralhoT { nome: string; total: number }
 
 type Tipo = "livros" | "aulas" | "anki" | "palavras" | "horas" | "contagem";
 type Medida = NonNullable<Meta["medida"]>;
@@ -23,8 +21,8 @@ const TIPOS: { id: Tipo; nome: string; exemplo: string }[] = [
 ];
 const MEDIDAS: { id: Medida; nome: string; dica: string }[] = [
   { id: "total", nome: "Total no baralho", dica: "o baralho chega a N cartões" },
-  { id: "criados", nome: "Cartões novos", dica: "criar N cartões na temporada" },
-  { id: "revisoes", nome: "Revisões", dica: "fazer N revisões na temporada" },
+  { id: "criados", nome: "Cartões novos", dica: "criar N cartões na season" },
+  { id: "revisoes", nome: "Revisões", dica: "fazer N revisões na season" },
 ];
 
 function nomeAutomatico(tipo: Tipo, n: number, alvo: string, area: Area, baralho: string, medida: Medida, unidade = "", prazo = "") {
@@ -130,7 +128,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
     <div className="modal fixed inset-0 z-[62] grid place-items-center p-4 bg-black/45" onClick={onClose}>
       <div className="card w-full max-w-md p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="modal-title">{editar ? "Editar a meta" : "Nova meta da temporada"}</h2>
+          <h2 className="modal-title">{editar ? "Editar a meta" : "Nova meta da season"}</h2>
           <button onClick={onClose} className="p-1.5 -m-1.5 sm:p-0 sm:m-0 text-muted hover:text-ink" aria-label="Fechar"><X size={18} /></button>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -194,7 +192,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
                 placeholder={pasta ? "Filtrar as aulas deste curso" : "Buscar aula pelo nome (ex.: COF 12)"} />
             </label>
             <div className="flex items-center justify-between text-xs text-muted">
-              <span>Marque as aulas que vai fazer nesta temporada</span>
+              <span>Marque as aulas que vai fazer nesta season</span>
               <span className="flex gap-2">
                 {pasta && !soEscolhidas && (
                   <button className="hover:text-ink" title="Marca todas as pendentes que estão na lista"
@@ -250,7 +248,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
               ))}
             </div>
             <label className="block"><span className="label">
-              {medida === "total" ? "O baralho chega a (cartões)" : medida === "criados" ? "Cartões novos na temporada" : "Revisões na temporada"}</span>
+              {medida === "total" ? "O baralho chega a (cartões)" : medida === "criados" ? "Cartões novos na season" : "Revisões na season"}</span>
               <input className="input mt-1" inputMode="numeric" value={alvo} onChange={(e) => setAlvo(e.target.value.replace(/\D/g, ""))}
                 placeholder={medida === "total" && totalBaralho ? `hoje: ${nf.format(totalBaralho)}` : "ex.: 500"} /></label>
             {medida === "total" && totalBaralho !== undefined && <p className="text-xs text-muted">Hoje o baralho tem {nf.format(totalBaralho)} cartões.</p>}
@@ -259,7 +257,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
 
         {tipo === "contagem" && (
           <div className="space-y-3 text-sm">
-            {soContagem && <p className="text-xs text-muted">A temporada já tem 3 metas; cabe ainda uma reta curta de contagem.</p>}
+            {soContagem && <p className="text-xs text-muted">A season já tem 3 metas; cabe ainda uma reta curta de contagem.</p>}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <label className="block"><span className="label">Quantas</span>
                 <input className="input mt-1" inputMode="numeric" value={alvo} onChange={(e) => setAlvo(e.target.value.replace(/\D/g, ""))} placeholder="ex.: 28" /></label>
@@ -277,7 +275,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
         )}
 
         {tipo === "palavras" && (
-          <label className="block text-sm"><span className="label">Palavras a escrever na temporada</span>
+          <label className="block text-sm"><span className="label">Palavras a escrever na season</span>
             <input className="input mt-1" inputMode="numeric" value={alvo} onChange={(e) => setAlvo(e.target.value.replace(/\D/g, ""))} placeholder="ex.: 30000" /></label>
         )}
 
@@ -287,7 +285,7 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
               <select className="input mt-1" value={area} onChange={(e) => setArea(e.target.value as Area)}>
                 {AREAS.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
               </select></label>
-            <label className="block"><span className="label">Horas na temporada</span>
+            <label className="block"><span className="label">Horas na season</span>
               <input className="input mt-1" inputMode="decimal" value={alvo} onChange={(e) => setAlvo(e.target.value)} placeholder="ex.: 40" /></label>
           </div>
         )}

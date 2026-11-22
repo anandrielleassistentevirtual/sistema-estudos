@@ -12,7 +12,7 @@ import { fmtClock } from "@/lib/dates";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/temporadas", label: "Temporadas", icon: Sprout },
+  { href: "/season", label: "Season", icon: Sprout },
   { href: "/timer", label: "Timer", icon: Timer },
   { sep: true },
   { href: "/lectio", label: "Oração", icon: BookHeart },

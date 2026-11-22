@@ -12,7 +12,7 @@ import { WritingPanel } from "@/components/writing-panel";
 import { addDays, dayKey, fmtDuration, nf, parseDay } from "@/lib/dates";
 import { FiltroPeriodo } from "@/components/filtro-periodo";
 import { Variacao } from "@/components/variacao";
-import { TemporadaLinha } from "@/components/temporada-linha";
+import { SeasonPainel } from "@/components/season-painel";
 import { somaNoPeriodo, usePeriodo } from "@/lib/periodo";
 import { DayStats, inicio12Meses, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
@@ -138,7 +138,7 @@ export default function Dashboard() {
 
   return (
     // tudo numa tela: indicadores no topo; calendário e tempo lado a lado; escrita, leitura e biblioteca embaixo
-    <Page denso title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={<>{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · <TemporadaLinha /></>}
+    <Page denso title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
       titleExtra={
         <button className="text-faint hover:text-ink p-1 -m-1 rounded-md" title={nome ? "Trocar o nome" : "Como quer ser chamado?"} aria-label="Trocar o nome" onClick={async () => {
           const n = prompt("Seu nome:", nome)?.trim();
@@ -170,6 +170,9 @@ export default function Dashboard() {
           hint={concluidos || concluidosAnt ? <Variacao atual={concluidos} base={concluidosAnt} vs={periodo.vs} /> : `${count("aguardando")} aguardando na fila`}
           explica={`Livros terminados — ${periodo.nome.toLowerCase()}. Na fila: ${count("aguardando")} aguardando${ppmLivros && remainingWords ? `, ≈ ${Math.round(remainingWords / ppmLivros / 60)} h de leitura pela frente` : ""}.`} />
       </div>
+
+      {/* a Season: a estação, as semanas e as metas (os mesmos números da página da Season) */}
+      <SeasonPainel />
 
       <ConfissaoAviso />
 

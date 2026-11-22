@@ -10,7 +10,8 @@ import { todas } from "@/lib/supabase/todas";
 import { addDays, dayKey, fmtDuration, nf, parseDay } from "@/lib/dates";
 import type { Meta } from "@/lib/temporadas";
 
-export interface ItemDaMeta { id: string; titulo: string; total: number; falta: number; feito: boolean; quando?: string; ok?: boolean }
+import type { ItemDaMeta } from "@/lib/metas";
+export type { ItemDaMeta };
 export interface ResumoDaMeta {
   numeros: { valor: string; rotulo: string; cor?: string }[];
   selo: string; corSelo: string; sub?: string; pct: number;
@@ -180,7 +181,7 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
                       <span className="w-8 text-right">{Math.round(pct * 100)}%</span>
                     </div>
                     <div className="mt-0.5 text-[11px] text-faint tabular-nums">
-                      {x?.palavras ? `${nf.format(x.palavras)} pal. lidas na temporada` : "nada lido na temporada"}{x?.segundos ? ` · ${fmtDuration(x.segundos)}` : ""}
+                      {x?.palavras ? `${nf.format(x.palavras)} pal. lidas na season` : "nada lido na season"}{x?.segundos ? ` · ${fmtDuration(x.segundos)}` : ""}
                       {!it.feito && ` · faltam ${nf.format(Math.round(it.falta))} pal.`}
                     </div>
                   </li>
@@ -193,7 +194,7 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
                   <tr className="text-[11px] text-muted [&>th]:font-normal [&>th]:py-1 [&>th]:px-2 [&>th]:text-right [&>th]:whitespace-nowrap">
                     <th className="!text-left !pl-0">{meta.tipo === "livros" ? "Livro" : "Aula"}</th>
                     <th className="w-36">Progresso</th>
-                    <th>Lido na temporada</th>
+                    <th>Lido na season</th>
                     <th>Falta</th>
                     <th className={onTirar ? "" : "!pr-0"}>Previsão</th>
                     {onTirar && <th className="!pr-0 w-6"><span className="sr-only">Tirar</span></th>}

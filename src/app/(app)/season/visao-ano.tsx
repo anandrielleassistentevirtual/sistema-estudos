@@ -204,7 +204,7 @@ export function VisaoAno({ onAbrir }: { onAbrir: (e: Estacao, ano: number) => vo
               const cumpridas = e.metas.filter((x) => x.pct >= 0.999).length;
               const agora = e.estacao === atual.estacao && e.ano === atual.ano;
               return (
-                <button key={`${e.estacao}${e.ano}`} onClick={() => onAbrir(e.estacao, e.ano)} title="Abrir esta temporada"
+                <button key={`${e.estacao}${e.ano}`} onClick={() => onAbrir(e.estacao, e.ano)} title="Abrir esta season"
                   className={`card px-4 py-3 text-left min-w-0 hover:border-[var(--muted)] transition-colors ${agora ? "ring-1 ring-[var(--muted)]" : ""}`}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium flex items-center gap-1.5 min-w-0 truncate"><EstacaoIcone estacao={e.estacao} size={16} />{nomeDaTemporada(e.estacao, e.ano)}</span>
@@ -291,7 +291,7 @@ export function VisaoAno({ onAbrir }: { onAbrir: (e: Estacao, ano: number) => vo
                           <td key={`${e.estacao}${e.ano}`} className="whitespace-nowrap">
                             <span className={x.seg ? "" : "text-faint"}>{x.seg ? horas(x.seg) : "—"}</span>
                             {nat.u !== "min" && x.q > 0 && <span className="text-[11px] text-muted ml-1.5" title={`${N(x.q)} ${nat.nome}`}>{curto.format(x.q)} {nat.u === "cartoes" ? "novos" : "pal."}</span>}
-                            {x.pct !== null && <span className="text-[11px] ml-1.5 font-medium inline-block w-9" style={{ color: corDaNota(Math.min(1, x.pct)) }} title="do plano da temporada">{Math.round(x.pct * 100)}%</span>}
+                            {x.pct !== null && <span className="text-[11px] ml-1.5 font-medium inline-block w-9" style={{ color: corDaNota(Math.min(1, x.pct)) }} title="do plano da season">{Math.round(x.pct * 100)}%</span>}
                           </td>
                         );
                       })}

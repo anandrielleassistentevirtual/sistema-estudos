@@ -61,7 +61,8 @@ export function TimeBreakdown({ compacto = false, periodo }: { compacto?: boolea
       m.set(key, v);
     };
     for (const s of sessions) {
-      if (s.day < from || s.day > ate || !contaComoEstudo(s.label, anki.ankiWeb, s.category)) continue;
+      // a Oração não entra aqui: este quadro é sobre o tempo de estudo (ela tem a sua própria aba)
+      if (s.day < from || s.day > ate || s.category === "Oração" || !contaComoEstudo(s.label, anki.ankiWeb, s.category)) continue;
       if (s.category === "Idiomas") add(`lang:${s.language ?? ""}`, s.language || "Idiomas (sem idioma)", "Idioma", s.seconds);
       else if (s.category === "Estudos") {
         const course = s.note_id ? courseOf.get(s.note_id) : undefined;
@@ -81,7 +82,7 @@ export function TimeBreakdown({ compacto = false, periodo }: { compacto?: boolea
     for (const a of anki.dias) if (a.day >= from && a.day <= ate) add(`lang:${a.idioma}`, a.idioma, "Idioma", a.segundos);
     return [...m.entries()].map(([key, v]) => ({ key, ...v })).sort((a, b) => b.seconds - a.seconds);
   }, [sessions, reading, courseOf, period, anki, periodo?.de, periodo?.ate]); // eslint-disable-line react-hooks/exhaustive-deps
-  // o total é o mesmo dos indicadores (tudo); itens com menos de 1 min só não ganham linha própria
+  // o total é o tempo de estudo (sem a Oração); itens com menos de 1 min só não ganham linha própria
   const total = todasLinhas.reduce((a, r) => a + r.seconds, 0);
   const rows = todasLinhas.filter((r) => r.seconds >= 60);
 
@@ -96,7 +97,7 @@ export function TimeBreakdown({ compacto = false, periodo }: { compacto?: boolea
       <div className={`flex flex-wrap items-center justify-between gap-2 ${compacto ? "mb-3" : "mb-4"}`}>
         <div>
           <h2 className="card-title">Onde está indo seu tempo</h2>
-          <p className="text-xs text-muted mt-0.5">{total ? `${fmtDuration(total)} no total${periodo ? ` · ${periodo.nome.toLowerCase()}` : ""}` : "Nenhum tempo registrado no período"}</p>
+          <p className="text-xs text-muted mt-0.5">{total ? `${fmtDuration(total)} de estudo${periodo ? ` · ${periodo.nome.toLowerCase()}` : ""}` : "Nenhum tempo registrado no período"}</p>
         </div>
         {!periodo && <div className="seg flex w-full sm:w-auto sm:inline-flex">
           {PERIODS.map((p) => (
