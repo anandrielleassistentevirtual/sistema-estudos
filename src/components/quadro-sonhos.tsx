@@ -1,8 +1,8 @@
 "use client";
 /**
- * Quadro dos sonhos, no fim do Dashboard: um mosaico de imagens coladas umas nas outras, sem palavras,
- * num tom escuro só — para olhar e imaginar. A tela é dividida em retângulos que se encaixam (sem buraco);
- * algumas peças ficam por cima das vizinhas, com sombra, e uma fica em destaque no centro. Cada imagem aparece uma vez só.
+ * Quadro dos sonhos, no fim do Dashboard: as fotos coladas umas nas outras, sem palavras, para olhar e imaginar.
+ * Cada foto no seu formato (quase nada é cortado): o destaque, grande, à esquerda, e as outras em fileiras ao lado
+ * que enchem a largura exata — sem buraco e sem nada por cima. Cada imagem aparece uma vez só.
  * O sonho realizado ganha cor. Montar é rápido: várias imagens de uma vez, arrastar, colar (Ctrl+V) ou o link.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -15,34 +15,79 @@ import { apagarImagem, carregarSonhos, guardarImagem, imagemDoLink, imagensDosSo
 /** textura de grão (une as imagens como uma foto só) */
 const GRAO = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E")`;
 
-interface Ret { x: number; y: number; w: number; h: number }
+const VAO = 3; // a fresta entre as fotos (coladas, mas cada uma inteira)
+interface Peca { s: Sonho; x: number; y: number; w: number; h: number }
 
-/** números "aleatórios" sempre iguais para as mesmas imagens (o mosaico não muda a cada visita) */
-function sorteio(semente: string) {
-  let a = 2166136261;
-  for (const ch of semente) a = Math.imul(a ^ ch.charCodeAt(0), 16777619) >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+/** Divide os itens em `k` fileiras seguidas, com a soma das proporções o mais parecida possível. */
+function fileiras<T extends { r: number }>(itens: T[], k: number): T[][] {
+  const total = itens.reduce((a, x) => a + x.r, 0);
+  const out: T[][] = [];
+  let atual: T[] = [], soma = 0;
+  for (const [i, x] of itens.entries()) {
+    atual.push(x); soma += x.r;
+    const faltamFileiras = k - out.length - 1, faltamItens = itens.length - i - 1;
+    if (faltamFileiras > 0 && (soma >= (total / k) * (out.length + 1) - x.r / 2 || faltamItens === faltamFileiras)) { out.push(atual); atual = []; }
+  }
+  if (atual.length) out.push(atual);
+  return out;
 }
 
-/** Divide o retângulo em n pedaços que se encaixam exatamente (cortes retos, tamanhos variados, sem peças finas demais). */
-function dividir(r: Ret, n: number, rnd: () => number): Ret[] {
-  if (n <= 1) return [r];
-  let n1 = Math.floor(n / 2);
-  if (n > 3 && rnd() < 0.35) n1 += rnd() < 0.5 ? -1 : 1;
-  n1 = Math.min(n - 1, Math.max(1, n1));
-  const p = Math.min(0.72, Math.max(0.28, (n1 / n) * (0.82 + rnd() * 0.36)));
-  const deitado = r.w / r.h;
-  const vertical = deitado > 1.15 || (deitado > 0.85 && rnd() < 0.5);
-  const [a, b]: [Ret, Ret] = vertical
-    ? [{ ...r, w: r.w * p }, { ...r, x: r.x + r.w * p, w: r.w * (1 - p) }]
-    : [{ ...r, h: r.h * p }, { ...r, y: r.y + r.h * p, h: r.h * (1 - p) }];
-  return [...dividir(a, n1, rnd), ...dividir(b, n - n1, rnd)];
+/**
+ * O arranjo do quadro, respeitando o formato de cada foto (quase nada é cortado):
+ * computador — o destaque, grande, à esquerda, na altura toda; as outras em fileiras ao lado, que enchem a largura exata
+ *   (a largura do destaque é escolhida para os dois lados terem a mesma altura);
+ * celular — o destaque em cima, na largura toda; as outras em fileiras embaixo.
+ */
+function arranjar(lista: Sonho[], prop: (s: Sonho) => number, W: number, celular: boolean): { pecas: Peca[]; altura: number } {
+  if (!lista.length || !W) return { pecas: [], altura: 0 };
+  const itens = lista.map((s) => ({ s, r: Math.min(2.4, Math.max(0.45, prop(s))) }));
+  if (itens.length === 1) {
+    const h = Math.min(W / itens[0].r, 520), w = Math.min(W, h * itens[0].r);
+    return { pecas: [{ s: itens[0].s, x: (W - w) / 2, y: 0, w, h }], altura: h };
+  }
+  const [hero, ...resto] = itens;
+  // fileiras justificadas numa largura: cada fileira fica com a altura que faz as fotos encherem a largura exata
+  const montar = (rows: typeof itens[], largura: number, x0: number, y0: number) => {
+    let y = y0;
+    const out: Peca[] = [];
+    for (const row of rows) {
+      const soma = row.reduce((a, x) => a + x.r, 0);
+      const h = (largura - VAO * (row.length - 1)) / soma;
+      let x = x0;
+      for (const it of row) { const w = it.r * h; out.push({ s: it.s, x, y, w, h }); x += w + VAO; }
+      y += h + VAO;
+    }
+    return { out, fim: y - VAO };
+  };
+  if (celular) {
+    const hh = Math.min(W / hero.r, W * 1.5);
+    const rows: typeof itens[] = [];
+    let atual: typeof itens = [], soma = 0;
+    for (const it of resto) { atual.push(it); soma += it.r; if (soma * 150 >= W) { rows.push(atual); atual = []; soma = 0; } }
+    if (atual.length) rows.push(atual);
+    const { out, fim } = montar(rows, W, 0, hh + VAO);
+    return { pecas: [{ s: hero.s, x: 0, y: 0, w: W, h: hh }, ...out], altura: Math.min(fim, hh + VAO + 900) };
+  }
+  // altura natural das fileiras ao lado, numa largura (cada fileira enche a largura exata no formato das fotos)
+  const alturaDe = (rows: typeof itens[], largura: number) =>
+    rows.reduce((a, row) => a + (largura - VAO * (row.length - 1)) / row.reduce((b, x) => b + x.r, 0), 0) + VAO * (rows.length - 1);
+  // para cada número de fileiras, a largura do destaque em que ele e as fileiras ficam da mesma altura (nada cortado);
+  // fica a opção com a altura mais perto de ~520 px
+  let melhor = { rows: [resto], hw: W * 0.35, H: 480, nota: Infinity };
+  for (let k = 1; k <= Math.min(4, resto.length); k++) {
+    const rows = fileiras(resto, k);
+    let a = W * 0.18, b = W * 0.6;
+    for (let it = 0; it < 40; it++) {
+      const m = (a + b) / 2;
+      if (m / hero.r < alturaDe(rows, W - m - VAO)) a = m; else b = m;
+    }
+    const hw = (a + b) / 2, H = hw / hero.r;
+    const nota = Math.abs(Math.log(H / 520)) + (H > 760 ? 2 : 0);
+    if (nota < melhor.nota) melhor = { rows, hw, H, nota };
+  }
+  const { rows, hw, H } = melhor;
+  const { out } = montar(rows, W - hw - VAO, hw + VAO, 0);
+  return { pecas: [{ s: hero.s, x: 0, y: 0, w: hw, h: H }, ...out], altura: H };
 }
 
 export function QuadroSonhos() {
@@ -104,24 +149,20 @@ export function QuadroSonhos() {
   }, [adicionar]);
 
   const comImagem = useMemo(() => (sonhos ?? []).filter((s) => imagens[s.id]).sort((a, b) => a.posicao - b.posicao), [sonhos, imagens]);
+  /** a proporção (largura ÷ altura) de cada foto, lida da própria imagem */
+  const [proporcao, setProporcao] = useState<Record<string, number>>({});
+  useEffect(() => {
+    for (const s of comImagem) {
+      if (proporcao[s.id]) continue;
+      const im = new Image();
+      im.onload = () => im.naturalHeight && setProporcao((p) => ({ ...p, [s.id]: im.naturalWidth / im.naturalHeight }));
+      im.src = imagens[s.id];
+    }
+  }, [comImagem, imagens]); // eslint-disable-line react-hooks/exhaustive-deps
   const celular = largura > 0 && largura < 640;
-  // com poucas imagens o quadro fica mais baixo (as fotos são menos cortadas)
-  const n = comImagem.length;
-  const altura = Math.round((n <= 3 ? 380 : n <= 6 ? 460 : n <= 10 ? 560 : 640) * (celular ? 0.95 : 1));
-
-  // o destaque no centro só com imagens bastante em volta (com poucas, ele cobriria as outras)
-  const destaque = comImagem.length >= 7 ? comImagem[0] : null;
-  // o mosaico: uma peça para cada imagem, sem repetir (a do destaque fica só no centro)
-  const pecas = useMemo(() => {
-    const lista = destaque ? comImagem.slice(1) : comImagem;
-    if (!lista.length || !largura) return [];
-    const rnd = sorteio(lista.map((s) => s.id).join("|") + (celular ? "c" : ""));
-    return dividir({ x: 0, y: 0, w: largura, h: altura }, lista.length, rnd).map((r, i) => ({
-      r, s: lista[i], i,
-      // umas peças "coladas por cima": um pouco maiores que o seu lugar, com sombra
-      levantada: lista.length >= 8 && r.w * r.h < largura * altura * 0.12 && rnd() < 0.35,
-    }));
-  }, [comImagem, destaque, largura, altura, celular]);
+  // o destaque é o primeiro da lista (grande, à esquerda; no celular, em cima)
+  const destaque = comImagem.length >= 2 ? comImagem[0] : null;
+  const { pecas, altura } = useMemo(() => arranjar(comImagem, (s) => proporcao[s.id] ?? 0.8, largura, celular), [comImagem, proporcao, largura, celular]);
 
   if (!sonhos) return null;
 
@@ -129,7 +170,7 @@ export function QuadroSonhos() {
     setSonhos((l) => l?.map((x) => (x.id === s.id ? { ...x, ...campos } : x)) ?? null);
     await supabase().from("sonhos").update(campos).eq("id", s.id);
   }
-  /** o destaque do centro é o primeiro da lista */
+  /** o destaque é o primeiro da lista */
   async function destacar(s: Sonho) {
     const l = [s, ...comImagem.filter((x) => x.id !== s.id)];
     const pos = new Map(l.map((x, k) => [x.id, k]));
@@ -145,7 +186,7 @@ export function QuadroSonhos() {
   }
   const menu = (s: Sonho) => (
     <RowMenu botaoClass="p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80" items={[
-      { label: comImagem.length >= 7 ? "Destacar no centro" : "Destacar no centro (a partir de 7 imagens)", icon: Crosshair, disabled: comImagem.length < 7 || destaque?.id === s.id, onClick: () => void destacar(s) },
+      { label: "Pôr em destaque", icon: Crosshair, disabled: comImagem.length < 2 || destaque?.id === s.id, onClick: () => void destacar(s) },
       s.realizado_em
         ? { label: "Ainda não realizado", icon: RotateCcw, onClick: () => void mudar(s, { realizado_em: null }) }
         : { label: "Realizei este sonho", icon: Check, onClick: () => void mudar(s, { realizado_em: dayKey() }) },
@@ -187,12 +228,12 @@ export function QuadroSonhos() {
         onDragOver={(e) => { e.preventDefault(); setArrastando(true); }} onDragLeave={() => setArrastando(false)}
         onDrop={(e) => { e.preventDefault(); setArrastando(false); const fs = [...e.dataTransfer.files].filter((f) => f.type.startsWith("image/")); if (fs.length) void adicionar(fs); }}
         className={`relative isolate overflow-hidden rounded-2xl bg-[#070708] ${arrastando ? "ring-2 ring-[var(--focus)]" : ""}`}
-        style={{ height: comImagem.length && !editar ? altura : undefined }}>
+        style={{ height: comImagem.length && !editar ? altura || 420 : undefined }}>
         {comImagem.length === 0 ? (
           <button onClick={() => arquivo.current?.click()} className="relative w-full h-[360px] grid place-items-center group" aria-label="Adicionar imagens">
             {/* o vazio já mostra o mosaico */}
-            {dividir({ x: 0, y: 0, w: 100, h: 100 }, 9, sorteio("vazio")).map((r, i) => (
-              <span key={i} className="absolute border border-white/[0.06] bg-white/[0.02]" style={{ left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`, height: `${r.h}%` }} />
+            {[[0, 0, 34, 100], [34, 0, 33, 48], [67, 0, 33, 48], [34, 48, 22, 52], [56, 48, 44, 52]].map(([x, y, w, h], i) => (
+              <span key={i} className="absolute border border-white/[0.06] bg-white/[0.02]" style={{ left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%` }} />
             ))}
             <span className="relative flex flex-col items-center gap-2 text-white/55 group-hover:text-white/85 transition-colors">
               <ImagePlus size={28} strokeWidth={1.4} />
@@ -206,7 +247,7 @@ export function QuadroSonhos() {
               <figure key={s.id} className="relative m-0 aspect-square rounded-lg overflow-hidden bg-white/5" title={s.titulo || undefined}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={imagens[s.id]} alt={s.titulo || "Sonho"} className="w-full h-full object-cover block" />
-                {destaque?.id === s.id && <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 text-white text-[10px] px-1.5 py-0.5 inline-flex items-center gap-1"><Crosshair size={10} /> centro</span>}
+                {destaque?.id === s.id && <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 text-white text-[10px] px-1.5 py-0.5 inline-flex items-center gap-1"><Crosshair size={10} /> destaque</span>}
                 {s.realizado_em && <span className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "#d6b25e" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
                 {controles(s)}
               </figure>
@@ -214,33 +255,22 @@ export function QuadroSonhos() {
           </div>
         ) : (
           <>
-            {pecas.map(({ r, s, i, levantada }) => {
-              const sai = levantada ? 6 : 0; // a peça levantada passa um pouco do seu lugar, por cima das vizinhas
+            {pecas.map((p) => {
+              const s = p.s, ehDestaque = destaque?.id === s.id;
               return (
-                <figure key={`${s.id}:${i}`} title={s.titulo || undefined}
-                  className="group absolute m-0 transition-[transform,filter] duration-300 hover:!z-30 hover:scale-[1.03]"
-                  style={{ left: r.x - sai + 1, top: r.y - sai + 1, width: r.w + sai * 2 - 2, height: r.h + sai * 2 - 2, zIndex: levantada ? 5 : 1 }}>
+                <figure key={s.id} title={s.titulo || undefined}
+                  className="group absolute m-0 overflow-hidden transition-[filter] duration-300 hover:z-30"
+                  style={{ left: p.x, top: p.y, width: p.w, height: p.h }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={imagens[s.id]} alt={s.titulo || "Sonho"} loading="lazy"
-                    className="w-full h-full object-cover block transition-[filter] duration-500 group-hover:[filter:none]"
-                    style={{ filter: tom(s), boxShadow: levantada ? "0 18px 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08)" : "inset 0 0 0 1px rgba(0,0,0,0.6)" }} />
+                    // object-position um pouco acima do meio: se algo precisar ser cortado, o rosto fica
+                    className="w-full h-full object-cover [object-position:50%_30%] block transition-[filter,transform] duration-500 group-hover:[filter:none] group-hover:scale-[1.02]"
+                    style={{ filter: tom(s, ehDestaque) }} />
                   {s.realizado_em && <span className="absolute bottom-2 left-2 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "#d6b25e" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
                   {controles(s)}
                 </figure>
               );
             })}
-            {/* o destaque: por cima de tudo, no centro, com sombra forte (como a estátua da referência) */}
-            {destaque && (
-              <figure title={destaque.titulo || undefined}
-                className="group absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[25] m-0 w-[58%] sm:w-[34%] xl:w-[28%] aspect-[4/5] transition-transform duration-300 hover:scale-[1.02]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imagens[destaque.id]} alt={destaque.titulo || "Sonho em destaque"}
-                  className="w-full h-full object-cover block transition-[filter] duration-500 group-hover:[filter:none]"
-                  style={{ filter: tom(destaque, true), boxShadow: "0 40px 90px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.1)" }} />
-                {destaque.realizado_em && <span className="absolute bottom-2.5 left-2.5 w-6 h-6 rounded-full grid place-items-center text-black" style={{ background: "#d6b25e" }} title="Realizado"><Check size={14} strokeWidth={3} /></span>}
-                {controles(destaque)}
-              </figure>
-            )}
           </>
         )}
         {/* o que une tudo: vinheta nas bordas e grão por cima (não pegam o clique) */}
