@@ -105,9 +105,12 @@ export function QuadroSonhos() {
 
   const comImagem = useMemo(() => (sonhos ?? []).filter((s) => imagens[s.id]).sort((a, b) => a.posicao - b.posicao), [sonhos, imagens]);
   const celular = largura > 0 && largura < 640;
-  const altura = celular ? 560 : 620;
+  // com poucas imagens o quadro fica mais baixo (as fotos são menos cortadas)
+  const n = comImagem.length;
+  const altura = Math.round((n <= 3 ? 380 : n <= 6 ? 460 : n <= 10 ? 560 : 640) * (celular ? 0.95 : 1));
 
-  const destaque = comImagem.length >= 3 ? comImagem[0] : null;
+  // o destaque no centro só com imagens bastante em volta (com poucas, ele cobriria as outras)
+  const destaque = comImagem.length >= 7 ? comImagem[0] : null;
   // o mosaico: uma peça para cada imagem, sem repetir (a do destaque fica só no centro)
   const pecas = useMemo(() => {
     const lista = destaque ? comImagem.slice(1) : comImagem;
@@ -116,7 +119,7 @@ export function QuadroSonhos() {
     return dividir({ x: 0, y: 0, w: largura, h: altura }, lista.length, rnd).map((r, i) => ({
       r, s: lista[i], i,
       // umas peças "coladas por cima": um pouco maiores que o seu lugar, com sombra
-      levantada: r.w * r.h < largura * altura * 0.14 && rnd() < 0.4,
+      levantada: lista.length >= 8 && r.w * r.h < largura * altura * 0.12 && rnd() < 0.35,
     }));
   }, [comImagem, destaque, largura, altura, celular]);
 
@@ -142,7 +145,7 @@ export function QuadroSonhos() {
   }
   const menu = (s: Sonho) => (
     <RowMenu botaoClass="p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80" items={[
-      { label: "Destacar no centro", icon: Crosshair, disabled: destaque?.id === s.id, onClick: () => void destacar(s) },
+      { label: comImagem.length >= 7 ? "Destacar no centro" : "Destacar no centro (a partir de 7 imagens)", icon: Crosshair, disabled: comImagem.length < 7 || destaque?.id === s.id, onClick: () => void destacar(s) },
       s.realizado_em
         ? { label: "Ainda não realizado", icon: RotateCcw, onClick: () => void mudar(s, { realizado_em: null }) }
         : { label: "Realizei este sonho", icon: Check, onClick: () => void mudar(s, { realizado_em: dayKey() }) },
@@ -160,9 +163,9 @@ export function QuadroSonhos() {
       {menu(s)}
     </span>
   );
-  // um tom só (quase sem cor, escuro); o sonho realizado ganha cor; ao passar o mouse, a imagem acende
-  const tom = (s: Sonho, forte = false) => (s.realizado_em ? "saturate(1.05) contrast(1.05) brightness(0.9)"
-    : forte ? "grayscale(0.55) contrast(1.12) brightness(0.92)" : "grayscale(0.9) contrast(1.15) brightness(0.62)");
+  // um tom só (levemente sem cor, para unir as fotos, mas visíveis); o sonho realizado tem cor plena; ao passar o mouse, a imagem acende
+  const tom = (s: Sonho, forte = false) => (s.realizado_em ? "saturate(1.05) contrast(1.05)"
+    : forte ? "grayscale(0.25) contrast(1.08)" : "grayscale(0.4) contrast(1.06) brightness(0.9)");
 
   return (
     <section className="pt-2">
@@ -212,7 +215,7 @@ export function QuadroSonhos() {
         ) : (
           <>
             {pecas.map(({ r, s, i, levantada }) => {
-              const sai = levantada ? 10 : 0; // a peça levantada passa um pouco do seu lugar, por cima das vizinhas
+              const sai = levantada ? 6 : 0; // a peça levantada passa um pouco do seu lugar, por cima das vizinhas
               return (
                 <figure key={`${s.id}:${i}`} title={s.titulo || undefined}
                   className="group absolute m-0 transition-[transform,filter] duration-300 hover:!z-30 hover:scale-[1.03]"
@@ -242,8 +245,8 @@ export function QuadroSonhos() {
         )}
         {/* o que une tudo: vinheta nas bordas e grão por cima (não pegam o clique) */}
         {!editar && <>
-          <div className="pointer-events-none absolute inset-0 z-20" style={{ background: "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.72) 100%)" }} />
-          <div className="pointer-events-none absolute inset-0 z-[40] opacity-[0.1] mix-blend-overlay" style={{ backgroundImage: GRAO }} />
+          <div className="pointer-events-none absolute inset-0 z-20" style={{ background: "radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%)" }} />
+          <div className="pointer-events-none absolute inset-0 z-[40] opacity-[0.07] mix-blend-overlay" style={{ backgroundImage: GRAO }} />
         </>}
       </div>
 
