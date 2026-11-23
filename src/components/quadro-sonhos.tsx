@@ -2,7 +2,7 @@
 /**
  * Quadro dos sonhos, no fim do Dashboard: um mosaico de imagens coladas umas nas outras, sem palavras,
  * num tom escuro só — para olhar e imaginar. A tela é dividida em retângulos que se encaixam (sem buraco);
- * algumas peças ficam por cima das vizinhas, com sombra, e uma fica em destaque no centro.
+ * algumas peças ficam por cima das vizinhas, com sombra, e uma fica em destaque no centro. Cada imagem aparece uma vez só.
  * O sonho realizado ganha cor. Montar é rápido: várias imagens de uma vez, arrastar, colar (Ctrl+V) ou o link.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -52,6 +52,8 @@ export function QuadroSonhos() {
   const [porLink, setPorLink] = useState(false);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState(false);
+  /** modo Editar: as imagens em grade, com a lixeira e o menu sempre à vista (no celular não há "passar o mouse") */
+  const [editar, setEditar] = useState(false);
   const arquivo = useRef<HTMLInputElement>(null);
   const tela = useRef<HTMLDivElement>(null);
   const [largura, setLargura] = useState(0);
@@ -105,18 +107,18 @@ export function QuadroSonhos() {
   const celular = largura > 0 && largura < 640;
   const altura = celular ? 560 : 620;
 
-  // o mosaico: com poucas imagens, elas se repetem até a tela ficar cheia (como na colagem de referência)
+  const destaque = comImagem.length >= 3 ? comImagem[0] : null;
+  // o mosaico: uma peça para cada imagem, sem repetir (a do destaque fica só no centro)
   const pecas = useMemo(() => {
-    if (!comImagem.length || !largura) return [];
-    const n = Math.min(28, Math.max(comImagem.length, celular ? 8 : 12));
-    const rnd = sorteio(comImagem.map((s) => s.id).join("|") + (celular ? "c" : ""));
-    return dividir({ x: 0, y: 0, w: largura, h: altura }, n, rnd).map((r, i) => ({
-      r, s: comImagem[i % comImagem.length], i,
+    const lista = destaque ? comImagem.slice(1) : comImagem;
+    if (!lista.length || !largura) return [];
+    const rnd = sorteio(lista.map((s) => s.id).join("|") + (celular ? "c" : ""));
+    return dividir({ x: 0, y: 0, w: largura, h: altura }, lista.length, rnd).map((r, i) => ({
+      r, s: lista[i], i,
       // umas peças "coladas por cima": um pouco maiores que o seu lugar, com sombra
       levantada: r.w * r.h < largura * altura * 0.14 && rnd() < 0.4,
     }));
-  }, [comImagem, largura, altura, celular]);
-  const destaque = comImagem.length >= 3 ? comImagem[0] : null;
+  }, [comImagem, destaque, largura, altura, celular]);
 
   if (!sonhos) return null;
 
@@ -133,7 +135,7 @@ export function QuadroSonhos() {
     await Promise.all(l.map((x, k) => sb.from("sonhos").update({ posicao: k }).eq("id", x.id)));
   }
   async function apagar(s: Sonho) {
-    if (!confirm("Tirar esta imagem do quadro?")) return;
+    if (!confirm("Excluir esta imagem do quadro? Não dá para desfazer.")) return;
     setSonhos((l) => l?.filter((x) => x.id !== s.id) ?? null);
     await supabase().from("sonhos").delete().eq("id", s.id);
     await apagarImagem(s.imagem);
@@ -145,8 +147,18 @@ export function QuadroSonhos() {
         ? { label: "Ainda não realizado", icon: RotateCcw, onClick: () => void mudar(s, { realizado_em: null }) }
         : { label: "Realizei este sonho", icon: Check, onClick: () => void mudar(s, { realizado_em: dayKey() }) },
       { label: "Nome (só para você)", icon: Pencil, onClick: () => setEditando(s) },
-      { label: "Tirar do quadro", icon: Trash2, danger: true, separar: true, onClick: () => void apagar(s) },
+      { label: "Excluir a imagem", icon: Trash2, danger: true, separar: true, onClick: () => void apagar(s) },
     ]} />
+  );
+  /** no canto da imagem: no modo Editar, a lixeira (e o menu) sempre à vista; fora dele, o menu ao passar o mouse */
+  const controles = (s: Sonho) => (
+    <span className={`absolute top-1.5 right-1.5 z-[45] flex items-center gap-1 transition-opacity ${editar ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"}`}>
+      {editar && (
+        <button className="p-1.5 rounded-full bg-black/70 text-white hover:bg-[var(--critical)] transition-colors" title="Excluir esta imagem" aria-label="Excluir esta imagem"
+          onClick={() => void apagar(s)}><Trash2 size={15} /></button>
+      )}
+      {menu(s)}
+    </span>
   );
   // um tom só (quase sem cor, escuro); o sonho realizado ganha cor; ao passar o mouse, a imagem acende
   const tom = (s: Sonho, forte = false) => (s.realizado_em ? "saturate(1.05) contrast(1.05) brightness(0.9)"
@@ -158,6 +170,10 @@ export function QuadroSonhos() {
         <h2 className="eyebrow">Quadro dos sonhos</h2>
         <div className="flex items-center gap-1">
           {enviando && <span className="text-xs text-muted mr-2" aria-live="polite">{enviando}</span>}
+          {comImagem.length > 0 && (
+            <button className={`btn px-2.5 py-1 text-xs ${editar ? "btn-primary" : "btn-ghost"}`} onClick={() => setEditar((v) => !v)}
+              title="Mostrar a lixeira em cada imagem">{editar ? <><Check size={14} /> Pronto</> : <><Pencil size={14} /> Editar</>}</button>
+          )}
           <button className="btn btn-ghost px-2 py-1" title="O link de uma imagem" aria-label="Adicionar pelo link" onClick={() => setPorLink(true)}><Link2 size={16} /></button>
           <button className="btn btn-ghost px-2 py-1" title="Adicionar imagens (ou arraste, ou cole com Ctrl+V)" aria-label="Adicionar imagens" onClick={() => arquivo.current?.click()}><ImagePlus size={16} /></button>
         </div>
@@ -168,7 +184,7 @@ export function QuadroSonhos() {
         onDragOver={(e) => { e.preventDefault(); setArrastando(true); }} onDragLeave={() => setArrastando(false)}
         onDrop={(e) => { e.preventDefault(); setArrastando(false); const fs = [...e.dataTransfer.files].filter((f) => f.type.startsWith("image/")); if (fs.length) void adicionar(fs); }}
         className={`relative isolate overflow-hidden rounded-2xl bg-[#070708] ${arrastando ? "ring-2 ring-[var(--focus)]" : ""}`}
-        style={{ height: comImagem.length ? altura : undefined }}>
+        style={{ height: comImagem.length && !editar ? altura : undefined }}>
         {comImagem.length === 0 ? (
           <button onClick={() => arquivo.current?.click()} className="relative w-full h-[360px] grid place-items-center group" aria-label="Adicionar imagens">
             {/* o vazio já mostra o mosaico */}
@@ -180,6 +196,19 @@ export function QuadroSonhos() {
               <span className="text-sm">Arraste imagens para cá, cole (Ctrl+V) ou clique</span>
             </span>
           </button>
+        ) : editar ? (
+          // modo Editar: as imagens em miniatura, em cor, com a lixeira e as ações sempre à vista
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 p-3">
+            {comImagem.map((s) => (
+              <figure key={s.id} className="relative m-0 aspect-square rounded-lg overflow-hidden bg-white/5" title={s.titulo || undefined}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={imagens[s.id]} alt={s.titulo || "Sonho"} className="w-full h-full object-cover block" />
+                {destaque?.id === s.id && <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 text-white text-[10px] px-1.5 py-0.5 inline-flex items-center gap-1"><Crosshair size={10} /> centro</span>}
+                {s.realizado_em && <span className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "#d6b25e" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
+                {controles(s)}
+              </figure>
+            ))}
+          </div>
         ) : (
           <>
             {pecas.map(({ r, s, i, levantada }) => {
@@ -193,7 +222,7 @@ export function QuadroSonhos() {
                     className="w-full h-full object-cover block transition-[filter] duration-500 group-hover:[filter:none]"
                     style={{ filter: tom(s), boxShadow: levantada ? "0 18px 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08)" : "inset 0 0 0 1px rgba(0,0,0,0.6)" }} />
                   {s.realizado_em && <span className="absolute bottom-2 left-2 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "#d6b25e" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
-                  <span className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">{menu(s)}</span>
+                  {controles(s)}
                 </figure>
               );
             })}
@@ -206,14 +235,16 @@ export function QuadroSonhos() {
                   className="w-full h-full object-cover block transition-[filter] duration-500 group-hover:[filter:none]"
                   style={{ filter: tom(destaque, true), boxShadow: "0 40px 90px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.1)" }} />
                 {destaque.realizado_em && <span className="absolute bottom-2.5 left-2.5 w-6 h-6 rounded-full grid place-items-center text-black" style={{ background: "#d6b25e" }} title="Realizado"><Check size={14} strokeWidth={3} /></span>}
-                <span className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">{menu(destaque)}</span>
+                {controles(destaque)}
               </figure>
             )}
           </>
         )}
         {/* o que une tudo: vinheta nas bordas e grão por cima (não pegam o clique) */}
-        <div className="pointer-events-none absolute inset-0 z-20" style={{ background: "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.72) 100%)" }} />
-        <div className="pointer-events-none absolute inset-0 z-[40] opacity-[0.1] mix-blend-overlay" style={{ backgroundImage: GRAO }} />
+        {!editar && <>
+          <div className="pointer-events-none absolute inset-0 z-20" style={{ background: "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.72) 100%)" }} />
+          <div className="pointer-events-none absolute inset-0 z-[40] opacity-[0.1] mix-blend-overlay" style={{ backgroundImage: GRAO }} />
+        </>}
       </div>
 
       {editando && <NomeDoSonho sonho={editando} onClose={() => setEditando(null)} onSalvo={(t) => { void mudar(editando, { titulo: t }); setEditando(null); }} />}
