@@ -76,7 +76,7 @@ export function WritingPanel({ compacto = false, periodo, className = "" }: { co
       </div>
       <div className={compacto ? "space-y-4" : "grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-3 md:gap-6"}>
         {periodo ? (
-          <div className={`grid min-w-0 ${compacto ? "grid-cols-2 md:grid-cols-4 xl:grid-cols-2 gap-x-4 gap-y-3" : "grid-cols-4 md:grid-cols-2 gap-x-2 sm:gap-x-6 gap-y-4"}`}>
+          <div className={`grid min-w-0 ${compacto ? "grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3" : "grid-cols-4 md:grid-cols-2 gap-x-2 sm:gap-x-6 gap-y-4"}`}>
             {/* compacto: o rótulo já diz o que é (sem a linha de dica), para o cartão ter a altura dos vizinhos */}
             {([
               ["Palavras", "Palavras escritas", nf.format(pPalavras), "escritas"],
@@ -92,7 +92,7 @@ export function WritingPanel({ compacto = false, periodo, className = "" }: { co
             ))}
           </div>
         ) : (
-        <div className={`grid min-w-0 ${compacto ? "grid-cols-2 md:grid-cols-4 xl:grid-cols-2 gap-x-4 gap-y-3" : "grid-cols-4 md:grid-cols-2 gap-x-2 sm:gap-x-6 gap-y-4"}`}>
+        <div className={`grid min-w-0 ${compacto ? "grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3" : "grid-cols-4 md:grid-cols-2 gap-x-2 sm:gap-x-6 gap-y-4"}`}>
           <div>
             <div className="text-[11.5px] sm:text-[13px] text-muted truncate">Hoje</div>
             <div className={`${compacto ? "text-[1.15rem] min-[400px]:text-[1.3rem]" : "text-[1.15rem] min-[400px]:text-[1.3rem] md:text-[1.6rem]"} font-medium tracking-[-0.02em] tabular-nums leading-tight`}>{nf.format(hoje)}</div>

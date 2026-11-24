@@ -1,7 +1,7 @@
 "use client";
 /**
- * Contagens regressivas do Dashboard: dias, horas, minutos e segundos até a data (0h do dia, horário de Brasília),
- * com a meta ("10 kg a menos") e uma barrinha do tempo já percorrido desde o início.
+ * Contagens regressivas do Dashboard, numa linha fina: o nome, a meta ("10 kg a menos") e o relógio — dias e hh:mm:ss
+ * até a data (0h do dia, horário de Brasília) —, com uma barrinha embaixo do caminho já percorrido desde o início.
  * Clique numa contagem para editar ou apagar; "+ nova" cria outra.
  */
 import { useEffect, useState } from "react";
@@ -36,57 +36,43 @@ export function Contagens() {
     return () => clearTimeout(t);
   }, []);
   if (!itens) return null;
-  if (!itens.length) {
-    return (
-      <>
-        <button className="btn btn-ghost self-start" onClick={() => setEditando("nova")}><Hourglass size={15} /> Contagem regressiva</button>
-        {editando && <Editar contagem={null} ordem={0} onFechar={(mudou) => { setEditando(null); if (mudou) carregar(); }} />}
-      </>
-    );
-  }
+  const editar = editando && <Editar contagem={editando === "nova" ? null : editando} ordem={itens.length} onFechar={(mudou) => { setEditando(null); if (mudou) carregar(); }} />;
 
+  // uma linha fina de "pílulas": nome, meta e o relógio (dias e hh:mm:ss); a barrinha embaixo é o caminho já percorrido
   return (
-    <section className={`grid grid-cols-1 gap-3 md:gap-4 ${itens.length > 1 ? "md:grid-cols-2" : ""} ${itens.length > 2 ? "2xl:grid-cols-3" : ""}`} aria-label="Contagens regressivas">
-      {itens.map((c, i) => {
+    <section className="flex flex-wrap items-center gap-2" aria-label="Contagens regressivas">
+      {itens.map((c) => {
         const fim = zeroHora(c.data), ini = zeroHora(c.inicio);
         const resta = Math.max(0, fim - agora);
         const s = Math.floor(resta / 1000);
-        const partes: [string, string][] = [
-          [String(Math.floor(s / 86400)), "Dias"], [dois(Math.floor((s % 86400) / 3600)), "Horas"],
-          [dois(Math.floor((s % 3600) / 60)), "Minutos"], [dois(s % 60), "Segundos"],
-        ];
+        const dias = Math.floor(s / 86400);
+        const relogio = `${dois(Math.floor((s % 86400) / 3600))}:${dois(Math.floor((s % 3600) / 60))}:${dois(s % 60)}`;
         const feito = Math.min(1, Math.max(0, (agora - ini) / Math.max(1, fim - ini)));
-        const acabou = resta === 0;
+        const perto = resta > 0 && resta < 7 * 86400000;
         return (
-          <div key={c.id} role="button" tabIndex={0} onClick={() => setEditando(c)} onKeyDown={(e) => { if (e.key === "Enter") setEditando(c); }}
-            className="card relative px-4 pt-3 pb-3.5 min-w-0 cursor-pointer hover:border-ink/30 flex flex-col items-center text-center" title="Clique para editar">
-            {i === itens.length - 1 && (
-              <button className="absolute top-2 right-3 text-xs text-faint hover:text-ink inline-flex items-center gap-0.5 py-1"
-                onClick={(e) => { e.stopPropagation(); setEditando("nova"); }} title="Nova contagem regressiva"><Plus size={13} /> nova</button>
-            )}
-            <h3 className="text-sm font-medium truncate max-w-full px-12">{c.titulo}</h3>
-            <p className="text-xs text-muted truncate max-w-full px-12 mt-0.5">{c.meta ? `${c.meta} · ` : ""}até {dataCurta(c.data)}</p>
-            <div className="w-full max-w-[34rem] mt-2.5">
-              {acabou ? (
-                <div className="py-3 text-2xl font-light text-muted">chegou o dia ✓</div>
-              ) : (
-                <div className="grid grid-cols-4" aria-label={`Faltam ${partes.map(([v, r]) => `${v} ${r.toLowerCase()}`).join(", ")}`}>
-                  {partes.map(([v, r]) => (
-                    <div key={r} className="flex flex-col items-center min-w-0">
-                      <span className="font-mono font-light tabular-nums leading-none tracking-[-0.04em] text-[clamp(2.1rem,4.2vw,3.6rem)]" style={{ color: "color-mix(in srgb, var(--text) 82%, transparent)" }}>{v}</span>
-                      <span className="text-[12px] sm:text-[13px] text-muted mt-1.5">{r}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <span className="block h-[3px] mt-3 mx-auto w-[88%] rounded-full bg-sel overflow-hidden" aria-hidden title={`${Math.round(feito * 100)}% do tempo já passou`}>
-                <span className="block h-full rounded-full" style={{ width: `${feito * 100}%`, background: fim - agora < 7 * 86400000 ? "var(--warn)" : "var(--chart)" }} />
+          <button key={c.id} onClick={() => setEditando(c)} title={`${c.titulo}${c.meta ? ` — ${c.meta}` : ""} · até ${dataCurta(c.data)} · ${Math.round(feito * 100)}% do caminho (clique para editar)`}
+            className="relative overflow-hidden inline-flex items-center gap-3 rounded-xl border border-line bg-surface pl-3 pr-3.5 py-1.5 min-w-0 max-w-full text-left hover:border-[color-mix(in_srgb,var(--text)_25%,var(--border))] transition-colors">
+            <Hourglass size={14} className="shrink-0 text-faint" />
+            <span className="min-w-0">
+              <span className="block text-[13px] font-medium leading-tight truncate">{c.titulo}</span>
+              <span className="block text-[11px] text-muted leading-tight truncate">{c.meta ? `${c.meta} · ` : ""}até {dataCurta(c.data)}</span>
+            </span>
+            {resta === 0 ? (
+              <span className="text-xs text-muted shrink-0">chegou o dia ✓</span>
+            ) : (
+              <span className="shrink-0 font-mono tabular-nums text-[15px] leading-none tracking-tight" style={{ color: perto ? "var(--warn)" : undefined }}
+                aria-label={`Faltam ${dias} dias e ${relogio}`}>
+                {dias}<span className="text-[11px] text-muted font-sans ml-px mr-1.5">d</span>{relogio}
               </span>
-            </div>
-          </div>
+            )}
+            <span className="absolute left-0 bottom-0 h-[2px]" style={{ width: `${feito * 100}%`, background: perto ? "var(--warn)" : "var(--chart)", opacity: 0.55 }} aria-hidden />
+          </button>
         );
       })}
-      {editando && <Editar contagem={editando === "nova" ? null : editando} ordem={itens.length} onFechar={(mudou) => { setEditando(null); if (mudou) carregar(); }} />}
+      <button className="btn btn-ghost px-2.5 py-1.5 text-xs" onClick={() => setEditando("nova")} title="Nova contagem regressiva">
+        <Plus size={13} /> {itens.length ? "" : "Contagem regressiva"}
+      </button>
+      {editar}
     </section>
   );
 }

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { ChevronRight, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Page, Stat } from "@/components/page";
+import { Page } from "@/components/page";
 import { CalendarPanel } from "@/components/calendar-panel";
 import { ConfissaoAviso } from "@/components/confissao-aviso";
 import { Cover } from "@/components/cover";
@@ -23,7 +23,6 @@ import { sincronizarAnkiSeAntigo } from "@/lib/anki";
 import { todas } from "@/lib/supabase/todas";
 import { progressoDoLivro, STATUS_LABEL, type Book } from "@/lib/types";
 import { OPCOES_LIVRO } from "@/components/status-pill";
-import { agrupar } from "@/components/mini-barras";
 import { COR_AREA } from "@/lib/cores";
 
 
@@ -105,14 +104,7 @@ export default function Dashboard() {
       else if (dayKey(d) !== dayKey()) break;
       if (streak > 400) break;
     }
-    // a dinâmica de cada número no período (um valor por dia; em períodos longos, por semana)
-    const serie = (f: (d: DayStats) => number) => {
-      const out: number[] = [];
-      for (let d = parseDay(de); dayKey(d) <= ate; d = addDays(d, 1)) { const v = daily.get(dayKey(d)); out.push(v ? f(v) : 0); }
-      return agrupar(out);
-    };
     return {
-      series: { tempo: serie(time), lidas: serie((d) => d.words), escritas: serie((d) => d.written), anki: serie((d) => d.anki) },
       tempo, tempoAnt,
       media: dU ? tempo / dU : 0, mediaAnt: dUAnt ? tempoAnt / dUAnt : 0,
       // dias do período desde o primeiro registro (os dias antes de começar a usar o sistema não contam)
@@ -140,7 +132,7 @@ export default function Dashboard() {
 
   return (
     // tudo numa tela: indicadores no topo; calendário e tempo lado a lado; escrita, leitura e biblioteca embaixo
-    <Page denso title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+    <Page denso title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={<>{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}<span className="text-faint"> · ▲▼ comparado com {periodo.vs === "anterior" ? "a semana anterior" : periodo.vs === "ontem" ? "ontem" : `o ${periodo.vs}`}</span></>}
       titleExtra={
         <button className="text-faint hover:text-ink p-1 -m-1 rounded-md" title={nome ? "Trocar o nome" : "Como quer ser chamado?"} aria-label="Trocar o nome" onClick={async () => {
           const n = prompt("Seu nome:", nome)?.trim();
@@ -154,24 +146,26 @@ export default function Dashboard() {
       <div className="flex flex-col gap-3 md:gap-4">
       {/* contagens regressivas: dias, horas, minutos e segundos até as datas que importam */}
       <Contagens />
-      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3 md:gap-4">
+      {/* os 8 números numa faixa só (divisórias finas, sem cartões soltos); a cor marca a área;
+          as setas comparam com o período anterior equivalente (o nome dele está no tooltip de cada número) */}
+      <div className="card grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-px bg-line overflow-hidden">
         {/* tudo no período do filtro; legendas: uma linha curta comparando com o período anterior (o tooltip explica) */}
-        <Stat compacto label="Tempo" value={fmtDuration(s.tempo)} serie={s.series.tempo} hint={<Variacao atual={s.tempo} base={s.tempoAnt} vs={periodo.vs} />}
+        <Indicador label="Tempo" value={fmtDuration(s.tempo)} hint={<Variacao atual={s.tempo} base={s.tempoAnt} />}
           explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(s.tempoAnt)}.`} />
-        <Stat compacto label="Média por dia" value={fmtDuration(s.media)} hint={<Variacao atual={s.media} base={s.mediaAnt} vs={periodo.vs} />}
+        <Indicador label="Média por dia" value={fmtDuration(s.media)} hint={<Variacao atual={s.media} base={s.mediaAnt} />}
           explica={`Tempo dividido pelos dias do período (os dias antes do seu primeiro registro não contam). Período anterior: ${fmtDuration(s.mediaAnt)} por dia.`} />
-        <Stat compacto label="Dias de estudo" value={`${s.diasAtivos} de ${s.dias}`} hint={`sequência atual: ${s.streak} ${s.streak === 1 ? "dia" : "dias"}`}
+        <Indicador label="Dias de estudo" value={`${s.diasAtivos} de ${s.dias}`} hint={`sequência: ${s.streak} ${s.streak === 1 ? "dia" : "dias"}`}
           explica="Dias do período com algum estudo, leitura, revisão ou escrita (contando a partir do seu primeiro registro). A sequência é de dias seguidos até hoje." />
-        <Stat compacto label="Velocidade" cor={COR_AREA.leitura} value={s.ppm ? `${s.ppm} ppm` : "—"} hint={<Variacao atual={s.ppm} base={s.ppmAnt} vs={periodo.vs} />}
+        <Indicador label="Velocidade" cor={COR_AREA.leitura} value={s.ppm ? `${s.ppm} ppm` : "—"} hint={<Variacao atual={s.ppm} base={s.ppmAnt} />}
           explica={`Palavras por minuto no leitor (livros e aulas) — ${periodo.nome.toLowerCase()}. Período anterior: ${s.ppmAnt || "—"} ppm.`} />
-        <Stat compacto label="Palavras lidas" cor={COR_AREA.leitura} serie={s.series.lidas} value={nf.format(s.lidas)} hint={<Variacao atual={s.lidas} base={s.lidasAnt} vs={periodo.vs} />}
+        <Indicador label="Palavras lidas" cor={COR_AREA.leitura} value={nf.format(s.lidas)} hint={<Variacao atual={s.lidas} base={s.lidasAnt} />}
           explica={`Palavras lidas no leitor — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.lidasAnt)}.`} />
-        <Stat compacto label="Palavras escritas" cor={COR_AREA.escrita} serie={s.series.escritas} value={nf.format(s.escritas)} hint={<Variacao atual={s.escritas} base={s.escritasAnt} vs={periodo.vs} />}
+        <Indicador label="Palavras escritas" cor={COR_AREA.escrita} value={nf.format(s.escritas)} hint={<Variacao atual={s.escritas} base={s.escritasAnt} />}
           explica={`Palavras escritas na sala de escrita — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.escritasAnt)}.`} />
-        <Stat compacto label="Revisões Anki" cor={COR_AREA.idiomas} serie={s.series.anki} value={nf.format(s.anki)} hint={<Variacao atual={s.anki} base={s.ankiAnt} vs={periodo.vs} />}
+        <Indicador label="Revisões Anki" cor={COR_AREA.idiomas} value={nf.format(s.anki)} hint={<Variacao atual={s.anki} base={s.ankiAnt} />}
           explica={`Revisões nos baralhos dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.ankiAnt)}.`} />
-        <Stat compacto label="Livros concluídos" cor={COR_AREA.leitura} value={nf.format(concluidos)}
-          hint={concluidos || concluidosAnt ? <Variacao atual={concluidos} base={concluidosAnt} vs={periodo.vs} /> : `${count("aguardando")} aguardando na fila`}
+        <Indicador label="Livros concluídos" cor={COR_AREA.leitura} value={nf.format(concluidos)}
+          hint={concluidos || concluidosAnt ? <Variacao atual={concluidos} base={concluidosAnt} /> : `${count("aguardando")} na fila`}
           explica={`Livros terminados — ${periodo.nome.toLowerCase()}. Na fila: ${count("aguardando")} aguardando${ppmLivros && remainingWords ? `, ≈ ${Math.round(remainingWords / ppmLivros / 60)} h de leitura pela frente` : ""}.`} />
       </div>
 
@@ -186,61 +180,52 @@ export default function Dashboard() {
         <TimeBreakdown compacto periodo={periodo} />
       </div>
 
-      {/* tablet: a Escrita ocupa a linha toda e os outros dois dividem a de baixo; computador largo: três colunas */}
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
-        <WritingPanel compacto periodo={periodo} className="md:col-span-2 xl:col-span-1" />
-        <div className="card p-4 min-w-0">
-          <h2 className="card-title mb-3">Continuar lendo</h2>
+      {/* escrita e leitura lado a lado, da mesma altura (a leitura junta "continuar lendo" e a situação da biblioteca) */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
+        <WritingPanel compacto periodo={periodo} />
+        <div className="card p-4 min-w-0 flex flex-col">
+          <div className="flex items-center justify-between mb-2.5">
+            <h2 className="card-title flex items-center gap-2"><span className="dot" style={{ background: COR_AREA.leitura }} aria-hidden /> Leitura</h2>
+            <Link href="/biblioteca" className="text-sm text-accent flex items-center gap-0.5">Biblioteca <ChevronRight size={15} /></Link>
+          </div>
+          {/* a situação da biblioteca numa linha */}
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted mb-2">
+            {(["lendo", "aguardando", "pausado", "lido"] as const).map((st) => (
+              <span key={st} className="inline-flex items-center gap-1.5">
+                <span className="dot !w-1.5 !h-1.5" style={{ background: OPCOES_LIVRO.find((o) => o.value === st)?.cor }} aria-hidden />
+                <b className="text-ink font-medium tabular-nums">{count(st)}</b> {STATUS_LABEL[st].toLowerCase()}
+              </span>
+            ))}
+          </div>
           {reading.length === 0 ? (
-            <p className="text-sm text-muted">
-              Nada em andamento. Veja o próximo no <Link className="text-accent" href="/biblioteca">plano de leitura</Link>.
-            </p>
+            <p className="text-sm text-muted">Nada em andamento. Veja o próximo no <Link className="text-accent" href="/biblioteca">plano de leitura</Link>.</p>
           ) : (
-            <ul className="space-y-1">
-              {reading.slice(0, 3).map((b) => (
-                <li key={b.id}>
-                  <Link href={`/ler/${b.id}`} className="flex items-center gap-3 rounded-lg p-1.5 -mx-1.5 hover:bg-surface-2">
-                    <Cover book={b} url={covers[b.id]} className="w-7 h-10 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm truncate font-medium" title={`${b.author ? `${b.author} — ` : ""}${b.title}`}>{b.title}</div>
-                      <div className="h-1 rounded-full bg-surface-2 mt-1 overflow-hidden">
-                        <div className="h-full bg-area-leitura rounded-full" style={{ width: `${Math.round(progressoDoLivro(b) * 100)}%` }} />
-                      </div>
-                      {b.word_count && ppmLivros ? (
-                        <div className="text-[11px] text-muted mt-0.5 tabular-nums truncate">
-                          {Math.round(progressoDoLivro(b) * 100)}% · faltam ≈ {fmtDuration((b.word_count * (1 - progressoDoLivro(b)) / ppmLivros) * 60)}
+            <ul className="space-y-0.5">
+              {reading.slice(0, 3).map((b) => {
+                const p = progressoDoLivro(b);
+                return (
+                  <li key={b.id}>
+                    <Link href={`/ler/${b.id}`} className="flex items-center gap-3 rounded-lg p-1.5 -mx-1.5 hover:bg-surface-2">
+                      <Cover book={b} url={covers[b.id]} className="w-7 h-10 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-sm truncate font-medium" title={`${b.author ? `${b.author} — ` : ""}${b.title}`}>{b.title}</span>
+                          <span className="text-xs tabular-nums text-muted shrink-0">{Math.round(p * 100)}%{b.word_count && ppmLivros ? ` · ≈ ${fmtDuration((b.word_count * (1 - p) / ppmLivros) * 60)}` : ""}</span>
                         </div>
-                      ) : null}
-                    </div>
-                  </Link>
-                </li>
-              ))}
+                        <div className="h-1 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
+                          <div className="h-full bg-area-leitura rounded-full" style={{ width: `${Math.round(p * 100)}%` }} />
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
               {reading.length > 3 && <li className="text-xs text-muted pt-1"><Link href="/biblioteca" className="hover:text-ink">+ {reading.length - 3} em leitura →</Link></li>}
             </ul>
           )}
-        </div>
-        <div className="card p-4 min-w-0">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="card-title">Biblioteca</h2>
-            <Link href="/biblioteca" className="text-sm text-accent flex items-center gap-0.5">Abrir <ChevronRight size={15} /></Link>
-          </div>
-          {/* 2 × 2: o nome inteiro de cada situação cabe em qualquer largura */}
-          <div className="grid grid-cols-2 gap-2">
-            {/* a bolinha de cada situação tem a cor da etiqueta na Biblioteca */}
-            {(["aguardando", "lendo", "pausado", "lido"] as const).map((st) => (
-              <Link key={st} href="/biblioteca" className="rounded-lg bg-surface-2 hover:bg-sel px-3 py-2 min-w-0 flex items-baseline justify-between gap-2 transition-colors">
-                <span className="text-xs text-muted truncate flex items-center gap-1.5">
-                  <span className="dot !w-1.5 !h-1.5 self-center" style={{ background: OPCOES_LIVRO.find((o) => o.value === st)?.cor }} aria-hidden />
-                  {STATUS_LABEL[st]}
-                </span>
-                <span className="text-lg font-medium tabular-nums leading-tight">{count(st)}</span>
-              </Link>
-            ))}
-          </div>
-          <p className="text-xs text-muted mt-2">Concluídos — {periodo.nome.toLowerCase()}: <b className="text-ink font-medium">{concluidos}</b></p>
           {lastDone && (
-            <p className="text-xs text-muted mt-1 truncate" title={lastDone.title}>
-              Último concluído: {lastDone.title}, em {new Date(lastDone.finished_at!).toLocaleDateString("pt-BR")}
+            <p className="mt-auto pt-2 text-xs text-muted truncate" title={lastDone.title}>
+              Último concluído: <span className="text-ink">{lastDone.title}</span>, em {new Date(lastDone.finished_at!).toLocaleDateString("pt-BR")}
             </p>
           )}
         </div>
@@ -250,5 +235,18 @@ export default function Dashboard() {
       <QuadroSonhos />
       </div>
     </Page>
+  );
+}
+
+/** Uma célula da faixa de indicadores: o nome (com a bolinha da área), o número e a comparação. */
+function Indicador({ label, value, hint, cor, explica }: { label: string; value: React.ReactNode; hint?: React.ReactNode; cor?: string; explica?: string }) {
+  return (
+    <div className="bg-surface px-3.5 py-3 min-w-0" title={explica}>
+      <div className="text-xs text-muted truncate flex items-center gap-1.5">
+        {cor && <span className="dot !w-1.5 !h-1.5" style={{ background: cor }} aria-hidden />}<span className="truncate">{label}</span>
+      </div>
+      <div className="text-[1.3rem] font-medium tracking-[-0.02em] tabular-nums leading-none mt-1.5 whitespace-nowrap">{value}</div>
+      {hint && <div className="text-[11.5px] text-faint mt-1.5 truncate">{hint}</div>}
+    </div>
   );
 }

@@ -65,7 +65,7 @@ export function SeasonPainel() {
     void carregar();
   }
 
-  if (!s) return <div className="card h-[214px] animate-pulse opacity-60" aria-hidden />;
+  if (!s) return <div className="card h-[168px] animate-pulse opacity-60" aria-hidden />;
 
   if (!s.planejada) {
     return (
@@ -85,9 +85,9 @@ export function SeasonPainel() {
   return (
     <section className="card overflow-hidden">
       {/* a estação e as semanas */}
-      <div className="px-4 pt-3.5 pb-3 flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line">
+      <div className="px-4 py-2.5 flex flex-wrap items-center gap-x-6 gap-y-2.5 border-b border-line">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="w-10 h-10 rounded-full grid place-items-center bg-surface-2 shrink-0"><EstacaoIcone estacao={s.estacao} size={19} /></span>
+          <span className="w-8 h-8 rounded-full grid place-items-center bg-surface-2 shrink-0"><EstacaoIcone estacao={s.estacao} size={16} /></span>
           <div className="min-w-0">
             <div className="eyebrow">Season</div>
             <div className="font-semibold leading-tight">{s.nome}</div>
@@ -98,7 +98,7 @@ export function SeasonPainel() {
           {s.diasRestantes > 0 && <> · faltam <b className="text-ink font-medium">{s.diasRestantes}</b> dias (até {fmtData(s.fim)})</>}
         </div>
         {/* uma barra por semana: a altura e a cor são a nota de execução */}
-        <div className="flex items-end gap-1 h-9 flex-1 min-w-[160px] max-w-[360px]" aria-label="Execução por semana">
+        <div className="flex items-end gap-1 h-7 flex-1 min-w-[140px] max-w-[300px]" aria-label="Execução por semana">
           {s.semanas.map((w, i) => (
             <span key={w.de} className={`flex-1 h-full rounded-[4px] bg-surface-2 relative overflow-hidden ${i === s.semana ? "ring-1 ring-[var(--muted)]" : ""}`}
               title={`Semana ${i + 1} (${fmtData(w.de)} a ${fmtData(w.ate)})${w.nota !== null ? `: ${Math.round(w.nota * 100)}%` : ""}`}>
@@ -117,22 +117,22 @@ export function SeasonPainel() {
         <Link href="/season" className="flex items-center gap-2 px-4 py-4 text-sm text-muted hover:text-ink"><Plus size={15} /> Nenhuma meta nesta Season ainda: escolha de 1 a 3 (livros, aulas, cartões do Anki…).</Link>
       ) : (
         // tantas colunas quantas metas (sem buraco no fim); no tablet, a última sobra ocupa a linha
-        <div className={`grid grid-cols-1 sm:grid-cols-2 ${["xl:grid-cols-1", "xl:grid-cols-1", "xl:grid-cols-2", "xl:grid-cols-3", "xl:grid-cols-4", "xl:grid-cols-5"][Math.min(5, s.metas.length)]} gap-px bg-line sm:[&>*:last-child:nth-child(odd)]:col-span-2 xl:[&>*:last-child:nth-child(odd)]:col-span-1`}>
+        <div className={`grid grid-cols-2 ${["xl:grid-cols-1", "xl:grid-cols-1", "xl:grid-cols-2", "xl:grid-cols-3", "xl:grid-cols-4", "xl:grid-cols-5"][Math.min(5, s.metas.length)]} gap-px bg-line [&>*:last-child:nth-child(odd)]:col-span-2 xl:[&>*:last-child:nth-child(odd)]:col-span-1`}>
           {s.metas.map(({ m, p }) => {
             const area = AREAS.find((a) => a.id === m.area)!;
             const nomeArea = m.area === "idiomas" && s.idioma ? s.idioma : area.nome;
             const cor = COR_ESTADO[p.estado];
             const [principal, precisa, ritmo] = p.numeros;
             return (
-              <article key={m.id} className="bg-surface p-4 min-w-0 flex flex-col">
+              <article key={m.id} className="bg-surface px-4 py-3 min-w-0 flex flex-col">
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-[11.5px] text-muted min-w-0"><span className="dot !w-1.5 !h-1.5" style={{ background: area.cor }} /><span className="truncate">{nomeArea}</span></span>
                   <span className="text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap" style={{ color: cor, background: `color-mix(in srgb, ${cor} 14%, transparent)` }}>{p.selo}</span>
                 </div>
                 <Link href={`/season#meta-${m.id}`} className="font-medium leading-snug mt-1.5 line-clamp-2 hover:underline underline-offset-2" title={p.resumo}>{m.titulo}</Link>
-                <div className="flex items-center gap-3 mt-2 sm:mt-3">
-                  <Anel valor={p.pct} cor={area.cor} tamanho={54} espessura={5}>
-                    <span className="text-[13px] font-semibold tabular-nums">{Math.round(p.pct * 100)}%</span>
+                <div className="flex items-center gap-3 mt-2">
+                  <Anel valor={p.pct} cor={area.cor} tamanho={46} espessura={4}>
+                    <span className="text-[12px] font-semibold tabular-nums">{Math.round(p.pct * 100)}%</span>
                   </Anel>
                   <div className="min-w-0">
                     <div className="text-xl font-semibold tabular-nums leading-none">
@@ -142,18 +142,11 @@ export function SeasonPainel() {
                   </div>
                 </div>
                 {/* o que a meta pede por dia × o que você faz (ou os dias que restam, na contagem) */}
-                <div className="sm:hidden mt-2 text-xs text-muted tabular-nums">
+                {/* o que a meta pede por dia × o seu ritmo (ou os dias que restam, na contagem), numa linha */}
+                <div className="mt-2.5 text-xs text-muted tabular-nums">
                   {[precisa, ritmo].filter(Boolean).map((n, i) => <span key={n.rotulo}>{i ? " · " : ""}<b className="font-semibold" style={{ color: n.cor ?? "var(--text)" }}>{n.valor}</b> {n.rotulo}</span>)}
                 </div>
-                <div className="hidden sm:grid mt-3 grid-cols-2 gap-2 text-[11.5px]">
-                  {[precisa, ritmo].filter(Boolean).map((n) => (
-                    <div key={n.rotulo} className="rounded-lg bg-surface-2/60 px-2.5 py-1.5 min-w-0">
-                      <div className="font-semibold tabular-nums text-sm" style={{ color: n.cor }}>{n.valor}</div>
-                      <div className="text-muted truncate">{n.rotulo}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-auto pt-2 sm:pt-3 flex items-center justify-between gap-2 text-[11.5px] text-muted">
+                <div className="mt-auto pt-1.5 flex items-center justify-between gap-2 text-[11.5px] text-muted">
                   <span className="truncate" title={p.sub}>{p.sub}</span>
                   {m.tipo === "contagem" && p.estado !== "feita" && (
                     <button className="btn py-0.5 px-2 text-xs shrink-0" title={`Marcar 1 ${(m.unidade || "item").replace(/s$/, "")} feita hoje`} onClick={() => void maisUm(m)}><Plus size={12} /> 1</button>
