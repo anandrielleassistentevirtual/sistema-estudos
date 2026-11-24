@@ -120,11 +120,7 @@ export default function Dashboard() {
   const reading = books.filter((b) => b.status === "lendo");
   const naData = (iso: string | null | undefined, de: string, ate: string) => { const k = iso ? dayKey(new Date(iso)) : ""; return !!k && k >= de && k <= ate; };
   const concluidos = books.filter((b) => naData(b.finished_at, periodo.de, periodo.ate)).length;
-  const concluidosAnt = books.filter((b) => naData(b.finished_at, periodo.antDe, periodo.antAte)).length;
   const lastDone = books.filter((b) => b.finished_at).sort((a, b) => (b.finished_at! > a.finished_at! ? 1 : -1))[0];
-  const remainingWords = books
-    .filter((b) => b.status !== "lido")
-    .reduce((a, b) => a + (b.word_count ?? 0) * (1 - progressoDoLivro(b)), 0);
 
   // média simples entre os dois ritmos (a aula falada costuma render mais palavras por minuto que o livro)
   const ppmMedia = ppm.leitura && ppm.estudos ? Math.round((ppm.leitura + ppm.estudos) / 2) : ppm.leitura || ppm.estudos || s.ppm;
@@ -146,33 +142,31 @@ export default function Dashboard() {
       <div className="flex flex-col gap-3 md:gap-4">
       {/* contagens regressivas: dias, horas, minutos e segundos até as datas que importam */}
       <Contagens />
-      {/* os 8 números numa faixa só (divisórias finas, sem cartões soltos); a cor marca a área;
-          as setas comparam com o período anterior equivalente (o nome dele está no tooltip de cada número) */}
-      <div className="card grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-px bg-line overflow-hidden">
-        {/* tudo no período do filtro; legendas: uma linha curta comparando com o período anterior (o tooltip explica) */}
-        <Indicador label="Tempo" value={fmtDuration(s.tempo)} hint={<Variacao atual={s.tempo} base={s.tempoAnt} />}
-          explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(s.tempoAnt)}.`} />
-        <Indicador label="Média por dia" value={fmtDuration(s.media)} hint={<Variacao atual={s.media} base={s.mediaAnt} />}
-          explica={`Tempo dividido pelos dias do período (os dias antes do seu primeiro registro não contam). Período anterior: ${fmtDuration(s.mediaAnt)} por dia.`} />
-        <Indicador label="Dias de estudo" value={`${s.diasAtivos} de ${s.dias}`} hint={`sequência: ${s.streak} ${s.streak === 1 ? "dia" : "dias"}`}
+      {/* aviso que pede uma ação (só aparece quando está na hora) */}
+      <ConfissaoAviso />
+      {/* um bloco por assunto, cada um com o número principal, a comparação e um detalhe:
+          tempo (e a média por dia), constância (dias e sequência), leitura (e o ritmo), escrita e idiomas.
+          As setas comparam com o período anterior equivalente (o nome dele está no subtítulo). */}
+      <div className="card grid grid-cols-2 md:grid-cols-5 gap-px bg-line overflow-hidden [&>*:last-child]:col-span-2 md:[&>*:last-child]:col-span-1">
+        <Indicador label="Tempo de estudo" value={fmtDuration(s.tempo)} delta={<Variacao atual={s.tempo} base={s.tempoAnt} />}
+          detalhe={`${fmtDuration(s.media)} por dia`}
+          explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(s.tempoAnt)} (${fmtDuration(s.mediaAnt)} por dia).`} />
+        <Indicador label="Constância" value={<>{s.diasAtivos}<span className="text-sm font-normal text-muted"> de {s.dias} dias</span></>}
+          detalhe={`sequência de ${s.streak} ${s.streak === 1 ? "dia" : "dias"}`}
           explica="Dias do período com algum estudo, leitura, revisão ou escrita (contando a partir do seu primeiro registro). A sequência é de dias seguidos até hoje." />
-        <Indicador label="Velocidade" cor={COR_AREA.leitura} value={s.ppm ? `${s.ppm} ppm` : "—"} hint={<Variacao atual={s.ppm} base={s.ppmAnt} />}
-          explica={`Palavras por minuto no leitor (livros e aulas) — ${periodo.nome.toLowerCase()}. Período anterior: ${s.ppmAnt || "—"} ppm.`} />
-        <Indicador label="Palavras lidas" cor={COR_AREA.leitura} value={nf.format(s.lidas)} hint={<Variacao atual={s.lidas} base={s.lidasAnt} />}
-          explica={`Palavras lidas no leitor — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.lidasAnt)}.`} />
-        <Indicador label="Palavras escritas" cor={COR_AREA.escrita} value={nf.format(s.escritas)} hint={<Variacao atual={s.escritas} base={s.escritasAnt} />}
+        <Indicador label="Leitura" cor={COR_AREA.leitura} value={<>{nf.format(s.lidas)}<span className="text-sm font-normal text-muted"> pal.</span></>}
+          delta={<Variacao atual={s.lidas} base={s.lidasAnt} />} detalhe={s.ppm ? `${s.ppm} ppm` : "—"}
+          explica={`Palavras lidas no leitor (livros e aulas) — ${periodo.nome.toLowerCase()}, a ${s.ppm || "—"} palavras por minuto. Período anterior: ${nf.format(s.lidasAnt)} palavras, ${s.ppmAnt || "—"} ppm.`} />
+        <Indicador label="Escrita" cor={COR_AREA.escrita} value={<>{nf.format(s.escritas)}<span className="text-sm font-normal text-muted"> pal.</span></>}
+          delta={<Variacao atual={s.escritas} base={s.escritasAnt} />}
           explica={`Palavras escritas na sala de escrita — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.escritasAnt)}.`} />
-        <Indicador label="Revisões Anki" cor={COR_AREA.idiomas} value={nf.format(s.anki)} hint={<Variacao atual={s.anki} base={s.ankiAnt} />}
-          explica={`Revisões nos baralhos dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.ankiAnt)}.`} />
-        <Indicador label="Livros concluídos" cor={COR_AREA.leitura} value={nf.format(concluidos)}
-          hint={concluidos || concluidosAnt ? <Variacao atual={concluidos} base={concluidosAnt} /> : `${count("aguardando")} na fila`}
-          explica={`Livros terminados — ${periodo.nome.toLowerCase()}. Na fila: ${count("aguardando")} aguardando${ppmLivros && remainingWords ? `, ≈ ${Math.round(remainingWords / ppmLivros / 60)} h de leitura pela frente` : ""}.`} />
+        <Indicador label="Idiomas" cor={COR_AREA.idiomas} value={<>{nf.format(s.anki)}<span className="text-sm font-normal text-muted"> revisões</span></>}
+          delta={<Variacao atual={s.anki} base={s.ankiAnt} />}
+          explica={`Revisões no Anki, nos baralhos dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.ankiAnt)}.`} />
       </div>
 
       {/* a Season: a estação, as semanas e as metas (os mesmos números da página da Season) */}
       <SeasonPainel />
-
-      <ConfissaoAviso />
 
       {/* o calendário fica com a maior parte da largura: os quadradinhos do ano continuam legíveis */}
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-3 md:gap-4">
@@ -223,11 +217,11 @@ export default function Dashboard() {
               {reading.length > 3 && <li className="text-xs text-muted pt-1"><Link href="/biblioteca" className="hover:text-ink">+ {reading.length - 3} em leitura →</Link></li>}
             </ul>
           )}
-          {lastDone && (
-            <p className="mt-auto pt-2 text-xs text-muted truncate" title={lastDone.title}>
-              Último concluído: <span className="text-ink">{lastDone.title}</span>, em {new Date(lastDone.finished_at!).toLocaleDateString("pt-BR")}
-            </p>
-          )}
+          {/* o que foi concluído no período (e o último livro terminado) */}
+          <p className="mt-auto pt-2 text-xs text-muted truncate" title={lastDone?.title}>
+            <b className="text-ink font-medium tabular-nums">{concluidos}</b> {concluidos === 1 ? "livro concluído" : "livros concluídos"} — {periodo.nome.toLowerCase()}
+            {lastDone && <> · último: <span className="text-ink">{lastDone.title}</span>, em {new Date(lastDone.finished_at!).toLocaleDateString("pt-BR")}</>}
+          </p>
         </div>
       </section>
 
@@ -238,15 +232,21 @@ export default function Dashboard() {
   );
 }
 
-/** Uma célula da faixa de indicadores: o nome (com a bolinha da área), o número e a comparação. */
-function Indicador({ label, value, hint, cor, explica }: { label: string; value: React.ReactNode; hint?: React.ReactNode; cor?: string; explica?: string }) {
+/** Um bloco da faixa: o assunto (com a bolinha da área), o número e, embaixo, a comparação e um detalhe. */
+function Indicador({ label, value, delta, detalhe, cor, explica }: {
+  label: string; value: React.ReactNode; delta?: React.ReactNode; detalhe?: string; cor?: string; explica?: string;
+}) {
   return (
-    <div className="bg-surface px-3.5 py-3 min-w-0" title={explica}>
+    <div className="bg-surface px-4 py-3 min-w-0" title={explica}>
       <div className="text-xs text-muted truncate flex items-center gap-1.5">
         {cor && <span className="dot !w-1.5 !h-1.5" style={{ background: cor }} aria-hidden />}<span className="truncate">{label}</span>
       </div>
-      <div className="text-[1.3rem] font-medium tracking-[-0.02em] tabular-nums leading-none mt-1.5 whitespace-nowrap">{value}</div>
-      {hint && <div className="text-[11.5px] text-faint mt-1.5 truncate">{hint}</div>}
+      <div className="text-[1.35rem] font-medium tracking-[-0.02em] tabular-nums leading-none mt-1.5 whitespace-nowrap truncate">{value}</div>
+      {(delta || detalhe) && (
+        <div className="text-[11.5px] text-faint mt-1.5 truncate">
+          {delta}{delta && detalhe ? <span className="mx-1">·</span> : null}{detalhe}
+        </div>
+      )}
     </div>
   );
 }

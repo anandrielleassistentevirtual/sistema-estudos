@@ -30,6 +30,8 @@ export function ConfissaoAviso() {
 
   const dias = ultima ? diasDesde(ultima) : null;
   const atrasada = dias !== null && dias > PRAZO_CONFISSAO;
+  // em dia, sem exame guardado e sem nada a registrar: não ocupa o Dashboard (o aviso volta quando estiver na hora)
+  if (ultima && !atrasada && !emAndamento && !marcando) return null;
   return (
     // uma linha só: o aviso, quando foi a última e os botões (o exame guardado aparece como um lembrete curto)
     <section className={`card px-3.5 py-2 flex flex-wrap items-center gap-x-3 gap-y-2 ${atrasada ? "border-[color-mix(in_srgb,var(--warn)_55%,transparent)]" : ""}`}
