@@ -6,6 +6,7 @@ import { aoDesfazerSelecao, FONTS, HL_COLORS, ReaderHandle, ReaderProps, themeCo
 import { paginar } from "./paginar";
 import { chamadasTxt, extrairNotas, prepararMd } from "./notas-do-livro";
 import { aplicarLigacoes, ligarNotas } from "./notas-auto";
+import { chaveTermo, prepararTermos, separarGlossario, termoDoHref } from "./glossario";
 
 /** Leitor paginado para TXT e Markdown: páginas de ~320 palavras, quebrando em parágrafos. */
 export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextReader(props, ref) {
@@ -19,14 +20,18 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     void props.data.text().then(setText);
   }, [props.data]);
 
-  const { pages, toc } = useMemo(() => (text === null ? { pages: [], toc: [] as TocItem[] } : paginar(text, props.format === "md")),
+  // o glossário no fim do arquivo ("## Glossário…") não vira página: fica guardado para os balões dos termos
+  const { texto: corpoDoTexto, verbetes } = useMemo(() => (props.format === "md" && text ? separarGlossario(text) : { texto: text, verbetes: new Map() }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [text]);
+  const { pages, toc } = useMemo(() => (corpoDoTexto === null ? { pages: [], toc: [] as TocItem[] } : paginar(corpoDoTexto, props.format === "md")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [corpoDoTexto]);
 
   // as notas do próprio livro (rodapé/fim), para o balão das chamadas: as marcadas ([^1]) e as reconhecidas
   // sozinhas (chamada colada “perfeito1.”, “\*”, “(1)”, “²” + o texto da nota no pé da página ou numa seção de notas)
-  const ligacoes = useMemo(() => ligarNotas(text ?? ""), [text]);
-  const notas = useMemo(() => new Map([...extrairNotas(text ?? ""), ...ligacoes.notas]), [text, ligacoes]);
+  const ligacoes = useMemo(() => ligarNotas(corpoDoTexto ?? ""), [corpoDoTexto]);
+  const notas = useMemo(() => new Map([...extrairNotas(corpoDoTexto ?? ""), ...ligacoes.notas]), [corpoDoTexto, ligacoes]);
   useEffect(() => {
     if (pages.length) cb.current.onToc?.(toc);
   }, [pages, toc]);
@@ -116,8 +121,10 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
             a: ({ href, children, node: _n, ...p }) => (href?.startsWith("#nota-")
               ? <sup className="nota-ref" data-nota={decodeURIComponent(href.slice(6))} role="button" tabIndex={0}>{children}</sup>
-              : <a href={href} {...p}>{children}</a>),
-          }}>{prepararMd(aplicarLigacoes(current.text, ligacoes))}</ReactMarkdown>
+              : href?.startsWith("#termo-")
+                ? <span className="termo-ref" data-termo={termoDoHref(href) ?? ""} role="button" tabIndex={0}>{children}</span>
+                : <a href={href} {...p}>{children}</a>),
+          }}>{prepararTermos(prepararMd(aplicarLigacoes(current.text, ligacoes)), verbetes)}</ReactMarkdown>
         ) : (
           current.text.split("\n\n").map((p, i) => {
             const h = p.match(/^(#{1,3})\s+(.+?)\s*#*$/);
@@ -128,19 +135,36 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
             return <p key={i} dangerouslySetInnerHTML={{ __html: chamadasTxt(highlight(escape(aplicarLigacoes(p, ligacoes)), marks.map((m) => ({ ...m, quote: escape(m.quote) })))) }} />;
           })
         )
-  ), [current, marks, props.format, ligacoes]); // eslint-disable-line react-hooks/exhaustive-deps
+  ), [current, marks, props.format, ligacoes, verbetes]); // eslint-disable-line react-hooks/exhaustive-deps
   const sobre = useRef("");
   /** o mouse sobre uma marca: as notas dela e das marcas por fora (trechos que se sobrepõem) */
   const notaSobre = useRef("");
   /** a chamada de uma nota do livro: o balão com o texto dela */
   function notaDoLivro(alvo: EventTarget | null, fixa = false) {
-    const el = (alvo as Element | null)?.closest?.("[data-nota]") as HTMLElement | null;
+    const el = (alvo as Element | null)?.closest?.("[data-nota],[data-termo]") as HTMLElement | null;
+    // termo do glossário: o verbete no balão
+    if (el?.dataset.termo !== undefined) {
+      const chave = "t:" + el.dataset.termo;
+      if (!fixa && chave === notaSobre.current) return;
+      notaSobre.current = chave;
+      const r = el.getBoundingClientRect();
+      return abrirVerbete(el.dataset.termo, { left: r.left, right: r.right, top: r.top, bottom: r.bottom }, fixa);
+    }
     const id = el?.dataset.nota ?? "";
     if (!fixa && id === notaSobre.current) return;
     notaSobre.current = id;
     if (!el || !id) return cb.current.onNotaLivro?.(null);
     const r = el.getBoundingClientRect();
     cb.current.onNotaLivro?.({ rotulo: el.textContent?.replace(/[()]/g, "").trim() || id, texto: notas.get(id) ?? "(nota não encontrada no livro)", left: r.left, right: r.right, top: r.top, bottom: r.bottom, fixa });
+  }
+  function abrirVerbete(termo: string, onde: { left: number; right: number; top: number; bottom: number }, fixa: boolean) {
+    const v = verbetes.get(chaveTermo(termo));
+    if (!v) return cb.current.onNotaLivro?.(null);
+    cb.current.onNotaLivro?.({
+      rotulo: v.titulo, texto: v.corpo, verbete: { tipos: v.tipos }, ...onde, fixa,
+      // um termo citado dentro do verbete abre no mesmo lugar, já fixo
+      irPara: (outro) => { if (verbetes.has(chaveTermo(outro))) { notaSobre.current = "t:" + outro; abrirVerbete(outro, onde, true); } },
+    });
   }
   function hover(e: React.MouseEvent) {
     notaDoLivro(e.target);
@@ -159,7 +183,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     <div ref={box} className="w-full h-full overflow-y-auto" style={{ background: t.bg, color: t.fg }} onMouseUp={onMouseUp} onTouchEnd={onMouseUp}
       onMouseMove={hover} onMouseLeave={() => { sobre.current = ""; cb.current.onNotaHover?.(null); notaSobre.current = ""; cb.current.onNotaLivro?.(null); }}
       onScroll={() => { if (sobre.current) { sobre.current = ""; cb.current.onNotaHover?.(null); } if (notaSobre.current) { notaSobre.current = ""; cb.current.onNotaLivro?.(null); } }}
-      onClick={(e) => { if ((e.target as Element).closest?.("[data-nota]")) { notaDoLivro(e.target, true); return; } const m = (e.target as Element).closest?.("mark[data-anns]") as HTMLElement | null; const id = m?.dataset.anns?.split(",")[0]; if (id && !window.getSelection()?.toString().trim()) cb.current.onAnnotationClick(id); }}>
+      onClick={(e) => { if ((e.target as Element).closest?.("[data-nota],[data-termo]")) { notaDoLivro(e.target, true); return; } const m = (e.target as Element).closest?.("mark[data-anns]") as HTMLElement | null; const id = m?.dataset.anns?.split(",")[0]; if (id && !window.getSelection()?.toString().trim()) cb.current.onAnnotationClick(id); }}>
       <article
         className="reading-page prose-notes mx-auto max-w-[68ch] px-6 pt-10 pb-28" /* espaço no fim: Anterior/Próxima ficam acima do Menu e do cronômetro */
         style={{

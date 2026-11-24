@@ -76,7 +76,13 @@ export interface ReaderProps {
 }
 export interface NotaHover { ids: string[]; left: number; right: number; top: number; bottom: number }
 /** uma nota do próprio livro (rodapé/fim) sob o mouse: o número, o texto e onde está a chamada; fixa = aberta por toque/clique */
-export interface NotaDoLivro { rotulo: string; texto: string; left: number; right: number; top: number; bottom: number; fixa?: boolean }
+export interface NotaDoLivro {
+  rotulo: string; texto: string; left: number; right: number; top: number; bottom: number; fixa?: boolean;
+  /** verbete do glossário: o texto é Markdown, com as etiquetas (Filosófico/Literário) e links para outros termos */
+  verbete?: { tipos: string[] };
+  /** abre outro termo do glossário no mesmo balão (link dentro de um verbete) */
+  irPara?: (termo: string) => void;
+}
 
 /** "3 páginas restantes no capítulo" (como no Livros da Apple) */
 export function textoFaltamNoCapitulo(faltam: number | null, nome = "capítulo"): string {

@@ -11,7 +11,8 @@ import { BotaoFoco, DicaNaoPerturbe, SairDoFoco, useModoFoco } from "@/component
 import { Sumario } from "@/components/reader/sumario";
 import { PrefsPanel } from "@/components/reader/prefs-panel";
 import { stepZoom, useEffectiveTheme, useReaderPrefs, zoomOf, ZOOM } from "@/components/reader/prefs";
-import { THEMES, textoFaltamNoCapitulo, type ReaderHandle, type TocItem } from "@/components/reader/types";
+import { THEMES, textoFaltamNoCapitulo, type NotaDoLivro, type ReaderHandle, type TocItem } from "@/components/reader/types";
+import { NotaLivroBalao } from "@/components/reader/notas-balao";
 import { ReadingTracker } from "@/lib/reading-tracker";
 import { useTimerEstado } from "@/components/timer-context";
 import { supabase, fire } from "@/lib/supabase/client";
@@ -49,6 +50,16 @@ export default function AulaAberta() {
   const [progresso, setProgresso] = useState(0);
   const [sessao, setSessao] = useState({ seconds: 0, words: 0 });
   const [sel, setSel] = useState<{ location: string; quote: string } | null>(null);
+  // balão das notas do texto e dos termos do glossário (passar o mouse; clique deixa aberto, Esc ou clique fora fecha)
+  const [notaLivro, setNotaLivroEstado] = useState<NotaDoLivro | null>(null);
+  const setNotaLivro = useCallback((n: NotaDoLivro | null) => setNotaLivroEstado((atual) => (n === null && atual?.fixa ? atual : n)), []);
+  useEffect(() => {
+    if (!notaLivro?.fixa) return;
+    const fechar = (e: Event) => { if (e instanceof KeyboardEvent && e.key !== "Escape") return; if (e.type === "pointerdown" && (e.target as Element)?.closest?.("[role=tooltip],[data-nota],[data-termo]")) return; setNotaLivroEstado(null); };
+    document.addEventListener("pointerdown", fechar);
+    document.addEventListener("keydown", fechar);
+    return () => { document.removeEventListener("pointerdown", fechar); document.removeEventListener("keydown", fechar); };
+  }, [notaLivro]);
   const [aviso, setAviso] = useState<string | null>(null);
   const [salvo, setSalvo] = useState<"salvo" | "salvando" | "pendente">("salvo");
   const [ppmBase, setPpmBase] = useState(220);
@@ -289,7 +300,7 @@ export default function AulaAberta() {
               annotations={[]} knownWords={null}
               onTurn={(w, fwd) => tracker.current?.turn(w, fwd)}
               onView={(w, last) => tracker.current?.see(w, last)}
-              onToc={setToc} onCapitulo={setFaltamCap}
+              onToc={setToc} onCapitulo={setFaltamCap} onNotaLivro={setNotaLivro}
               onLocation={(loc, p, l) => {
                 if (loc) setLocal(loc);
                 setProgresso(p);
@@ -313,6 +324,7 @@ export default function AulaAberta() {
           )}
           {painel === "aa" && <PrefsPanel prefs={prefs} setPrefs={setPrefs} />}
 
+          {!sel && !editar && <NotaLivroBalao nota={notaLivro} onFechar={() => setNotaLivroEstado(null)} />}
           {sel && !editar && (
             <div data-barra-selecao className="absolute left-1/2 -translate-x-1/2 bottom-4 z-30 card shadow-xl p-3 w-[min(480px,calc(100%-2rem))] text-ink">
               <p className="text-xs text-muted line-clamp-2 font-serif">“{sel.quote}”</p>

@@ -56,7 +56,7 @@ export default function Ler() {
   const setNotaLivro = useCallback((n: NotaDoLivro | null) => setNotaLivroEstado((atual) => (n === null && atual?.fixa ? atual : n)), []);
   useEffect(() => {
     if (!notaLivro?.fixa) return;
-    const fechar = (e: Event) => { if (e instanceof KeyboardEvent && e.key !== "Escape") return; if (e.type === "pointerdown" && (e.target as Element)?.closest?.("[role=tooltip],[data-nota]")) return; setNotaLivroEstado(null); };
+    const fechar = (e: Event) => { if (e instanceof KeyboardEvent && e.key !== "Escape") return; if (e.type === "pointerdown" && (e.target as Element)?.closest?.("[role=tooltip],[data-nota],[data-termo]")) return; setNotaLivroEstado(null); };
     document.addEventListener("pointerdown", fechar);
     document.addEventListener("keydown", fechar);
     return () => { document.removeEventListener("pointerdown", fechar); document.removeEventListener("keydown", fechar); };

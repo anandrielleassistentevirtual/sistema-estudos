@@ -591,3 +591,20 @@ html { -webkit-tap-highlight-color: transparent; touch-action: manipulation; -we
   color: var(--area-leitura); cursor: pointer; padding: 0 0.12em; border-radius: 3px; font-weight: 600;
 }
 .nota-ref:hover, .nota-ref:focus-visible { background: color-mix(in srgb, var(--area-leitura) 16%, transparent); outline: none; }
+
+/* Termo do glossário no texto (aulas): sublinhado pontilhado; passar o mouse abre o verbete */
+.termo-ref {
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  text-underline-offset: 3px;
+  cursor: help;
+  border-radius: 3px;
+}
+.termo-ref:hover { text-decoration-color: var(--area-estudos); background: color-mix(in srgb, var(--area-estudos) 12%, transparent); }
+button.termo-ref { font: inherit; color: inherit; padding: 0; background: none; cursor: pointer; }
+/* Verbete no balão: listas e tabelas compactas */
+.verbete ul { list-style: disc; padding-left: 1.1rem; }
+.verbete li + li, .verbete p + p, .verbete p + ul, .verbete ul + p { margin-top: 0.45rem; }
+.verbete strong { font-weight: 600; }
+.verbete table { font-size: 12.5px; border-collapse: collapse; width: 100%; }
+.verbete th, .verbete td { border-bottom: 1px solid var(--border); padding: 3px 6px 3px 0; text-align: left; vertical-align: top; }

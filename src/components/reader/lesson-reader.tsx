@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TextReader } from "./text-reader";
-import { themeColors, type ReaderHandle, type ReaderPrefs } from "./types";
+import { themeColors, type NotaDoLivro, type ReaderHandle, type ReaderPrefs } from "./types";
+import { NotaLivroBalao } from "./notas-balao";
 import { ReadingTracker } from "@/lib/reading-tracker";
 import { useTimerEstado } from "@/components/timer-context";
 import { fmtClock, nf } from "@/lib/dates";
@@ -25,6 +26,15 @@ export function LessonReader({ note, prefs, onProgress, onPosition }: {
   const [progress, setProgress] = useState(0);
   const [label, setLabel] = useState("");
   const key = `aula-pos-${note.id}`;
+  const [notaLivro, setNotaLivroEstado] = useState<NotaDoLivro | null>(null);
+  const setNotaLivro = useCallback((n: NotaDoLivro | null) => setNotaLivroEstado((atual) => (n === null && atual?.fixa ? atual : n)), []);
+  useEffect(() => {
+    if (!notaLivro?.fixa) return;
+    const fechar = (e: Event) => { if (e instanceof KeyboardEvent && e.key !== "Escape") return; if (e.type === "pointerdown" && (e.target as Element)?.closest?.("[role=tooltip],[data-nota],[data-termo]")) return; setNotaLivroEstado(null); };
+    document.addEventListener("pointerdown", fechar);
+    document.addEventListener("keydown", fechar);
+    return () => { document.removeEventListener("pointerdown", fechar); document.removeEventListener("keydown", fechar); };
+  }, [notaLivro]);
 
   const blob = useMemo(() => new Blob([note.content], { type: "text/markdown" }), [note.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // posição salva no banco (notes.location) — vale em qualquer aparelho; localStorage como reserva
@@ -104,7 +114,9 @@ export function LessonReader({ note, prefs, onProgress, onPosition }: {
           onSelect={() => {}}
           onWordCount={() => {}}
           onAnnotationClick={() => {}}
+          onNotaLivro={setNotaLivro}
         />
+        <NotaLivroBalao nota={notaLivro} onFechar={() => setNotaLivroEstado(null)} />
       </div>
       <div className="shrink-0 flex items-center gap-2 px-3 h-8 text-xs opacity-80">
         <button className="p-1" onClick={() => reader.current?.prev()} aria-label="Página anterior"><ChevronLeft size={16} /></button>
