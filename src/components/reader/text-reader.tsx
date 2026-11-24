@@ -6,7 +6,7 @@ import { aoDesfazerSelecao, FONTS, HL_COLORS, ReaderHandle, ReaderProps, themeCo
 import { paginar } from "./paginar";
 import { chamadasTxt, extrairNotas, prepararMd } from "./notas-do-livro";
 import { aplicarLigacoes, ligarNotas } from "./notas-auto";
-import { chaveTermo, prepararTermos, separarGlossario, termoDoHref } from "./glossario";
+import { chaveTermo, formasDosTermos, marcarTermos, prepararTermos, separarGlossario, termoDoHref } from "./glossario";
 
 /** Leitor paginado para TXT e Markdown: páginas de ~320 palavras, quebrando em parágrafos. */
 export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextReader(props, ref) {
@@ -31,6 +31,8 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
   // as notas do próprio livro (rodapé/fim), para o balão das chamadas: as marcadas ([^1]) e as reconhecidas
   // sozinhas (chamada colada “perfeito1.”, “\*”, “(1)”, “²” + o texto da nota no pé da página ou numa seção de notas)
   const ligacoes = useMemo(() => ligarNotas(corpoDoTexto ?? ""), [corpoDoTexto]);
+  // cada termo do glossário marcado todas as vezes que aparece (não só onde o arquivo pôs o link)
+  const formas = useMemo(() => formasDosTermos(corpoDoTexto ?? "", verbetes), [corpoDoTexto, verbetes]);
   const notas = useMemo(() => new Map([...extrairNotas(corpoDoTexto ?? ""), ...ligacoes.notas]), [corpoDoTexto, ligacoes]);
   useEffect(() => {
     if (pages.length) cb.current.onToc?.(toc);
@@ -124,7 +126,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
               : href?.startsWith("#termo-")
                 ? <span className="termo-ref" data-termo={termoDoHref(href) ?? ""} role="button" tabIndex={0}>{children}</span>
                 : <a href={href} {...p}>{children}</a>),
-          }}>{prepararTermos(prepararMd(aplicarLigacoes(current.text, ligacoes)), verbetes)}</ReactMarkdown>
+          }}>{marcarTermos(prepararTermos(prepararMd(aplicarLigacoes(current.text, ligacoes)), verbetes), formas)}</ReactMarkdown>
         ) : (
           current.text.split("\n\n").map((p, i) => {
             const h = p.match(/^(#{1,3})\s+(.+?)\s*#*$/);
@@ -135,7 +137,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
             return <p key={i} dangerouslySetInnerHTML={{ __html: chamadasTxt(highlight(escape(aplicarLigacoes(p, ligacoes)), marks.map((m) => ({ ...m, quote: escape(m.quote) })))) }} />;
           })
         )
-  ), [current, marks, props.format, ligacoes, verbetes]); // eslint-disable-line react-hooks/exhaustive-deps
+  ), [current, marks, props.format, ligacoes, verbetes, formas]); // eslint-disable-line react-hooks/exhaustive-deps
   const sobre = useRef("");
   /** o mouse sobre uma marca: as notas dela e das marcas por fora (trechos que se sobrepõem) */
   const notaSobre = useRef("");
