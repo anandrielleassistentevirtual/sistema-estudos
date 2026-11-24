@@ -14,6 +14,7 @@ import { FiltroPeriodo } from "@/components/filtro-periodo";
 import { Variacao } from "@/components/variacao";
 import { SeasonPainel } from "@/components/season-painel";
 import { QuadroSonhos } from "@/components/quadro-sonhos";
+import { Contagens } from "@/components/contagens";
 import { somaNoPeriodo, usePeriodo } from "@/lib/periodo";
 import { DayStats, inicio12Meses, loadDaily } from "@/lib/stats";
 import { supabase } from "@/lib/supabase/client";
@@ -148,7 +149,7 @@ export default function Dashboard() {
           setNome(n);
         }}><Pencil size={14} /></button>
       }
-      actions={<FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />}>
+      actions={<><Contagens /><FiltroPeriodo periodo={periodo} onMudar={setPeriodo} /></>}>
       {/* um só ritmo vertical entre os blocos (o mesmo vão das grades) */}
       <div className="flex flex-col gap-3 md:gap-4">
       <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3 md:gap-4">
