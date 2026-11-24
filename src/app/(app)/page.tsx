@@ -149,9 +149,11 @@ export default function Dashboard() {
           setNome(n);
         }}><Pencil size={14} /></button>
       }
-      actions={<><Contagens /><FiltroPeriodo periodo={periodo} onMudar={setPeriodo} /></>}>
+      actions={<FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />}>
       {/* um só ritmo vertical entre os blocos (o mesmo vão das grades) */}
       <div className="flex flex-col gap-3 md:gap-4">
+      {/* contagens regressivas: dias, horas, minutos e segundos até as datas que importam */}
+      <Contagens />
       <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3 md:gap-4">
         {/* tudo no período do filtro; legendas: uma linha curta comparando com o período anterior (o tooltip explica) */}
         <Stat compacto label="Tempo" value={fmtDuration(s.tempo)} serie={s.series.tempo} hint={<Variacao atual={s.tempo} base={s.tempoAnt} vs={periodo.vs} />}

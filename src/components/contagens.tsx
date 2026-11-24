@@ -1,73 +1,93 @@
 "use client";
 /**
- * Contagens regressivas do Dashboard: quantos dias faltam até uma data, com a meta ("10 kg a menos") e uma
- * barrinha do tempo já percorrido desde o início. Ficam no cabeçalho, ao lado do período: não ocupam altura.
- * Clique numa contagem para editar ou apagar; "+" cria outra.
+ * Contagens regressivas do Dashboard: dias, horas, minutos e segundos até a data (0h do dia, horário de Brasília),
+ * com a meta ("10 kg a menos") e uma barrinha do tempo já percorrido desde o início.
+ * Clique numa contagem para editar ou apagar; "+ nova" cria outra.
  */
 import { useEffect, useState } from "react";
 import { Hourglass, Plus, Trash2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
-import { dayKey, parseDay } from "@/lib/dates";
+import { dayKey } from "@/lib/dates";
 
 interface Contagem { id: string; titulo: string; meta: string; data: string; inicio: string; ordem: number }
 
-const DIA = 86400000;
-const diasEntre = (de: string, ate: string) => Math.round((parseDay(ate).getTime() - parseDay(de).getTime()) / DIA);
+/** 0h do dia no horário de Brasília (−03:00), em milissegundos */
+const zeroHora = (k: string) => Date.parse(`${k}T00:00:00-03:00`);
 const dataCurta = (k: string) => {
   const [a, m, d] = k.split("-");
   return a === dayKey().slice(0, 4) ? `${+d}/${+m}` : `${+d}/${+m}/${a}`;
 };
-
-/** "30 dias"; acima de um ano, também "≈ 4 anos e 1 mês" */
-function emAnos(dias: number) {
-  if (dias < 365) return "";
-  const anos = Math.floor(dias / 365.25), meses = Math.floor((dias - anos * 365.25) / 30.44);
-  return `≈ ${anos} ${anos === 1 ? "ano" : "anos"}${meses ? ` e ${meses} ${meses === 1 ? "mês" : "meses"}` : ""}`;
-}
+const dois = (n: number) => String(n).padStart(2, "0");
 
 export function Contagens() {
   const [itens, setItens] = useState<Contagem[] | null>(null);
   const [editando, setEditando] = useState<Contagem | "nova" | null>(null);
+  const [agora, setAgora] = useState(() => Date.now());
   const carregar = () => {
     void supabase().from("contagens").select("id,titulo,meta,data,inicio,ordem").order("ordem").order("data")
       .then(({ data }) => setItens((data as Contagem[] | null) ?? []));
   };
   useEffect(carregar, []);
+  // o relógio anda de segundo em segundo (no virar do segundo, para todas as contagens mudarem juntas)
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
+    const tique = () => { setAgora(Date.now()); t = setTimeout(tique, 1000 - (Date.now() % 1000) + 5); };
+    t = setTimeout(tique, 1000 - (Date.now() % 1000) + 5);
+    return () => clearTimeout(t);
+  }, []);
   if (!itens) return null;
-  const hoje = dayKey();
+  if (!itens.length) {
+    return (
+      <>
+        <button className="btn btn-ghost self-start" onClick={() => setEditando("nova")}><Hourglass size={15} /> Contagem regressiva</button>
+        {editando && <Editar contagem={null} ordem={0} onFechar={(mudou) => { setEditando(null); if (mudou) carregar(); }} />}
+      </>
+    );
+  }
 
   return (
-    <>
-      {itens.map((c) => {
-        const faltam = diasEntre(hoje, c.data);
-        const total = Math.max(1, diasEntre(c.inicio, c.data));
-        const feito = Math.min(1, Math.max(0, diasEntre(c.inicio, hoje) / total));
-        const anos = emAnos(faltam);
+    <section className={`grid grid-cols-1 gap-3 md:gap-4 ${itens.length > 1 ? "md:grid-cols-2" : ""} ${itens.length > 2 ? "2xl:grid-cols-3" : ""}`} aria-label="Contagens regressivas">
+      {itens.map((c, i) => {
+        const fim = zeroHora(c.data), ini = zeroHora(c.inicio);
+        const resta = Math.max(0, fim - agora);
+        const s = Math.floor(resta / 1000);
+        const partes: [string, string][] = [
+          [String(Math.floor(s / 86400)), "Dias"], [dois(Math.floor((s % 86400) / 3600)), "Horas"],
+          [dois(Math.floor((s % 3600) / 60)), "Minutos"], [dois(s % 60), "Segundos"],
+        ];
+        const feito = Math.min(1, Math.max(0, (agora - ini) / Math.max(1, fim - ini)));
+        const acabou = resta === 0;
         return (
-          <button key={c.id} onClick={() => setEditando(c)}
-            className="card flex items-center gap-2.5 px-3 py-1.5 text-left hover:border-ink/30 min-w-0 max-w-[17rem]"
-            title={`${c.titulo}${c.meta ? ` — ${c.meta}` : ""} · até ${parseDay(c.data).toLocaleDateString("pt-BR")}${anos ? ` (${anos})` : ""} · ${Math.round(feito * 100)}% do tempo já passou · clique para editar`}>
-            <span className="flex items-baseline gap-1 shrink-0 tabular-nums">
-              <span className="text-[1.3rem] font-semibold leading-none tracking-[-0.02em]">{faltam > 0 ? faltam.toLocaleString("pt-BR") : faltam === 0 ? "hoje" : "✓"}</span>
-              {faltam > 0 && <span className="text-[11px] text-muted">{faltam === 1 ? "dia" : "dias"}</span>}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[12.5px] font-medium truncate leading-tight">{c.titulo}</span>
-              <span className="block text-[11px] text-muted truncate leading-tight">
-                {c.meta ? `${c.meta} · ` : ""}{faltam >= 0 ? `até ${dataCurta(c.data)}` : `encerrada em ${dataCurta(c.data)}`}
+          <div key={c.id} role="button" tabIndex={0} onClick={() => setEditando(c)} onKeyDown={(e) => { if (e.key === "Enter") setEditando(c); }}
+            className="card relative px-4 pt-3 pb-3.5 min-w-0 cursor-pointer hover:border-ink/30 flex flex-col items-center text-center" title="Clique para editar">
+            {i === itens.length - 1 && (
+              <button className="absolute top-2 right-3 text-xs text-faint hover:text-ink inline-flex items-center gap-0.5 py-1"
+                onClick={(e) => { e.stopPropagation(); setEditando("nova"); }} title="Nova contagem regressiva"><Plus size={13} /> nova</button>
+            )}
+            <h3 className="text-sm font-medium truncate max-w-full px-12">{c.titulo}</h3>
+            <p className="text-xs text-muted truncate max-w-full px-12 mt-0.5">{c.meta ? `${c.meta} · ` : ""}até {dataCurta(c.data)}</p>
+            <div className="w-full max-w-[34rem] mt-2.5">
+              {acabou ? (
+                <div className="py-3 text-2xl font-light text-muted">chegou o dia ✓</div>
+              ) : (
+                <div className="grid grid-cols-4" aria-label={`Faltam ${partes.map(([v, r]) => `${v} ${r.toLowerCase()}`).join(", ")}`}>
+                  {partes.map(([v, r]) => (
+                    <div key={r} className="flex flex-col items-center min-w-0">
+                      <span className="font-mono font-light tabular-nums leading-none tracking-[-0.04em] text-[clamp(2.1rem,4.2vw,3.6rem)]" style={{ color: "color-mix(in srgb, var(--text) 82%, transparent)" }}>{v}</span>
+                      <span className="text-[12px] sm:text-[13px] text-muted mt-1.5">{r}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <span className="block h-[3px] mt-3 mx-auto w-[88%] rounded-full bg-sel overflow-hidden" aria-hidden title={`${Math.round(feito * 100)}% do tempo já passou`}>
+                <span className="block h-full rounded-full" style={{ width: `${feito * 100}%`, background: fim - agora < 7 * 86400000 ? "var(--warn)" : "var(--chart)" }} />
               </span>
-              <span className="block h-[3px] mt-1 rounded-full bg-sel overflow-hidden" aria-hidden>
-                <span className="block h-full rounded-full" style={{ width: `${feito * 100}%`, background: faltam <= 7 && faltam >= 0 ? "var(--warn)" : "var(--chart)" }} />
-              </span>
-            </span>
-          </button>
+            </div>
+          </div>
         );
       })}
-      <button className="btn btn-ghost px-2" title="Nova contagem regressiva" aria-label="Nova contagem regressiva" onClick={() => setEditando("nova")}>
-        {itens.length ? <Plus size={15} /> : <><Hourglass size={15} /> Contagem regressiva</>}
-      </button>
       {editando && <Editar contagem={editando === "nova" ? null : editando} ordem={itens.length} onFechar={(mudou) => { setEditando(null); if (mudou) carregar(); }} />}
-    </>
+    </section>
   );
 }
 
