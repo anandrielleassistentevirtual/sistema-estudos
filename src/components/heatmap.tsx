@@ -203,8 +203,8 @@ export function Heatmap({
           {nomes.map((n) => <div key={n} className="text-[10px] text-muted text-center">{n}</div>)}
           {linhas.flat().map((c) => {
             const dia = Number(c.day.slice(8));
-            // fora do período: a cor do dia, bem apagada (contexto); futuro: vazio
-            const fundo = c.future ? "var(--heat-0)" : cor(c.v);
+            // fora do período (contexto) e futuro: casa vazia, como no calendário do ano; só os dias do período têm cor
+            const fundo = c.future || c.fora ? "var(--heat-0)" : cor(c.v);
             const forte = !c.future && !c.fora && nivel(c.v, thresholds) >= 3;
             return (
               <div key={c.day}
@@ -218,7 +218,7 @@ export function Heatmap({
                   onSelect?.(c.day);
                 }}
                 className={`rounded-md grid place-items-center text-[11px] tabular-nums ${onSelect && !c.future ? "cursor-pointer" : ""}`}
-                style={{ height: lado, background: fundo, opacity: c.future ? 0.25 : c.fora ? 0.3 : 1, color: forte ? "#fff" : "var(--muted)",
+                style={{ height: lado, background: fundo, opacity: c.future ? 0.25 : c.fora ? 0.6 : 1, color: forte ? "#fff" : c.fora ? "var(--faint)" : "var(--muted)",
                   outline: c.day === today ? "1.5px solid var(--muted)" : selected === c.day ? "2px solid var(--text)" : undefined }}>
                 {dia}
               </div>

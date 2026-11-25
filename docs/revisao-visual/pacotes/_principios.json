@@ -1,0 +1,33 @@
+{
+ "principios": [
+  "Uma moldura só: toda tela usa o Page com largura \"painel\" (até 1440px, px-4 md:px-8, topo pt-5 md:pt-6). Só a Lectio e o Exame usam \"texto\" (max-w-3xl, centralizado). A borda esquerda, o topo do título e a faixa de abas ficam no mesmo pixel em todas as telas e em todas as abas de uma seção.",
+  "O cabeçalho é o roteiro, nesta ordem: abas da seção, título igual ao nome da seção no menu, uma linha de manchete com os números do momento. A explicação longa fica só no (i) da prop `ajuda`. No máximo uma ação principal (btn-primary); as outras vão para o ⋯. O filtro de período fica sempre no canto direito do título.",
+  "Ritmo vertical único: cabeçalho com mb-4 md:mb-5; gap-3 md:gap-4 entre blocos; mt-6 md:mt-8 entre seções com título (Secao).",
+  "Indicadores sempre em faixa: <Faixa> (um cartão dividido por linhas de 1px) com <Indicador>. Rótulo de 12px (a bolinha da área só aparece quando a tela mistura áreas), número de 1.375rem e uma linha de 11.5px com ▲▼ e um detalhe. No celular são 2 colunas; se o número de indicadores for ímpar, o primeiro (o herói) ocupa a linha toda.",
+  "A mesma história em toda tela, de cima para baixo: onde estou (manchete), como estou (faixa), por quê (cartões de detalhe), o que fazer (listas e ações) e, por último, o horizonte.",
+  "Todos os cartões seguem a mesma gramática (<CardHead>): título curto sem ícone decorativo (só a bolinha da área, e só em cartão de uma área), uma linha de meta em 12px faint e no máximo um elemento à direita. O link de saída é sempre .link-ir (\"Abrir ›\", em cinza).",
+  "A cor só tem dois sentidos: a cor da área (o dado) ou a cor da situação (verde, âmbar, vermelho). Nunca as duas na mesma série, nunca a cor de uma área para outra coisa e nunca hex escrito à mão: só tokens.",
+  "Um número, um lugar: tirando a manchete, que resume, cada número aparece uma vez por tela. O período fica no filtro e na manchete, não se repete em cada cartão.",
+  "Sem vazio sobrando: as linhas de uma mesma tela usam o mesmo molde de colunas, sem linha órfã e sem cartão esticado com buraco. O estado vazio é sempre <Empty>.",
+  "Instruções só aparecem com a tela vazia. No resto ficam em title, no (i) ou em <details>.",
+  "No computador nada flutua sobre o conteúdo: o Timer mora no item do menu. A pílula fica só no celular, no modo foco e nos leitores.",
+  "Celular: nenhuma barra de largura total antes do primeiro número, o nome da seção não se repete no topo, nada fica cortado sem saída (truncate ou line-clamp com title) e cada item de lista ocupa uma linha.",
+  "Peças únicas, reaproveitadas: CartaoMeta (Dashboard e Season), BarraMarcos (Biblioteca e Estudos), .grade-indice (índice de 17.5rem à esquerda a partir de lg em Estante, Literárias, Estudos, Tarefas, Diário e Aulas) e a linha de lista \"marcador · rótulo · número à direita em tabular-nums\"."
+ ],
+ "fora_do_escopo": [
+  "\"Season | Ano\" como aba (análise de coerência): descartado. É uma troca de visão sobre os mesmos dados, então continua como seg nas ações, como pede a análise da Season.",
+  "Stat com modo \"plano\" (coerência): substituído pelo Indicador do Dashboard, que vai para page.tsx como componente único. O Stat fica exportado só até Idiomas e Saúde migrarem; apagá-lo depois é uma limpeza à parte.",
+  "Faixa única de 6 indicadores na Saúde (coerência): trocada por duas faixas de 2, cada uma em cima do seu gráfico, como pede a análise da Saúde. O número fica junto do gráfico dele e o desenho de indicador continua o mesmo do sistema.",
+  "Faixa de 3 colunas no Armazenamento (coerência): trocada por 2 cartões, porque as duas perguntas têm conteúdos diferentes (dois medidores × status com botão).",
+  "Stat compacto nas Estatísticas da sala de escrita (análise da Escrita): trocado por Faixa/Indicador, o desenho único.",
+  "Barras que batem a meta em verde (regra atual e análise da Escrita): trocadas pela regra \"a barra acende na cor da série\", para não misturar cor de área e cor de situação na mesma série.",
+  "Prop `estreito` no Page (análise Timer/Oração) e `wide` em Diário e Aulas (análise de Notas): substituídas pela largura única \"painel\"/\"texto\".",
+  "\"Lectio Divina\" como h1 (análise Timer/Oração): o h1 fica \"Oração\" pela regra título = nome da seção, e \"Lectio Divina\" continua na aba. Pela mesma regra, Tarefas passa a ter o título \"Estudos\" e as abas de Notas, \"Notas\".",
+  "Painel de pastas a partir de md (coerência): passa a valer a partir de lg (.grade-indice). Entre 768 e 1023px, com o menu aberto, sobrariam menos de 200px para a lista.",
+  "Pílulas de idioma sempre visíveis numa linha própria (análise de Idiomas): trocadas pelas abas (TabNav com botões), que é o mesmo lugar das abas das outras seções. As ações vão para perto do filtro.",
+  "Cores dos níveis de Adler (COR_NIVEL em src/lib/adler.ts) para azul (coerência): descartado nesta revisão. É uma escala própria, usada na ficha e na triagem, e mudar exigiria revisar essas telas.",
+  "Totais divergentes no Dashboard (Tempo de estudo 1 h 51 × \"5 h 57 de estudo\" no quadro de tempo; Escrita 1.014 × 921 no painel): as fontes são diferentes (RPC estatisticas_por_dia × sessões). Os cálculos não mudam aqui; conferir com dados reais numa tarefa separada. O painel de Escrita deixa de repetir esse número em destaque.",
+  "Sentinela no Page para o título duplicado no celular (coerência): resolvido com um IntersectionObserver no próprio sidebar.tsx, sem acoplar o Page ao menu.",
+  "Mudanças de baixa prioridade, deixadas para depois: ordem do texto do aviso de confissão (\"há 6 semanas\" primeiro); altura máxima do destaque do Quadro dos sonhos no celular (W×1,15); Diário da Lectio num cartão só e fim da Lectio sem faixa vazia; rodapé dos mandamentos e barra fixa do Exame no celular; cabeçalho em grade, vazio do editor e \"+\" da árvore na sala de escrita; \"Abrir a aula\" só com ícone e o voltar com ChevronLeft em Notas; classes .eyebrow/.dot e \"Apagar\" no DetalheDaMeta; tokens no lugar de #e9c46a, ⏱ e \"✓ lido\" nas Tarefas e a classe .chip-warn; aviso das Aulas como toast e placeholder da busca; esmaecido nas bordas das abas no celular; padding único de cartão (.card.p-6); áreas vazias e textos menores da Season que não entraram nas tarefas de alto e médio impacto."
+ ]
+}

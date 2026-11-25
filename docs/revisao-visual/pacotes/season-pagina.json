@@ -1,0 +1,60 @@
+{
+ "pacote": {
+  "id": "season-pagina",
+  "titulo": "Season: onde estou → estou executando → as metas cabem → o plano",
+  "arquivos": [
+   "src/app/(app)/season/page.tsx"
+  ],
+  "depende_de": [
+   "base",
+   "season-metas"
+  ],
+  "historia": "No topo, uma faixa igual à do Dashboard: Primavera 2026, semana 3 de 6, faltam 26 dias, as 6 barras clicáveis e a média de execução (66%). Em seguida vem a pergunta \"minhas metas cabem?\", respondida no título (\"2 não cabem · 1 em risco\") e por cartões iguais aos do Dashboard. Por último, o plano por área, como ferramenta de ajuste: cada linha diz o ritmo, quanto precisa, o plano, hoje, a semana escolhida e o total da season numa barra.",
+  "tarefas": [
+   {
+    "arquivo": "src/app/(app)/season/page.tsx",
+    "o_que_fazer": "Ordem e grade. Os blocos ficam faixa da estação → Metas → Plano da season, em largura total, com `space-y-3 md:space-y-4`. Sai o wrapper `grid lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]` (linha 365) e sai o cartão \"Execução semanal\" (442-~510): as barras vão para a faixa e o detalhe por área vai para o Plano (tarefas seguintes). Sai o subtítulo do Page, porque a faixa é a manchete; o texto atual vai para `ajuda`. O seg Season | Ano continua em actions.",
+    "funcoes_preservadas": "Barras das semanas, clique para escolher a semana (setSemanaSel), média e detalhe por área continuam na tela, só em outro lugar. Os cálculos (notas, iSel, detalhe, mediaExec) não mudam. A visão Ano não é tocada."
+   },
+   {
+    "arquivo": "src/app/(app)/season/page.tsx",
+    "o_que_fazer": "Faixa da estação (245-268), refeita com o desenho do cabeçalho do SeasonPainel: `card overflow-hidden px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-3`. Da esquerda para a direita: o ‹ dentro do cartão; o círculo `w-8 h-8 rounded-full bg-surface-2` com EstacaoIcone, `.eyebrow` Season e o nome em font-semibold, com uma linha text-xs muted embaixo (datas, chip \"agora\", \"revisão a partir de\" e um botão-texto \"começou 11 set.\" com Pencil 12 que abre o <input type=date> num .popover); \"semana <b>3</b> de 6 · faltam <b>26</b> dias (até 20 de dez.)\"; as barras como botões (flex-1 max-w-[360px] h-9, rótulos S1…S6 em text-[10px] embaixo, % no title); \"média <b>66%</b>\" grande à direita, na cor de corDaNota, com \"85% ou mais é bem executada\" no title; o › dentro do cartão. Barras (459-461): sai `opacity 0.75`. A semana atual fica em cor cheia, com `ring-1 ring-[var(--muted)]` e o rótulo em text-ink font-medium; a semana escolhida ganha um sublinhado de 2px no rótulo (sai o ring-2 com offset). No celular: ‹ nome › / semana e faltam / barras em largura total / média e começou.",
+    "funcoes_preservadas": "Anterior e próxima (vizinha), datas, \"agora\", semana x de y, dias que faltam, revisão, edição de comeca_em (o mesmo mudar({comeca_em})), escolha de semana e média continuam, com os mesmos valores."
+   },
+   {
+    "arquivo": "src/app/(app)/season/page.tsx",
+    "o_que_fazer": "Metas (367-440). Um só `card overflow-hidden`. No topo, `<CardHead titulo=\"Metas\" meta={resumo} acao={botão + Meta}>`. O resumo conta os estados lendo p.estado e p.selo de `previsoes`, com .dot na cor de COR_ESTADO, por exemplo \"2 não cabem · 1 em risco · 1 atrasada\", ou \"todas no ritmo\" em var(--good). O botão + Meta mantém a mesma condição e ganha o title \"Até 3 metas grandes e 2 retas de contagem por season\"; o \"· 1 a 3 por season\" sai do título. Embaixo, `grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-N gap-px bg-line`, com a mesma regra de colunas do painel, e um CartaoMeta por meta, na ordem de AREAS. Saem os h3 de grupo por área; o nome do idioma vem da lógica de `grupos`, em nomeArea. No CartaoMeta: `acoes` = RowMenu com Editar (setEditando) e Apagar (o mesmo confirm e delete de hoje); `onAbrir` = setMetaAberta; `rodape` = reguaDaContagem(m) nas metas de contagem. Sai o link \"· detalhes ›\".",
+    "funcoes_preservadas": "Editar, apagar (com confirmação), abrir o detalhe, a régua diária com −1/+1 (marcarContagem), selo, sub, % e os números de p.numeros continuam. A regra das metas por season segue informada no tooltip."
+   },
+   {
+    "arquivo": "src/app/(app)/season/page.tsx",
+    "o_que_fazer": "Plano da season (271-363, e a lista do celular 282-305). (a) A coluna \"Ritmo diário\" passa a se chamar \"Precisa\". O thead ganha grupos: \"Por dia\" (Seu ritmo · Precisa · Plano · Hoje) | \"Semana N\" | \"Na season\". (b) Nova coluna \"Semana N\" (N = iSel; \"(até hoje)\" quando for a atual): barra w-20 h-1.5 na cor de corDaNota(x.pct) e o % em tabular-nums, com o title \"feito X de Y planejados · pesa Z% da nota\", tirado de detalhe.areas por x.area; \"—\" quando a área não está lá. A frase \"quem mais puxou para baixo: Idiomas (−20 pontos)\" (ou \"todas as áreas no plano\", ou \"Sem plano nesta season\") vira a meta do CardHead \"Plano da season\". (c) \"Feito\" e \"Meta\" viram uma coluna \"Na season\": \"<span text-ink>109,8 mil</span> <span text-muted>/ 437,5 mil</span>\" (curto()) + barra h-1 na cor da área (feito/mt.total). Quando !daMeta, o total ganha \"≈\" e a barra fica em color-mix com var(--faint); os valores exatos (tot()) ficam no title. (d) \"Feito hoje\" passa a \"Hoje\": número + % em text-[11px] muted, em var(--good) quando ≥ 100%, sem a pílula com fundo. (e) A legenda das 3 cores sai do cabeçalho e vai para uma linha no rodapé, em text-[11px] text-faint: \"Precisa: ● seu ritmo dá conta · ● só com o plano · ● nem o plano\". O parágrafo fixo do rodapé sai. \"Ainda não planejada: os números são o seu ritmo atual…\" vira uma faixa tracejada no topo do cartão, só quando !registro. \"O plano é salvo ao mudar\" vai para o title do input e \"cartões novos…\" para o title da unidade. (f) No celular: os mesmos nomes (ritmo · precisa · hoje · season), uma linha fina por área (barra flex-1 h-1 na cor de corDaNota + \"S3 73%\" em text-[11px]), e as áreas sem plano, sem feito e sem meta numa linha só (.dot · nome faint · campo do plano).",
+    "funcoes_preservadas": "Valores, cores e tooltips de Precisa (corPrecisa), feito, plano da semana, % e peso por área (detalheDaSemana), a área que mais puxou para baixo, o campo do plano editável em todas as áreas e o aviso de \"não planejada\" continuam. A troca de semana passa a ser feita pelas barras da faixa. Os cálculos (feito, mt.total, daMeta, hojeFeito, pctHoje) são os mesmos."
+   }
+  ],
+  "como_verificar": "Fotografar /season a 1440 e 390, claro e escuro. Conferir: ordem faixa → Metas → Plano, sem cartão com espaço vazio; clicar numa barra muda a coluna \"Semana N\" e a frase do Plano; S3 sem tom marrom; metas lado a lado sem buracos e com títulos inteiros; o ⋯ edita e apaga; clicar no cartão abre o detalhe; a régua de contagem funciona; a legenda fica numa linha; as setas ‹ › trocam de season; \"começou\" edita a data. A visão Ano não muda. Os números são os mesmos de antes."
+ },
+ "correcoes_obrigatorias": [
+  {
+   "pacote": "season-pagina",
+   "tarefa": "src/app/(app)/season/page.tsx (faixa da estação e Plano da season, coluna \"Semana N\")",
+   "tipo": "perde_funcao",
+   "explicacao": "Hoje, também no celular (season-cel.png), aparecem o % de cada semana acima da barra, as datas da semana escolhida (\"Semana 3 · 23 de nov. a 25 de nov. (até hoje)\") e, por área, \"19.600 de 16.500 pal.\" + %. O plano põe o % das barras só no title e o \"feito X de Y planejados\" só no title da célula Semana N. No celular a linha vira \"S3 73%\". Sem hover no toque, o % de cada semana, o feito/planejado por área e as datas da semana deixam de existir no celular, e no computador viram hover.",
+   "correcao": "Manter o % visível nas barras (text-[10px] acima, ou no rótulo \"S3 · 72%\"). Na célula Semana N, uma 2ª linha text-[11px] muted com \"12.000 de 16.500\". No celular, \"S3 73% · 12.000 de 16.500\". Pôr as datas da semana na meta do CardHead do Plano (\"Semana 3 · 23 a 25 nov. (até hoje) · quem mais puxou…\")."
+  },
+  {
+   "pacote": "season-pagina",
+   "tarefa": "src/app/(app)/season/page.tsx — Plano da season, coluna \"Semana N\" e linha do celular",
+   "tipo": "inconsistente",
+   "explicacao": "A nova coluna \"Semana N\" pinta a barra com corDaNota (verde ≥85%, âmbar ≥60%, vermelho abaixo), logo ao lado de \"Precisa\", que usa as mesmas três cores com outro sentido (seu ritmo dá conta / só com o plano / nem o plano). \"Hoje\" também fica verde quando passa de 100%. Na mesma linha podem aparecer 12.602 em vermelho, uma barra verde de 100% e um Hoje verde, e a única legenda no rodapé é a de Precisa. Com as mesmas cores em colunas vizinhas, cada uma com um sentido, a leitura de relance se perde.",
+   "correcao": "Na coluna Semana N (e na linha fina do celular), a barra vai na cor da área, como a barra de \"Na season\", e o % em text-ink tabular-nums, sem cor de situação. A nota colorida da semana já está na faixa da estação (as barras e a média). A cor de situação na tabela fica só em Precisa, que é a que tem legenda."
+  },
+  {
+   "pacote": "season-pagina",
+   "tarefa": "src/app/(app)/season/page.tsx — faixa da estação (escolha da semana) e Plano",
+   "tipo": "outro",
+   "explicacao": "A escolha da semana fica só nas barras da faixa do topo, mas o efeito dela (a coluna Semana N e a frase \"quem mais puxou para baixo\") aparece no Plano, depois do cartão Metas. No celular, com as metas numa coluna, isso fica mais de uma tela abaixo: toca-se numa barra e nada muda à vista. Além disso, a semana atual ganha ring-1 na barra e a escolhida só um sublinhado de 2px num rótulo de 10px. Quando se escolhe outra semana, o anel, que é o sinal mais forte, continua na semana atual e parece ser ela a escolhida.",
+   "correcao": "Marcar a escolha na própria barra (ring-2 na escolhida; a atual sem anel, só com o rótulo \"S3\" em text-ink font-medium ou um ponto em cima). No CardHead do Plano, em `acao`, pôr \"‹ Semana 3 ›\" (botões ghost que chamam o mesmo setSemanaSel, desabilitados nas pontas), para a semana mostrada ser visível e mudável onde aparece o efeito. As barras da faixa continuam clicáveis."
+  }
+ ]
+}

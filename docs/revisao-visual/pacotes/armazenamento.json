@@ -1,0 +1,36 @@
+{
+ "pacote": {
+  "id": "armazenamento",
+  "titulo": "Armazenamento: duas perguntas, dois cartões e o fim do \"NaN MB\"",
+  "arquivos": [
+   "src/components/storage-panel.tsx",
+   "src/app/(app)/armazenamento/page.tsx"
+  ],
+  "depende_de": [
+   "base"
+  ],
+  "historia": "A tela responde a duas perguntas em dois cartões da mesma altura: \"o espaço ainda cabe?\" (dois medidores e um selo de situação) e \"tenho uma cópia de segurança recente?\" (o status e o botão).",
+  "tarefas": [
+   {
+    "arquivo": "src/components/storage-panel.tsx",
+    "o_que_fazer": "(1) Grade `md:grid-cols-3 … items-stretch` → `md:grid-cols-2`. Cartão A, \"Espaço usado\": CardHead com um chip de situação (bolinha na cor + \"com folga\" abaixo de 0,6, \"atenção\" abaixo de 0,85 ou \"quase cheio\", usando os mesmos limites de corDoUso sobre a maior das duas frações) e dois medidores empilhados (Seus dados, Arquivos). Cada medidor tem uma linha `flex items-baseline justify-between` com o rótulo em text-sm text-muted e, à direita, o valor em `.ind-valor` + \"de 500 MB\" / \"de 1 GB\" em text-xs muted; embaixo, a barra h-1.5 na largura toda (com a parte fixa em cinza, como hoje) e a dica em text-xs text-faint. Cartão B, \"Cópia de segurança\": o status grande como hoje (âmbar se a cópia tiver mais de 30 dias ou não existir), a dica e o botão \"Baixar cópia de tudo\" com `mt-auto self-start`. (2) Proteção contra dados faltando: no .then do RPC, só chamar setUso se `Number.isFinite(data.banco) && Number.isFinite(data.arquivos)`; mb() devolve \"—\" para valores não finitos; a barra não é desenhada sem fração finita; corDoUso nunca pinta NaN de vermelho.",
+    "funcoes_preservadas": "Os mesmos números (mb, as frações, os limites de 500 MB e 1 GB), as cores por situação, a parte fixa do Supabase, a contagem de arquivos, o botão de cópia com progresso e a mensagem final continuam."
+   },
+   {
+    "arquivo": "src/app/(app)/armazenamento/page.tsx",
+    "o_que_fazer": "O subtitle atual vai para `ajuda` (\"Espaço usado no plano gratuito e cópia de segurança de tudo o que está no sistema.\") e o subtítulo sai, porque os números estão nos cartões logo abaixo.",
+    "funcoes_preservadas": "O texto continua disponível no (i)."
+   }
+  ],
+  "como_verificar": "Fotografar /armazenamento a 1440 e 390, claro e escuro, com o servidor de exemplo (sem o RPC). Conferir: \"—\" no lugar de \"NaN MB\" e nenhuma barra vermelha cheia; dois cartões da mesma altura, com o botão alinhado à base; o chip de situação; baixar a cópia continua mostrando o progresso."
+ },
+ "correcoes_obrigatorias": [
+  {
+   "pacote": "base",
+   "tarefa": "src/components/page.tsx — prop `ajuda` (popover com Esc e clique fora)",
+   "tipo": "inviavel",
+   "explicacao": "O popover do (i) precisa de useState e useEffect, mas src/components/page.tsx não tem \"use client\". O pacote armazenamento passa `ajuda` em src/app/(app)/armazenamento/page.tsx, que é um Server Component (sem \"use client\") e é a única página servidor que importa o Page. Com hooks dentro do Page, essa rota quebra na compilação (\"useState only works in Client Components\").",
+   "correcao": "Pôr o botão e o popover num componente próprio, `AjudaDaTela`, em um arquivo com \"use client\" (por exemplo src/components/ajuda-da-tela.tsx), e usá-lo dentro do Page, que continua sem hooks. Outra opção é pôr \"use client\" no topo de page.tsx. Nesse caso, conferir que nenhum Server Component importa CONTEINER, porque um export que não é componente, vindo de módulo cliente, não chega como string ao servidor."
+  }
+ ]
+}

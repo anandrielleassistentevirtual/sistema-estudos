@@ -1,0 +1,43 @@
+{
+ "pacote": {
+  "id": "notas-aulas-diario-atomicas",
+  "titulo": "Notas › Aulas, Diário e Atômicas: abas paradas, índice à esquerda, vazio com ação",
+  "arquivos": [
+   "src/app/(app)/notas/aulas/page.tsx",
+   "src/app/(app)/notas/diario/page.tsx",
+   "src/app/(app)/notas/atomicas/page.tsx",
+   "src/components/notes-workspace.tsx"
+  ],
+  "depende_de": [
+   "base"
+  ],
+  "historia": "As abas de Notas ficam paradas no mesmo lugar. Aulas e Diário seguem o esqueleto de Literárias: o índice e a busca à esquerda, o conteúdo à direita, numa largura boa de ler. Em Atômicas, a tela vazia explica a ideia no centro e oferece o botão para criar a primeira nota.",
+  "tarefas": [
+   {
+    "arquivo": "src/components/notes-workspace.tsx (+ src/app/(app)/notas/atomicas/page.tsx)",
+    "o_que_fazer": "(1) O wrapper das abas (linha 361) troca `px-4 md:px-6 pt-3 shrink-0` por `${CONTEINER} pt-5 md:pt-6 shrink-0` (CONTEINER de @/components/page). Em atomicas/page.tsx, `<NotasTabs />` passa sem className. (2) Painel principal sem nota aberta: se notes.length === 0, `<div className=\"flex-1 grid place-items-center p-6\"><Empty icone={Atom}>{o texto que hoje está na coluna}<div className=\"mt-4\"><button className=\"btn btn-primary\" onClick={() => create()}><Plus size={15}/> Nova nota atômica</button></div></Empty></div>`; se houver notas, `<Empty>Escolha uma nota na lista.</Empty>` (sai \"Nada selecionado.\"). O parágrafo de vazio do caso atômico sai da coluna da lista. Ao lado de \"Notas atômicas\" entra `<span className=\"text-xs text-faint tabular-nums\">{notes.length}</span>`.",
+    "funcoes_preservadas": "O +, importar .md, exportar o vault e recolher a lista (Ctrl+\\) continuam no cabeçalho da lista. create() é o mesmo. O texto explicativo só muda de lugar. A área de trabalho em tela cheia continua."
+   },
+   {
+    "arquivo": "src/app/(app)/notas/diario/page.tsx",
+    "o_que_fazer": "(1) title \"Notas\"; o subtitle mantém `${total} orações · ${fmtDuration} de Lectio Divina` e acrescenta ` · última em ${parseDay(regs[0].dia).toLocaleDateString(\"pt-BR\",{day:\"numeric\",month:\"short\"})}`. (2) Esqueleto `.grade-indice`: `<aside className=\"lg:sticky lg:top-4 h-fit space-y-2\">` com a busca (sai do topo, linha 86) e o índice `card p-2`, cujas linhas `flex justify-between rounded-md px-2 py-1.5 text-sm hover:bg-surface-2` são os Evangelhos (âncoras #ev-…), com a contagem em text-xs text-faint tabular-nums. No celular, o índice vira a faixa horizontal de chips de hoje (`flex lg:block overflow-x-auto`). (3) Hierarquia: sai o `<h3>Capítulo {cap}</h3>`, porque a referência já traz o capítulo (o agrupamento e a borda esquerda continuam); o h2 do Evangelho vira .card-title com a contagem em text-xs text-faint. Sem dados, o Empty ocupa a largura toda, sem a lateral.",
+    "funcoes_preservadas": "Busca, Baixar (.md), os saltos para cada Evangelho, editar e apagar registros e a ordem por capítulo e versículo continuam. Só mudam de lugar."
+   },
+   {
+    "arquivo": "src/app/(app)/notas/aulas/page.tsx",
+    "o_que_fazer": "(1) title \"Notas\". subtitle: `${total} aulas anotadas em ${cursos} cursos · última em ${quando(maior anotacoes_em)}`, com cursos = new Set(itens.map(a => a.course || \"Sem curso\")).size. A frase \"Você escreve… em Estudos\" fica no Empty e vai também para `ajuda`. (2) Esqueleto `.grade-indice`: o aside recebe a busca e o seg \"Por curso / Mais recentes\" e, só na vista Por curso, o índice de cursos (âncora no 1º grupo de cada curso, com a contagem), no mesmo desenho do índice do Diário. No celular, o índice vira chips horizontais. O título de grupo (`text-sm text-muted`) vira `.eyebrow`.",
+    "funcoes_preservadas": "Busca, troca de vista, Abrir a aula (título e botão), Mostrar tudo e a ordem continuam. Só mudam de lugar."
+   }
+  ],
+  "como_verificar": "Fotografar /notas/aulas, /notas/diario e /notas/atomicas (vazia e com notas) a 1440 e 390, claro e escuro. Conferir: a faixa de abas no mesmo x e y em todas as 5 abas de Notas (a 1440, x≈272); o título \"Notas\"; o índice à esquerda com o conteúdo em cerca de 820px; os saltos do índice funcionam; Atômicas vazia com o botão no centro e criar nota funcionando."
+ },
+ "correcoes_obrigatorias": [
+  {
+   "pacote": "notas-aulas-diario-atomicas",
+   "tarefa": "src/components/notes-workspace.tsx (vazio com ação)",
+   "tipo": "perde_funcao",
+   "explicacao": "O texto que explica a nota atômica sai da coluna da lista e vai, com o botão \"Nova nota atômica\", para o painel principal. Mas no celular esse painel é `${naNota ? \"flex\" : \"hidden\"} md:flex` (notes-workspace.tsx:441). Sem notas, naNota é false, e o celular passa a mostrar só a lista vazia, sem a explicação e sem o CTA (sobra o \"+\" pequeno do cabeçalho).",
+   "correcao": "Com notes.length === 0, mostrar o mesmo <Empty> com o botão também na coluna da lista, só no celular (md:hidden). Outra saída: forçar o painel principal visível no celular quando não houver notas."
+  }
+ ]
+}

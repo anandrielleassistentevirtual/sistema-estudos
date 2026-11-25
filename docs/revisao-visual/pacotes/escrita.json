@@ -1,0 +1,53 @@
+{
+ "pacote": {
+  "id": "escrita",
+  "titulo": "Escrita: projetos com a mesma anatomia, manchete do momento, estatísticas no padrão",
+  "arquivos": [
+   "src/app/(app)/escrita/page.tsx",
+   "src/app/(app)/escrita/[id]/page.tsx"
+  ],
+  "depende_de": [
+   "base"
+  ],
+  "historia": "O subtítulo conta o momento (\"2 projetos · 4.120 palavras nas últimas 2 semanas · hoje +300\"). Cada projeto é um bloco com a mesma anatomia: tipo, título, palavras no texto com o mini-gráfico de 14 dias, barra da meta e o rodapé \"editado há X · hoje +300 / 500\". Na sala, as Estatísticas usam a faixa do sistema e a meta diária aparece no gráfico, e a barra de status mostra num fio quanto falta para a meta do dia.",
+  "tarefas": [
+   {
+    "arquivo": "src/app/(app)/escrita/page.tsx",
+    "o_que_fazer": "Grade e cartão (68-111). (1) Grade `grid grid-cols-1 sm:grid-cols-2 gap-4`, com 3 colunas no xl só quando houver 3 projetos ou mais (classe condicional `xl:grid-cols-3`); sai o lg:grid-cols-3, que deixava 1/3 vazio. (2) O cartão vira `card card-hover p-5 relative flex flex-col` (sai hover:border-faint), com as linhas sempre presentes: tipo + ações; título em serifa com line-clamp-2; autor só se existir (sai o <p>{p.autor || \" \"}</p>); bloco de dados em mt-auto, com o número + \"palavras no texto\" à esquerda e o MiniBarras de 14 dias sempre à direita (sai a condição serie.some(v>0)); linha da meta sempre (com meta, barra h-1 + \"41% de 30.000\"; sem meta, \"sem meta de palavras\" em text-[11px] text-faint, na mesma altura); rodapé \"editado há X\" | \"hoje +300 / 500\" (com meta_diaria; text-good quando r.hoje >= meta_diaria). (3) Em quando(), data inválida faz o \"editado\" ser omitido (sai \"Invalid Date\"). (4) Ações (linha 80): `opacity-0 group-hover:opacity-100` → `pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100`, e os botões de p-1 para p-1.5.",
+    "funcoes_preservadas": "O link do cartão (Link absolute inset-0), Editar (modal EditarProjeto), Apagar (com confirm), total de palavras, % da meta, mini-gráfico, editado e hoje +X continuam. No PC o hover continua igual; no celular Editar e Apagar ficam visíveis. Os cálculos de load() não mudam (meta_diaria já vem no select)."
+   },
+   {
+    "arquivo": "src/app/(app)/escrita/page.tsx",
+    "o_que_fazer": "O subtitle fixo vira uma manchete montada com o que load() já traz: \"{n} projetos · {soma dos 14 dias de todos os resumo[].dias, com max(0) por dia} palavras nas últimas 2 semanas · hoje +{soma de resumo[].hoje}\". O texto atual (\"Contos, novelas, romances e ensaios em produção.\") vai para `ajuda` e volta como subtítulo quando não há projetos.",
+    "funcoes_preservadas": "Só troca o texto, sem consulta nova: são as mesmas somas que alimentam os cartões. O botão Novo projeto não muda."
+   },
+   {
+    "arquivo": "src/app/(app)/escrita/[id]/page.tsx",
+    "o_que_fazer": "Aba Estatísticas (Estatisticas, 791-874). (1) Os 4 Card locais (811-814) viram `<Faixa colunas={4}>` com <Indicador> (cor var(--area-escrita) em Manuscrito e Hoje; Ritmo com o detalhe \"palavras/hora\"). Manuscrito recebe como children \"41% de 30.000\" e um `<span className=\"block mt-1.5 h-1 rounded-full bg-surface-2\">` com o preenchimento em var(--area-escrita); sai a barra solta sem rótulo (817-819). (2) No BarChart, `meta={projeto.meta_diaria || undefined}`. Se os 21 dias somarem 0, aparece `<p className=\"text-sm text-muted\">Nenhuma palavra nas últimas 3 semanas.</p>` no lugar do eixo vazio. (3) Linha de baixo em `grid md:grid-cols-2 gap-4 items-start`, com os 4 campos do cartão Metas em grid-cols-2 (meta do livro | meta por dia; autor | título); o cartão Sessões deixa de esticar.",
+    "funcoes_preservadas": "Os 4 indicadores, o % da meta, o gráfico de 21 dias com dicas, a tabela das 15 últimas sessões, os 4 campos editáveis (onBlur → onMeta) e a tabela de capítulos continuam. Os cálculos (ritmo, pct, porDia) não mudam."
+   },
+   {
+    "arquivo": "src/app/(app)/escrita/[id]/page.tsx",
+    "o_que_fazer": "Barra de status (footer, 489-501). (1) O footer ganha `relative` e um fio da meta diária, só com meta_diaria > 0: `<span className=\"absolute left-0 top-0 h-0.5\" style={{width: `${Math.min(1, hoje / meta_diaria) * 100}%`, background: hoje >= meta_diaria ? \"var(--good)\" : \"var(--area-escrita)\"}}/>`. (2) Rótulos nesta ordem: cronômetro · \"sessão +N\" (no lugar de \"+N escritas\") · \"hoje N / meta\" · \"na cena\" · \"no texto\" · salvo. (3) A cor fixa \"#d0a24a\" do ponto de pausa vira var(--warn).",
+    "funcoes_preservadas": "Todos os números e tooltips da barra e os cálculos (palavrasSessao, hoje, totalPalavras) continuam. No modo foco, a barra continua com opacity-30."
+   }
+  ],
+  "como_verificar": "Fotografar /escrita e um projeto /escrita/<id> (abas Escrever e Estatísticas) a 1440 e 390, claro e escuro. Conferir: 2 cartões ocupando a largura, sem terço vazio; números alinhados na base entre os cartões; sem \"Invalid Date\"; ações visíveis no celular; a manchete com somas; Estatísticas com a faixa de 4, a linha de meta no gráfico (ou a frase de vazio) e o Sessões sem vazio; o fio de meta na barra de status enquanto escreve."
+ },
+ "correcoes_obrigatorias": [
+  {
+   "pacote": "escrita",
+   "tarefa": "src/app/(app)/escrita/[id]/page.tsx — Estatísticas: Faixa com Indicador",
+   "tipo": "inconsistente",
+   "explicacao": "O plano põe `cor var(--area-escrita)` só em Manuscrito e Hoje. No Indicador, `cor` desenha a bolinha da área, então 2 das 4 células ganham uma bolinha laranja e as outras 2 não. A sala de escrita é toda de uma área só, e o princípio 4 do plano diz que a bolinha só aparece quando a tela mistura áreas. Fica assimétrico e contra a própria regra.",
+   "correcao": "Nenhum `cor` nos 4 Indicadores das Estatísticas. A cor da área aparece só no preenchimento da barra do Manuscrito (children) e nas barras do gráfico."
+  },
+  {
+   "pacote": "escrita",
+   "tarefa": "src/app/(app)/escrita/[id]/page.tsx — fio da meta na barra de status",
+   "tipo": "inconsistente",
+   "explicacao": "O fio fica var(--good) quando hoje ≥ meta_diaria e var(--area-escrita) antes disso. O mesmo plano tirou o verde das barras que batem a meta no BarChart, \"para não misturar cor de área e cor de situação na mesma série\". Na mesma sala, o gráfico das Estatísticas acende na cor da Escrita ao bater a meta diária e o fio da barra de status acende em verde. São duas regras para o mesmo evento.",
+   "correcao": "O fio fica sempre em var(--area-escrita); a meta batida aparece pela largura cheia. Se quiser um sinal de situação, use o texto \"hoje 520 / 500\" em text-good, porque é texto e não uma série."
+  }
+ ]
+}

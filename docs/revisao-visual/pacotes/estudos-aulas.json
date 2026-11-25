@@ -1,0 +1,59 @@
+{
+ "pacote": {
+  "id": "estudos-aulas",
+  "titulo": "Estudos › Aulas: painel no topo, cursos como blocos, linha de aula fina",
+  "arquivos": [
+   "src/app/(app)/estudos/page.tsx"
+  ],
+  "depende_de": [
+   "base"
+  ],
+  "historia": "No topo, um painel no molde da Biblioteca: à esquerda, quanto do estudo já foi feito (anel e barra violeta, \"7 de 20 aulas concluídas\"); à direita, o que está em andamento ou a próxima aula. Depois, cada curso é um bloco com o caminho, o % e a barra com marcos. Dentro dele, cada aula é uma linha fina, em que um anel com o número diz o estado (cinza a fazer, violeta lendo, verde feita) e uma coluna alinhada mostra o tempo.",
+  "tarefas": [
+   {
+    "arquivo": "src/app/(app)/estudos/page.tsx",
+    "o_que_fazer": "Painel no topo no lugar de \"Lendo agora\" (373-397). Subtítulo (278): a manchete passa a usar os mesmos nomes dos filtros: \"{lendo} em leitura · {pendentes} a fazer · ≈ {tempo(pelaFrente)} pela frente a {ppm} ppm\" (lendo e pendentes contados por situacao; some a palavra ambígua \"pendentes\", que contava também as em leitura). Antes do grid entra `card grid grid-cols-1 md:grid-cols-2 gap-px bg-line overflow-hidden mb-5`, com duas colunas `bg-surface p-4`. (a) Anel de 64px em var(--area-estudos) com o % de feitas/total, eyebrow \"Aulas\", \"<b>7</b> de 20 concluídas\" e BarraMarcos. (b) Eyebrow \"Agora\" com até 2 aulas em leitura: título truncado, % numa coluna fixa w-12, barra fina de largura total e \"faltam ≈ X\"; clicar abre a aula. Se houver mais, \"+N em leitura\" faz setFiltro(\"lendo\"). Sem nenhuma em leitura, mostra \"A seguir\": a 1ª aula pendente na ordem da árvore + porOrdem, com o curso, \"≈ 17 min\" e um btn \"Começar\". Embaixo do painel, só com antesDe.size > 0, uma linha em var(--warn): \"3 tarefas para fazer antes de 2 aulas · Ver tarefas\", com link para /estudos/tarefas.",
+    "funcoes_preservadas": "As aulas em leitura continuam no topo, com %, faltam e clique para abrir; a lista completa delas fica no filtro \"Lendo\". total, feitas, pelaFrente e ppm vêm das mesmas variáveis (270-272). O aviso usa o mapa antesDe, que já é carregado."
+   },
+   {
+    "arquivo": "src/app/(app)/estudos/page.tsx",
+    "o_que_fazer": "Cada curso vira um bloco. Saem o h2 e o span text-faint fora do cartão (402-413). Entra `<section className=\"card overflow-hidden\">` com `<header className=\"px-4 pt-3.5 pb-3 border-b border-line\">`. Linha 1: o caminho (as partes em text-muted ›, a última em font-semibold) e o % à direita (text-sm font-semibold tabular-nums). Linha 2: `<BarraMarcos valor={feitas/total} cor={completo ? \"var(--good)\" : \"var(--area-estudos)\"} />`. Linha 3: text-[11.5px] text-muted tabular-nums justify-between, com \"5 de 12 aulas\" | \"≈ 2 h 52 pela frente\" (ou \"concluído\"). feitas, total e faltam vêm de todas as aulas da pasta (a mesma chaveDaPasta, sem filtro nem busca); com filtro ativo, acrescenta \"· mostrando N\". As linhas ficam em divide-y divide-line. space-y-6 → space-y-4.",
+    "funcoes_preservadas": "O caminho, a contagem de feitas, a soma de faltam, o tempo pela frente e a ordem dos grupos e das aulas continuam. A base do cabeçalho passa a ser a pasta inteira, como já é na árvore, e o cabeçalho deixa de mostrar \"0/11\" com o filtro."
+   },
+   {
+    "arquivo": "src/app/(app)/estudos/page.tsx",
+    "o_que_fazer": "Linha da aula com um código de estado só. Saem o quadrado w-10 h-10 (421-423), o StatusPill absoluto (450-452) e o espaçador `block h-8 sm:hidden` (447). Entra um componente local StatusAnel, que usa o Anel de @/components/biblioteca/visual (tamanho 30, espessura 2.5): valor 1 se concluída, o progresso se lendo, 0 se pendente; cor var(--good) se concluída e var(--area-estudos) nos outros casos. No meio: Check 14 text-good se concluída; senão, o número (numeroDaAula(title) ?? a posição na pasta, com 2 dígitos) em text-[11px] tabular-nums text-muted. Por cima vai o mesmo <select> invisível do StatusPill (SITUACOES_AULA, text-base, title \"Mudar o status\"). A linha fica `flex items-center gap-3 pl-3 pr-1.5`: [StatusAnel] [botão flex-1 py-2.5 com o título (concluída em text-muted) e a meta em text-xs text-faint] [coluna de tempo `hidden sm:block w-24 text-right text-xs tabular-nums text-muted`: lendo = \"faltam ≈ X\", pendente = \"≈ X\", concluída = vazio] [RowMenu]. Na meta: as palavras; no celular, também o tempo; o professor só quando o caminho do grupo não o contém; as anotações só pelo ícone NotebookPen (title \"Esta aula tem anotações suas\"); o selo âmbar \"N tarefas antes\".",
+    "funcoes_preservadas": "A troca de status continua com os 3 estados (o select invisível sobre o anel). Abrir a aula pela linha e o RowMenu (abrir, editar, mover, subir/descer, posição, transcrição, concluir/voltar, apagar) não mudam. As fórmulas de palavras, faltam(a) e tempo() são as mesmas."
+   },
+   {
+    "arquivo": "src/app/(app)/estudos/page.tsx",
+    "o_que_fazer": "Cabeçalho e árvore. (1) Sai o botão \"Importar curso\" (282) e ficam \"Nova aula\" (btn-primary) + ⋯. A janela NovaAula (635-666) ganha uma 1ª opção no mesmo formato das outras duas: \"Importar a pasta de um curso\" (FolderUp), que faz `destinoDoImport.current = destino; pastaRef.current?.click()`. O ⋯ fica com \"Importar curso (pasta)\", \"Importar arquivos .md\" e \"Baixar todas as aulas (.zip)\". O Empty (369) diz \"Use Nova aula › Importar curso\". (2) Na árvore (305-351), todos os itens mostram feitas/total à direita, em text-xs tabular-nums: \"Todas as aulas 7/20\", cada pasta c.feitas/c.total, \"Sem pasta x/y\" e pasta vazia \"0\" em text-faint; com feitas === total > 0, o número fica text-good. No topo do aside entra o eyebrow \"Pastas\". (3) A grade (294) troca `lg:grid-cols-[320px_1fr] gap-4 lg:gap-5` por `.grade-indice`. O botão \"Pasta:\" do celular troca `card` por `btn w-full justify-start`.",
+    "funcoes_preservadas": "Importar a pasta de um curso (com o destino escolhido), importar arquivos .md, criar aula em branco e baixar o .zip continuam acessíveis (janela + menu). Selecionar, abrir/fechar, o menu de cada pasta, Nova pasta e o tempo pela frente no title continuam. As contagens vêm do mesmo mapa contagem."
+   }
+  ],
+  "como_verificar": "Fotografar /estudos a 1440 e 390, claro e escuro, com os filtros Todas, Pendentes, Lendo e Concluídas. Conferir: painel com anel e \"Agora\"; manchete coerente com os filtros (o número \"a fazer\" igual ao filtro Pendentes); cada curso num bloco com barra de marcos que não cai a 0% com filtro; linhas de cerca de 60px no celular, sem etiqueta \"Pendente\"; a coluna de tempo alinhada; trocar o status pelo anel; Nova aula › Importar curso abre o seletor de pasta."
+ },
+ "correcoes_obrigatorias": [
+  {
+   "pacote": "estudos-aulas",
+   "tarefa": "src/app/(app)/estudos/page.tsx (linha da aula com StatusAnel)",
+   "tipo": "perde_funcao",
+   "explicacao": "Hoje a aula em leitura mostra \"35% · faltam N palavras · ≈ X\" na meta (page.tsx:434-437). Na linha nova, o progresso fica só no traço do anel, e o centro mostra o número da aula. A coluna de tempo traz só \"faltam ≈ X\" e não aparece no celular. O % exato só fica no painel \"Agora\", que mostra no máximo 2 aulas.",
+   "correcao": "Para situacao === \"lendo\": manter \"35%\" no começo da meta, ou na coluna de tempo (\"35% · faltam ≈ X\"), e pôr title no StatusAnel (\"Lendo · 35%\")."
+  },
+  {
+   "pacote": "estudos-aulas",
+   "tarefa": "src/app/(app)/estudos/page.tsx — Nova aula › Importar curso",
+   "tipo": "inconsistente",
+   "explicacao": "O plano manda a nova 1ª opção da janela NovaAula fazer `destinoDoImport.current = destino; pastaRef.current?.click()`. Mas NovaAula é uma função separada (linha 635), e `destinoDoImport` e `pastaRef` são refs do componente da página (linha 42 e seguintes). Dentro da janela eles não existem, e o código como está descrito não compila. A janela só recebe `onImportar` e `onEmBranco` (linhas 516-518).",
+   "correcao": "Acrescentar a prop `onImportarPasta: (destino: string | null) => void` ao NovaAula e ligá-la na página: `onImportarPasta={(destino) => { setNovaAberta(false); destinoDoImport.current = destino; pastaRef.current?.click(); }}`, no mesmo formato do onImportar que já existe."
+  },
+  {
+   "pacote": "estudos-aulas",
+   "tarefa": "src/app/(app)/estudos/page.tsx — painel no topo, coluna (a)",
+   "tipo": "inconsistente",
+   "explicacao": "A coluna (a) mostra o mesmo número, feitas/total, duas vezes: num Anel de 64px e numa BarraMarcos logo embaixo. O próprio plano tira os Anéis da Biblioteca porque \"o do Plano repetia a barra\", e diz que este painel segue \"o molde da Biblioteca\". As duas telas-irmãs ficam com gramáticas diferentes e uma delas com redundância.",
+   "correcao": "Tirar o Anel e usar a anatomia da coluna Plano da Biblioteca: `.ind-rotulo` \"Aulas\", `.ind-valor` \"35%\", `.ind-nota` \"7 de 20 aulas concluídas\" e a BarraMarcos (var(--area-estudos)) no rodapé. Os mesmos valores, sem repetir."
+  }
+ ]
+}

@@ -69,7 +69,7 @@
   --area-escrita: #e8913a;
   --area-oracao: #d0578d;
   --area-pesquisa: #c29a1f;
-  --area-exercicio: #e05d5d;
+  --area-exercicio: #0e97b0; /* ciano: o vermelho de antes se confundia com o de alerta */
   --area-outro: #8e8e93;
   --area-sono: #5b63d3;
   /* rubricas da Lectio (℣, ℟ e números dos versículos), em vermelho como nos missais */
@@ -137,7 +137,7 @@
     --area-escrita: #f5a04e;
     --area-oracao: #ec7aa9;
     --area-pesquisa: #dcb847;
-    --area-exercicio: #f07272;
+    --area-exercicio: #40c4dc;
     --area-outro: #8e8e93;
     --area-sono: #8b93f2;
     --rubrica: #ff7a6e;
@@ -204,7 +204,7 @@
   --area-escrita: #f5a04e;
   --area-oracao: #ec7aa9;
   --area-pesquisa: #dcb847;
-  --area-exercicio: #f07272;
+  --area-exercicio: #40c4dc;
   --area-outro: #8e8e93;
   --area-sono: #8b93f2;
   --rubrica: #ff7a6e;
@@ -464,6 +464,39 @@ body {
 .link:hover { text-decoration: underline; }
 /* bolinha de legenda na cor da área */
 .dot { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 9999px; flex-shrink: 0; }
+/* bolinha meio cheia (em andamento) e vazada (por fazer): a mesma cor, sem precisar de outra */
+.dot-meia { background: linear-gradient(90deg, currentColor 50%, transparent 50%); box-shadow: inset 0 0 0 1.5px currentColor; }
+.dot-vazada { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+/* link de saída de um cartão ("Abrir ›"): sempre em cinza, acende ao passar o mouse */
+.link-ir {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+  transition: color 0.15s;
+}
+.link-ir:hover { color: var(--text); }
+
+/* ---- indicadores (<Faixa> com <Indicador>): o mesmo desenho em todas as telas ---- */
+.ind-rotulo {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ind-valor {
+  font-size: 1.375rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+.ind-nota { font-size: 11.5px; color: var(--faint); }
 
 /* menus suspensos (•••, listas de busca): um pouco acima do conteúdo, como as janelas */
 .popover {
@@ -578,6 +611,19 @@ html { -webkit-tap-highlight-color: transparent; touch-action: manipulation; -we
   .app-left { left: 15rem; }
   html[data-menu="oculto"] .app-main { padding-left: 0; }
   html[data-menu="oculto"] .app-left { left: 0; }
+}
+
+/* Timer: no computador com o menu à vista, o relógio mora no item do menu e a pílula some
+   (fora de camada para vencer o .flex da pílula; volta no modo foco e nos leitores) */
+@media (min-width: 768px) {
+  html:not([data-menu="oculto"]) .timer-pilula:not([data-leitor]) { display: none; }
+}
+
+/* Grade de índice (Estante, Literárias, Estudos, Tarefas, Diário, Aulas): o índice de 17.5rem à esquerda a partir de lg.
+   Fora de camada para vencer o grid-cols-1/gap-* que algum elemento ainda traga. */
+.grade-indice { display: grid; grid-template-columns: 1fr; gap: 1rem; align-items: start; }
+@media (min-width: 1024px) {
+  .grade-indice { grid-template-columns: 17.5rem minmax(0, 1fr); gap: 1.25rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

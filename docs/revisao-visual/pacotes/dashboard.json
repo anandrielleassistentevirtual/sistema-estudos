@@ -1,0 +1,68 @@
+{
+ "pacote": {
+  "id": "dashboard",
+  "titulo": "Dashboard: manchete, faixa e blocos espelhados; contagens no horizonte",
+  "arquivos": [
+   "src/app/(app)/page.tsx",
+   "src/components/contagens.tsx",
+   "src/components/quadro-sonhos.tsx",
+   "src/components/writing-panel.tsx",
+   "src/components/time-breakdown.tsx"
+  ],
+  "depende_de": [
+   "base"
+  ],
+  "historia": "Primeiro, uma frase diz como foi o período: \"Esta semana: 1 h 51 de estudo em 2 de 3 dias, ▼ 58% em relação à semana anterior\". Logo abaixo, só quando estiver na hora, vem o aviso que pede ação. A faixa de 5 indicadores responde, área por área, \"estou indo bem?\". A Season responde \"minhas metas cabem?\". Calendário e Tempo respondem \"quando e no quê\", com só os dias do período coloridos e uma única faixa de divisão. Escrita e Leitura são dois cartões espelhados. No fim fica o Horizonte: as contagens regressivas e o quadro dos sonhos.",
+  "tarefas": [
+   {
+    "arquivo": "src/app/(app)/page.tsx",
+    "o_que_fazer": "(1) O subtítulo vira a manchete, com os mesmos valores de `s`: `{data} · {periodo.nome}: <b className=\"text-ink font-medium\">{fmtDuration(s.tempo)}</b> de estudo em <b>{s.diasAtivos} de {s.dias}</b> dias, <Variacao atual={s.tempo} base={s.tempoAnt}/> em relação a {a mesma expressão de hoje: \"a semana anterior\" | \"ontem\" | `o ${periodo.vs}`}`. Sai a legenda \"▲▼ comparado com…\", porque a frase já diz o sentido das setas. (2) A faixa (linha 150) vira `<Faixa colunas={5}>` com os mesmos 5 `<Indicador>`, agora importados de @/components/page; a função local Indicador (236-252) é apagada. No celular, Tempo de estudo ocupa a linha e os outros 4 fecham em 2×2. (3) Nova ordem: manchete → ConfissaoAviso → Faixa → SeasonPainel → Calendário | Tempo → Escrita | Leitura → `<QuadroSonhos antes={<Contagens />} />`. Sai o `<Contagens />` do topo (linha 144). (4) O cartão Leitura usa `<CardHead titulo=\"Leitura\" cor={COR_AREA.leitura} acao={<Link className=\"link-ir\" href=\"/biblioteca\">Biblioteca <ChevronRight size={14}/></Link>} />` (sai o text-accent). Continua `card p-4 flex flex-col`, com o rodapé em mt-auto.",
+    "funcoes_preservadas": "A data, o período e a referência da comparação continuam no subtítulo. O lápis de trocar o nome e o FiltroPeriodo não mudam. Os 5 indicadores mantêm comparação, detalhe e tooltip. As contagens continuam na tela (no fim). Nenhum cálculo muda: a manchete usa os valores da faixa."
+   },
+   {
+    "arquivo": "src/components/contagens.tsx",
+    "o_que_fazer": "Pílula calma. O número de dias fica em destaque (`text-[15px] font-medium tabular-nums` + \"d\", em fonte normal) e o hh:mm:ss fica secundário (`font-mono text-[11px] text-faint`). Quando faltam menos de 7 dias, o hh:mm:ss volta ao tamanho atual, em var(--warn). Linha: `grid grid-cols-1 gap-2 sm:flex sm:flex-wrap`, com as pílulas em w-full no celular (bordas alinhadas) e o \"+\" logo depois. A barra de progresso ganha um trilho dentro da pílula: `absolute inset-x-3 bottom-1 h-[2px] rounded-full bg-surface-2`, com o preenchimento dentro (width = feito%, var(--chart) ou var(--warn), sem opacity).",
+    "funcoes_preservadas": "Todas as contagens continuam visíveis e clicáveis para editar ou apagar, e o \"+\" cria outra. Dias, horas, minutos e segundos continuam na tela e no aria-label. O tooltip com a % do caminho e a cor de aviso perto da data ficam."
+   },
+   {
+    "arquivo": "src/components/quadro-sonhos.tsx",
+    "o_que_fazer": "O cabeçalho com `.eyebrow` (linhas 214-224) dá lugar a `<Secao titulo=\"Horizonte\" hint=\"as datas e os sonhos para onde tudo isso leva\" acoes={…}>`, com os mesmos controles de hoje (texto de envio, Editar/Pronto, link, imagem); os títulos dos botões dizem \"ao quadro dos sonhos\". Nova prop `antes?: React.ReactNode`, renderizada entre o cabeçalho e o mosaico: ali entram as Contagens.",
+    "funcoes_preservadas": "As imagens, o destaque, o modo Editar, os menus de cada imagem, colar e arrastar, adicionar por link e o \"realizado\" continuam iguais."
+   },
+   {
+    "arquivo": "src/components/writing-panel.tsx",
+    "o_que_fazer": "Só o modo compacto, espelhado com a Leitura. (1) Cabeçalho: `<CardHead titulo=\"Escrita\" cor={COR_AREA.escrita} acao={Link .link-ir \"Abrir ›\"}>`; sai o ícone Feather. (2) A grade de 4 números grandes (grid-cols-2 sm:grid-cols-4) vira uma linha em `text-xs text-muted`: \"<b>921</b> palavras · <b>1 h 30</b> escrevendo · <b>3</b> dias · <b>614</b> pal./h\", com os números em `text-ink font-medium tabular-nums`. (3) Cada projeto compacto vira `flex items-baseline justify-between`: título truncado à esquerda e \"12.450 / 30.000 pal. · hoje +300\" à direita, em text-xs tabular-nums, com a barra h-1 embaixo, como os livros. (4) O cartão fica `card p-4 flex flex-col`.",
+    "funcoes_preservadas": "Os quatro valores do período (palavras, tempo, dias, palavras por hora) continuam, agora numa linha. Projetos com link, total/meta, hoje +N e barra continuam. O estado vazio \"Criar projeto\" e o modo não compacto não mudam."
+   },
+   {
+    "arquivo": "src/components/time-breakdown.tsx",
+    "o_que_fazer": "Só o modo compacto. Sai a barra por linha (o span `order-last col-span-2 h-1.5 …`). A faixa de composição vira o único gráfico, um pouco mais forte (h-2 → h-2.5, mb-4). As linhas viram uma legenda: `<ul className=\"divide-y divide-line\">`, com cada li em py-2, \"dot · nome · tipo (text-faint)\" à esquerda e \"2 h 20\" + \"39%\" à direita em tabular-nums. O hover numa linha continua acendendo o segmento. O cabeçalho usa CardHead, com a meta (\"5 h 57 · esta semana\") numa linha só.",
+    "funcoes_preservadas": "Todos os itens, tempos e %, o agrupamento \"Outros\", os tooltips dos segmentos e o realce por hover. O modo não compacto não muda."
+   }
+  ],
+  "como_verificar": "Fotografar / a 1440 e 390, claro e escuro, com Semana, Mês e Ano. Conferir: manchete numa linha no PC (2 no celular) com a seta e a %; faixa de 5 no PC e 1 + 2×2 no celular; as Contagens no fim, no bloco Horizonte, com o número de dias em destaque e a barra com trilho; Escrita e Leitura com a mesma anatomia e a mesma altura, sem vão; Tempo com uma faixa só e a lista alinhada; a 1440×900, Calendário e Tempo inteiros na primeira tela. Os valores de cada indicador são os mesmos de antes."
+ },
+ "correcoes_obrigatorias": [
+  {
+   "pacote": "dashboard",
+   "tarefa": "princípio \"título igual ao nome da seção\" × src/app/(app)/page.tsx",
+   "tipo": "inconsistente",
+   "explicacao": "O princípio manda o título ser o nome da seção no menu (\"Dashboard\"), mas o Dashboard mostra \"Olá, {nome}\" e o lápis (titleExtra) existe para trocar esse nome. Se o pacote seguir o princípio, o nome do usuário (user_metadata.nome) deixa de aparecer, e o lápis fica editando algo invisível. A tarefa do Dashboard não diz nada sobre isso.",
+   "correcao": "Pôr no pacote dashboard a exceção explícita: o título continua \"Olá, {nome}\" com o lápis. Ou, se virar \"Dashboard\", levar o nome para a manchete e manter o lápis junto dele."
+  },
+  {
+   "pacote": "dashboard",
+   "tarefa": "src/components/writing-panel.tsx (projeto compacto)",
+   "tipo": "perde_funcao",
+   "explicacao": "Hoje a linha do projeto mostra o título com \"· {tipoDe(p.tipo).label}\" (Conto, Romance…) (linha 132). O plano descreve a linha como \"título truncado à esquerda e '12.450 / 30.000 pal. · hoje +300' à direita\", e o tipo some.",
+   "correcao": "Manter \"· Romance\" em text-faint depois do título, dentro do truncate, ou ao menos no title do link."
+  },
+  {
+   "pacote": "dashboard",
+   "tarefa": "src/app/(app)/page.tsx (1) manchete no subtitle",
+   "tipo": "inconsistente",
+   "explicacao": "A manchete proposta (\"quarta-feira, 25 de novembro · Esta semana: 1 h 51 de estudo em 2 de 3 dias, ▼ 58% em relação à semana anterior\") tem cerca de 111 caracteres, uns 765px em text-sm. A 1440, o bloco do título tem uns 680px, porque o FiltroPeriodo ocupa cerca de 440px; com o md:line-clamp-1 da base, o fim da frase (a seta e a referência) é cortado. No celular, a 358px, a frase ocupa 3 linhas e o line-clamp-2 corta justamente \"▼ 58% em relação à semana anterior\". Além disso, os mesmos números (1 h 51, 2 de 3 dias, ▼ 58%) aparecem de novo cerca de 60px abaixo, nas duas primeiras células da Faixa (o herói Tempo de estudo e a Constância). É a repetição que a dona chama de poluição.",
+   "correcao": "Na manchete fica só o enquadramento, sem os números que a faixa já mostra: `{data} · {periodo.nome}, comparado com {a semana anterior | ontem | o mês anterior…}` (cerca de 60 caracteres: cabe numa linha no PC e em duas no celular). Os números ficam só na Faixa. Se a manchete tiver mesmo de trazer um número, use um que não está na faixa e ponha a parte essencial no começo da frase, para o line-clamp cortar só o fim."
+  }
+ ]
+}
