@@ -1,6 +1,7 @@
 "use client";
 /** Um tema da leitura sintópica: o nome do assunto e os livros que conversam sobre ele. */
 import { useState } from "react";
+import { semAcento } from "@/lib/text";
 import { Search } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import type { Book } from "@/lib/types";
@@ -15,9 +16,8 @@ export function TemaJanela({ tema, ids, onClose }: { tema?: string; ids?: string
   const [marcados, setMarcados] = useState<Set<string>>(() => new Set(ids ?? d.livros.filter((b) => editando && b.tema === tema).map((b) => b.id)));
   const [q, setQ] = useState("");
   const [salvando, setSalvando] = useState(false);
-  const dobra = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   const lista = d.livros
-    .filter((b) => dobra(`${b.title} ${b.author ?? ""}`).includes(dobra(q)))
+    .filter((b) => semAcento(`${b.title} ${b.author ?? ""}`).includes(semAcento(q)))
     .sort((a, b) => Number(marcados.has(b.id)) - Number(marcados.has(a.id)) || a.title.localeCompare(b.title, "pt-BR"));
 
   async function salvar() {

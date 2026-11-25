@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { semAcento } from "@/lib/text";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -888,7 +889,6 @@ function Card({ l, v, h }: { l: string; v: string; h?: string }) {
 interface NotaConsulta { id: string; kind: string; title: string; quote: string | null; content: string; book_id: string | null }
 interface LivroLite { id: string; title: string; author: string | null }
 
-const dobrar = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 function Consulta({ refs, onInserir }: { refs: Referencia[]; onInserir: (txt: string) => void }) {
   const [notas, setNotas] = useState<NotaConsulta[] | null>(null);
@@ -934,8 +934,8 @@ function Consulta({ refs, onInserir }: { refs: Referencia[]; onInserir: (txt: st
     });
     return () => { vivo = false; };
   }, [q, notas, tudoCarregado]);
-  const termos = dobrar(q).split(/\s+/).filter(Boolean);
-  const casa = (t: string) => termos.every((w) => dobrar(t).includes(w));
+  const termos = semAcento(q).split(/\s+/).filter(Boolean);
+  const casa = (t: string) => termos.every((w) => semAcento(t).includes(w));
   const lista = (notas ?? []).filter((n) => {
     const l = n.book_id ? livros.get(n.book_id) : undefined;
     return casa(`${n.title} ${n.quote ?? ""} ${n.content} ${l?.title ?? ""} ${l?.author ?? ""}`);

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { semAcento } from "@/lib/text";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Download, Search, X } from "lucide-react";
@@ -17,7 +18,6 @@ interface Anotacao {
 }
 type Vista = "curso" | "recentes";
 
-const dobrar = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 const quando = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "");
 
 /** Todas as anotações das aulas (Estudos), num lugar só: por curso › módulo ou pelas mais recentes. */
@@ -36,9 +36,9 @@ export default function AnotacoesDasAulas() {
   useEffect(() => { try { localStorage.setItem("notas-aulas-vista", vista); } catch {} }, [vista]);
 
   const filtradas = useMemo(() => {
-    const termos = dobrar(q).split(/\s+/).filter(Boolean);
+    const termos = semAcento(q).split(/\s+/).filter(Boolean);
     return (itens ?? []).filter((a) => {
-      const t = dobrar(`${a.title} ${a.course} ${a.folder} ${a.professor} ${a.anotacoes}`);
+      const t = semAcento(`${a.title} ${a.course} ${a.folder} ${a.professor} ${a.anotacoes}`);
       return termos.every((w) => t.includes(w));
     });
   }, [itens, q]);

@@ -1,5 +1,6 @@
 "use client";
 import type { AulaT, BaralhoT, Livro } from "@/lib/metas";
+import { semAcento } from "@/lib/text";
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -78,14 +79,13 @@ export function NovaMeta({ temporadaId, livros, pastas, aulas, baralhos, posicao
   });
   const [erro, setErro] = useState<string | null>(null);
 
-  const dobra = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   const achados = busca.trim().length >= 2
-    ? livros.filter((b) => b.status !== "lido" && !escolhidos.includes(b.id) && dobra(busca).split(/\s+/).every((w) => dobra(`${b.title} ${b.author ?? ""}`).includes(w))).slice(0, 6) : [];
+    ? livros.filter((b) => b.status !== "lido" && !escolhidos.includes(b.id) && semAcento(busca).split(/\s+/).every((w) => semAcento(`${b.title} ${b.author ?? ""}`).includes(w))).slice(0, 6) : [];
   const [buscaAula, setBuscaAula] = useState("");
   const [soEscolhidas, setSoEscolhidas] = useState(false);
   // a lista: do curso escolhido (ou de todos), filtrada pela busca; "só as escolhidas" mostra o que já marcou
   const listaAulas = (soEscolhidas ? aulas.filter((a) => aulasSel.includes(a.id)) : pasta ? daPasta(pasta) : buscaAula.trim().length >= 2 ? aulas : [])
-    .filter((a) => !buscaAula.trim() || dobra(buscaAula).split(/\s+/).every((w) => dobra(a.title).includes(w)));
+    .filter((a) => !buscaAula.trim() || semAcento(buscaAula).split(/\s+/).every((w) => semAcento(a.title).includes(w)));
   const palavrasAulas = aulas.filter((a) => aulasSel.includes(a.id)).reduce((n, a) => n + faltam(a), 0);
   const totalBaralho = baralhos.find((b) => b.nome === baralho)?.total;
 

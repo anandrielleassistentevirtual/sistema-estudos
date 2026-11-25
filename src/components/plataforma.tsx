@@ -1,3 +1,4 @@
+import { semAcento } from "@/lib/text";
 /**
  * Selo da plataforma onde se assiste/ouve (Netflix, Prime Video, YouTube…), reconhecida pelo texto "onde".
  * Desenhos simples, só para identificar de relance.
@@ -18,7 +19,7 @@ export const PLATAFORMAS: { id: Plataforma; nome: string }[] = [
 ];
 
 export function plataformaDe(onde: string): Plataforma | null {
-  const o = onde.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const o = semAcento(onde);
   if (o.includes("netflix")) return "netflix";
   if (o.includes("prime") || o.includes("amazon")) return "prime";
   if (o.includes("youtube") || o === "yt") return "youtube";

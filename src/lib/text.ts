@@ -1,3 +1,6 @@
+/** Tira acentos e deixa minúsculo (para buscas e comparações: "Ópera" casa com "opera"). */
+export const semAcento = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
 /** Conta palavras (letras/números, com apóstrofo e hífen internos). */
 export function countWords(text: string): number {
   const m = text.match(/[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu);
