@@ -90,12 +90,17 @@ async function readEpubCover(data: Blob | ArrayBuffer): Promise<Blob | null> {
 }
 
 /** URLs assinadas das capas (id do livro → url). */
-export async function coverUrls(books: Pick<Book, "id" | "cover_path">[]): Promise<Record<string, string>> {
+/** URLs assinadas (id → url) para itens guardados no bucket "livros"; links http(s) passam direto. */
+export async function urlsAssinadas(itens: { id: string; path: string | null }[], ttlSeg = 60 * 60 * 12): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
-  for (const b of books) if (b.cover_path && isLink(b.cover_path)) out[b.id] = b.cover_path;
-  const withCover = books.filter((b) => b.cover_path && !isLink(b.cover_path));
-  if (!withCover.length) return out;
-  const { data } = await supabase().storage.from("livros").createSignedUrls(withCover.map((b) => b.cover_path!), 60 * 60 * 12);
-  (Array.isArray(data) ? data : []).forEach((d, i) => { if (d.signedUrl) out[withCover[i].id] = d.signedUrl; });
+  for (const i of itens) if (i.path && isLink(i.path)) out[i.id] = i.path;
+  const guardadas = itens.filter((i) => i.path && !isLink(i.path));
+  if (!guardadas.length) return out;
+  const { data } = await supabase().storage.from("livros").createSignedUrls(guardadas.map((i) => i.path!), ttlSeg);
+  (Array.isArray(data) ? data : []).forEach((d, k) => { if (d.signedUrl) out[guardadas[k].id] = d.signedUrl; });
   return out;
+}
+
+export async function coverUrls(books: Pick<Book, "id" | "cover_path">[]): Promise<Record<string, string>> {
+  return urlsAssinadas(books.map((b) => ({ id: b.id, path: b.cover_path ?? null })));
 }

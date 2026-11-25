@@ -1,5 +1,6 @@
 import { supabase } from "./supabase/client";
 import { apagarCopiaLocal } from "./exame";
+import { dayKey } from "./dates";
 
 /** Data (aaaa-mm-dd) da última confissão registrada, ou null. */
 export async function ultimaConfissao(): Promise<string | null> {
@@ -42,10 +43,7 @@ export async function corrigirUltimaConfissao(feitaEm: string) {
   else await sb.from("confissoes").insert({ feita_em: feitaEm });
 }
 
-export const hojeIso = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+export const hojeIso = dayKey;
 
 export const dataBr = (iso: string) => {
   const [y, m, d] = iso.split("-");
