@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { ChevronDown, ChevronLeft, ChevronRight, Download, Eye, FileText, Folder, FolderUp, Link as LinkIcon, Pencil, Plus, Search, Trash2, Upload, X, ZoomIn, ZoomOut, PanelLeftClose, PanelLeftOpen, CircleCheck, Circle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { baixarArquivo } from "@/lib/baixar";
 import { todas } from "@/lib/supabase/todas";
 import { countWords, slug, wikilinks } from "@/lib/text";
 import { nf } from "@/lib/dates";
@@ -343,10 +344,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
       zip.file(`${dir ? dir + "/" : ""}${safe(n.title)}.md`, front + (textos.get(n.id) ?? ""));
     }
     const blob = await zip.generateAsync({ type: "blob" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${isStudy ? "estudos" : isAtomic ? "notas-atomicas" : "notas"}-${new Date().toISOString().slice(0, 10)}.zip`;
-    a.click();
+    baixarArquivo(blob, `${isStudy ? "estudos" : isAtomic ? "notas-atomicas" : "notas"}-${new Date().toISOString().slice(0, 10)}.zip`);
   }
 
   // transforma [[Link]] em links clicáveis no preview

@@ -1,5 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
+import { baixarArquivo } from "./baixar";
 import { todas } from "./supabase/todas";
 import type { Note } from "./types";
 import type { SituacaoAula } from "@/components/status-pill";
@@ -188,7 +189,7 @@ const seguro = (s: string) => s.replace(/[\\/:*?"<>|]/g, "-").trim() || "sem-tit
 export async function baixarAula(a: Pick<Aula, "id" | "title" | "course" | "professor">) {
   const { data } = await supabase().from("notes").select("content").eq("id", a.id).single();
   const front = `---\nprofessor: ${a.professor ?? ""}\ncurso: ${a.course ?? ""}\n---\n\n`;
-  baixar(new Blob([front + ((data as { content: string } | null)?.content ?? "")], { type: "text/markdown;charset=utf-8" }), `${seguro(a.title)}.md`);
+  baixarArquivo(new Blob([front + ((data as { content: string } | null)?.content ?? "")], { type: "text/markdown;charset=utf-8" }), `${seguro(a.title)}.md`);
 }
 
 /** Todas as aulas num .zip (pastas curso/módulo), com as anotações junto. */
@@ -206,14 +207,6 @@ export async function baixarTodas(aulas: Aula[]) {
     const anot = anotacoesDe.get(a.id) ?? "";
     if (anot.trim()) zip.file(`${dir ? dir + "/" : ""}${seguro(a.title)} (anotações).md`, anot);
   }
-  baixar(await zip.generateAsync({ type: "blob" }), `estudos-${new Date().toISOString().slice(0, 10)}.zip`);
+  baixarArquivo(await zip.generateAsync({ type: "blob" }), `estudos-${new Date().toISOString().slice(0, 10)}.zip`);
 }
 
-function baixar(blob: Blob, nome: string) {
-  const el = document.createElement("a");
-  el.href = URL.createObjectURL(blob);
-  el.download = nome;
-  document.body.appendChild(el);
-  el.click();
-  setTimeout(() => { el.remove(); URL.revokeObjectURL(el.href); }, 10000);
-}

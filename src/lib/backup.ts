@@ -1,5 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
+import { baixarArquivo } from "./baixar";
 import { compilarMarkdown, type Doc, type Projeto, type Referencia } from "./escrita";
 
 /** Todas as tabelas com dados da conta (cada uma vira dados/<tabela>.json na cópia). */
@@ -108,12 +109,7 @@ export async function baixarCopia(progresso: (msg: string) => void): Promise<{ a
 
   progresso("Compactando…");
   const blob = await zip.generateAsync({ type: "blob" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `sistema-estudos-copia-${new Date().toISOString().slice(0, 10)}.zip`;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 10000);
+  baixarArquivo(blob, `sistema-estudos-copia-${new Date().toISOString().slice(0, 10)}.zip`);
   await sb.auth.updateUser({ data: { ultima_copia: new Date().toISOString() } });
   return { arquivos: unicos.length - falhas.length, falhas };
 }

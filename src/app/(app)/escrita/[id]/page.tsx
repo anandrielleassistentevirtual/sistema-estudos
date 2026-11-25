@@ -8,6 +8,7 @@ import {
   PanelRightClose, PanelRightOpen, Plus, Printer, Table2, BarChart3, PenLine, Trash2, ArrowUp, ArrowDown, Upload, Pencil, Settings2, X, CornerUpLeft, BookOpenText, Library, Search, Quote,
 } from "lucide-react";
 import { supabase, fire } from "@/lib/supabase/client";
+import { baixarArquivo } from "@/lib/baixar";
 import { todas } from "@/lib/supabase/todas";
 import { dayKey, fmtClock, fmtDuration, nf, addDays, parseDay } from "@/lib/dates";
 import {
@@ -296,11 +297,7 @@ export default function SalaDeEscrita() {
   function baixarMd() {
     if (!projeto) return;
     const blob = new Blob([compilarMarkdown(projeto, docs, E.referencias ? refs : [])], { type: "text/markdown;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${projeto.titulo}.md`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    baixarArquivo(blob, `${projeto.titulo}.md`);
   }
   function imprimir() {
     if (!projeto) return;

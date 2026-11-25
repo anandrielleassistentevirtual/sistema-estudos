@@ -6,6 +6,7 @@ import { Empty, Page } from "@/components/page";
 import { NotasTabs } from "@/components/notas-tabs";
 import { LiteraryModal, type BookLite } from "@/components/literary-modal";
 import { supabase } from "@/lib/supabase/client";
+import { baixarArquivo } from "@/lib/baixar";
 import { todas } from "@/lib/supabase/todas";
 import { bookName, cddCompare, folderLabel } from "@/lib/folders";
 import { locationLabel, setStatus } from "@/lib/zettel";
@@ -128,12 +129,7 @@ export default function Literarias() {
       ]),
     ].join("\n");
     const nome = `${bookName(book).replace(/[\\/:*?"<>|]/g, "-")} - notas.md`;
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new File([md], nome, { type: "text/markdown" }));
-    a.download = nome;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => a.remove(), 5000);
+    baixarArquivo(new File([md], nome, { type: "text/markdown" }), nome);
   }
 
   function Tree({ parent, depth }: { parent: string | null; depth: number }) {

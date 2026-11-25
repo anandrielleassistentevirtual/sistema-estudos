@@ -7,6 +7,7 @@ import { BookOpen, Download, Search, X } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { NotasTabs } from "@/components/notas-tabs";
 import { supabase } from "@/lib/supabase/client";
+import { baixarArquivo } from "@/lib/baixar";
 import { todas } from "@/lib/supabase/todas";
 import { porOrdem } from "@/lib/estudos";
 
@@ -63,11 +64,7 @@ export default function AnotacoesDasAulas() {
         linhas.push(`### ${a.title}`, `*${[vista === "recentes" ? [a.course, a.folder].filter(Boolean).join(" › ") : "", a.professor, quando(a.anotacoes_em)].filter(Boolean).join(" · ")}*`, "", a.anotacoes.trim(), "");
       }
     }
-    const el = document.createElement("a");
-    el.href = URL.createObjectURL(new Blob([linhas.join("\n")], { type: "text/markdown;charset=utf-8" }));
-    el.download = `anotacoes-das-aulas-${new Date().toISOString().slice(0, 10)}.md`;
-    el.click();
-    setTimeout(() => URL.revokeObjectURL(el.href), 5000);
+    baixarArquivo(new Blob([linhas.join("\n")], { type: "text/markdown;charset=utf-8" }), `anotacoes-das-aulas-${new Date().toISOString().slice(0, 10)}.md`);
   }
 
   const total = itens?.length ?? 0;
