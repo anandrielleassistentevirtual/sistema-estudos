@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
-import { addDays, dayKey, fmtDuration, nf, parseDay, weekStart } from "@/lib/dates";
+import { addDays, dayKey, fmtDuration, nf, nfc, parseDay, weekStart } from "@/lib/dates";
 import { arvoreDePastas, faltam, subarvore, type PastaEstudo } from "@/lib/estudos";
 import { progressoDoLivro, type BookStatus } from "@/lib/types";
 import { contaAnki } from "@/lib/anki";
@@ -31,8 +31,6 @@ interface Dados {
 const fmtData = (k: string) => parseDay(k).toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
 const horas = (seg: number) => (seg >= 3600 ? `${nf.format(Math.round(seg / 360) / 10)} h` : fmtDuration(seg));
 const N = (v: number) => nf.format(Math.round(v));
-/** 157 mil · 1,2 mi */
-const curto = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
 /** a unidade natural de cada área quando se fala do que foi entregue */
 const NATURAL: Record<Area, { u: "palavras" | "cartoes" | "min"; nome: string }> = {
   leitura: { u: "palavras", nome: "palavras lidas" }, estudos: { u: "palavras", nome: "palavras estudadas" },
@@ -225,8 +223,8 @@ export function VisaoAno({ onAbrir }: { onAbrir: (e: Estacao, ano: number) => vo
                         <span>{e.livros} {e.livros === 1 ? "livro" : "livros"}</span>
                         <span>{e.aulas} {e.aulas === 1 ? "aula" : "aulas"}</span>
                         <span title={`${N(e.cartoes)} cartões novos`}>{N(e.cartoes)} cartões</span>
-                        <span title={`${N(e.lidas)} palavras lidas`}>{curto.format(e.lidas)} pal. lidas</span>
-                        <span title={`${N(e.escritas)} palavras escritas`}>{curto.format(e.escritas)} escritas</span>
+                        <span title={`${N(e.lidas)} palavras lidas`}>{nfc.format(e.lidas)} pal. lidas</span>
+                        <span title={`${N(e.escritas)} palavras escritas`}>{nfc.format(e.escritas)} escritas</span>
                         <span>MAR {horas(e.mar)}</span>
                       </div>
                       <div className="mt-2 flex items-center justify-between text-[11px] text-faint tabular-nums">
@@ -290,7 +288,7 @@ export function VisaoAno({ onAbrir }: { onAbrir: (e: Estacao, ano: number) => vo
                         return (
                           <td key={`${e.estacao}${e.ano}`} className="whitespace-nowrap">
                             <span className={x.seg ? "" : "text-faint"}>{x.seg ? horas(x.seg) : "—"}</span>
-                            {nat.u !== "min" && x.q > 0 && <span className="text-[11px] text-muted ml-1.5" title={`${N(x.q)} ${nat.nome}`}>{curto.format(x.q)} {nat.u === "cartoes" ? "novos" : "pal."}</span>}
+                            {nat.u !== "min" && x.q > 0 && <span className="text-[11px] text-muted ml-1.5" title={`${N(x.q)} ${nat.nome}`}>{nfc.format(x.q)} {nat.u === "cartoes" ? "novos" : "pal."}</span>}
                             {x.pct !== null && <span className="text-[11px] ml-1.5 font-medium inline-block w-9" style={{ color: corDaNota(Math.min(1, x.pct)) }} title="do plano da season">{Math.round(x.pct * 100)}%</span>}
                           </td>
                         );

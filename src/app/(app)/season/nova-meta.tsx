@@ -1,6 +1,5 @@
 "use client";
 import type { AulaT, BaralhoT, Livro } from "@/lib/metas";
-export type { AulaT, BaralhoT, Livro };
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";

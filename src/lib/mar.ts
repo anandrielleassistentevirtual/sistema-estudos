@@ -313,16 +313,6 @@ export function segundosFalta(t: Titulo): number {
   for (let k = v + 1; k <= total; k++) s += durSeg(t, k);
   return Math.max(0, s - (t.parcial_seg ?? 0));
 }
-/** Minutos já vistos (Σ durSeg dos vistos + "parei em"). */
-export const minutosVisto = (t: Titulo) => Math.round(segundosVisto(t) / 60);
-/** Minutos que faltam (Σ durSeg dos que faltam − "parei em"). */
-export const minutosFalta = (t: Titulo) => Math.round(segundosFalta(t) / 60);
-/** Minutagem da série inteira, em segundos. */
-export function segundosSerie(t: Titulo): number {
-  let s = 0;
-  for (let k = 1; k <= totalEps(t); k++) s += durSeg(t, k);
-  return s;
-}
 
 // ─── leitura de minutos ───
 

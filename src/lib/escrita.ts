@@ -181,7 +181,7 @@ export function manuscrito(docs: Doc[]) {
 }
 
 /** "C1, c3": capítulo 1, cena 3 (como na escaleta). */
-export const rotuloCena = (cap: number, cena: number, comCapitulo = true, unidade = "cena") =>
+const rotuloCena = (cap: number, cena: number, comCapitulo = true, unidade = "cena") =>
   comCapitulo ? `C${cap}, c${cena}` : unidade === "parte" ? `Parte ${cena}` : `c${cena}`;
 
 /* ---------- importação da escaleta (.xlsx) ---------- */

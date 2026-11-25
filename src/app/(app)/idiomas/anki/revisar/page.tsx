@@ -147,7 +147,7 @@ export default function RevisarAnki() {
     if (token === playToken.current) setPlayingAudio(false);
   }, []);
 
-  const load = useCallback(async (first = false) => {
+  const load = useCallback(async () => {
     try {
       let c: CurrentCard | null = null;
       // a revisão pode levar um instante para abrir no Anki; e, quando não há mais cartões, ela fecha sozinha
@@ -176,7 +176,6 @@ export default function RevisarAnki() {
       let auto = true;
       try { auto = localStorage.getItem("anki-autoplay") !== "0"; } catch {}
       if (auto && v.sounds.length) void play(v.sounds);
-      void first;
     } catch (e) {
       setErr((e as Error).message || "Não foi possível falar com o Anki.");
       setState("erro");
@@ -193,7 +192,7 @@ export default function RevisarAnki() {
         if (ok === false) throw new Error(`Não encontrei o baralho “${d}” no Anki deste computador. Sincronize o Anki e tente de novo.`);
       }
       await esperar(400);
-      await load(true);
+      await load();
     } catch (e) {
       setErr((e as Error).message || "Não foi possível falar com o Anki.");
       setState("erro");

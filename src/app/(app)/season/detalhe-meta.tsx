@@ -11,7 +11,6 @@ import { addDays, dayKey, fmtDuration, nf, parseDay } from "@/lib/dates";
 import type { Meta } from "@/lib/temporadas";
 
 import type { ItemDaMeta } from "@/lib/metas";
-export type { ItemDaMeta };
 export interface ResumoDaMeta {
   numeros: { valor: string; rotulo: string; cor?: string }[];
   selo: string; corSelo: string; sub?: string; pct: number;

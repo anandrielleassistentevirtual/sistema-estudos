@@ -43,6 +43,8 @@ export function fmtClock(seconds: number): string {
 }
 
 export const nf = new Intl.NumberFormat("pt-BR");
+/** Números compactos: 157 mil · 1,2 mi */
+export const nfc = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
 
 export const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 export const DIAS = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"];

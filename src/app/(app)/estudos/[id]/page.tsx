@@ -297,7 +297,7 @@ export default function AulaAberta() {
             </div>
           ) : blob && aula ? (
             <TextReader ref={reader} data={blob} format="md" startAt={local || (aula.location && /^p:\d+$/.test(aula.location) ? aula.location : null)} prefs={view}
-              annotations={[]} knownWords={null}
+              annotations={[]}
               onTurn={(w, fwd) => tracker.current?.turn(w, fwd)}
               onView={(w, last) => tracker.current?.see(w, last)}
               onToc={setToc} onCapitulo={setFaltamCap} onNotaLivro={setNotaLivro}

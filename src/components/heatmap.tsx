@@ -26,7 +26,6 @@ export function Heatmap({
   selected,
   unidade,
   paleta,
-  encaixar: _encaixar,
   inicio,
   fim,
   ladoMaximo,
@@ -41,8 +40,6 @@ export function Heatmap({
   unidade?: string;
   /** escala de cores (padrão: azul; "escritas" usa laranja e o Anki verde, as cores das áreas) */
   paleta?: "heat" | "out" | "ama" | "verde";
-  /** (o calendário já cabe sempre na largura; mantido por compatibilidade) */
-  encaixar?: boolean;
   /** período escolhido no filtro (aaaa-mm-dd): os dias de fora ficam apagados e as cores se calculam só com os de dentro */
   inicio?: string;
   fim?: string;

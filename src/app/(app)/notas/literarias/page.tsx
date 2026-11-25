@@ -127,9 +127,10 @@ export default function Literarias() {
         n.content, "",
       ]),
     ].join("\n");
+    const nome = `${bookName(book).replace(/[\\/:*?"<>|]/g, "-")} - notas.md`;
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new File([md], `${bookName(book).replace(/[\\/:*?"<>|]/g, "-")} - notas.md`, { type: "text/markdown" }));
-    a.download = `${bookName(book).replace(/[\\/:*?"<>|]/g, "-")} - notas.md`;
+    a.href = URL.createObjectURL(new File([md], nome, { type: "text/markdown" }));
+    a.download = nome;
     document.body.appendChild(a);
     a.click();
     setTimeout(() => a.remove(), 5000);

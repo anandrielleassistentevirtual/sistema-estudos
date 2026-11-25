@@ -195,13 +195,6 @@ export function rendimento(r: Registros, dias = 60): Record<Area, number> {
   return out;
 }
 
-/** Ênfase pelo plano (em minutos por dia, convertidos da unidade da área): o que a temporada privilegia. */
-export function enfase(minDia: number): { nome: string; nivel: 0 | 1 | 2 | 3 } {
-  if (minDia <= 0) return { nome: "pausa", nivel: 0 };
-  if (minDia < 20) return { nome: "leve", nivel: 1 };
-  if (minDia < 60) return { nome: "média", nivel: 2 };
-  return { nome: "forte", nivel: 3 };
-}
 
 /** Uma área na nota da semana: o planejado, o feito e quantos pontos ela tirou da nota. */
 export interface AreaDaSemana { area: Area; un: Unidade; plano: number; feito: number; pct: number; peso: number; perde: number }

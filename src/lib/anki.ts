@@ -54,14 +54,6 @@ export async function addBasicNote(
   });
 }
 
-/** Baixa um arquivo e devolve em base64 (para mandar áudio ao Anki). */
-export async function toBase64(url: string): Promise<string> {
-  const buf = new Uint8Array(await (await fetch(url)).arrayBuffer());
-  let bin = "";
-  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-  return btoa(bin);
-}
-
 /** A contagem de revisões do Anki no sistema começa neste dia (o histórico anterior do Anki não entra). */
 export const ANKI_INICIO = "2026-11-08";
 

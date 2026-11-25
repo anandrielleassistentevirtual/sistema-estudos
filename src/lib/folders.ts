@@ -29,29 +29,6 @@ export function flatTree(folders: Folder[]): { folder: Folder; depth: number }[]
   return out;
 }
 
-/** Livros de uma pasta na ordem da estante (posição manual; senão, ordem de chegada). */
-export function shelfOrder(list: Book[]) {
-  return [...list].sort(
-    (a, b) => (a.position ?? 1e9) - (b.position ?? 1e9) || a.created_at.localeCompare(b.created_at) || a.title.localeCompare(b.title, "pt-BR"),
-  );
-}
-
-/** Número de chamada de cada livro: código da pasta + ordem na pasta (ex.: 846-01). */
-export function callNumbers(books: Book[], folders: Folder[]): Record<string, { n: number; label: string; folder: Folder }> {
-  const byId = new Map(folders.map((f) => [f.id, f]));
-  const groups = new Map<string, Book[]>();
-  for (const b of books) if (b.folder_id && byId.has(b.folder_id)) groups.set(b.folder_id, [...(groups.get(b.folder_id) ?? []), b]);
-  const out: Record<string, { n: number; label: string; folder: Folder }> = {};
-  for (const [fid, list] of groups) {
-    const f = byId.get(fid)!;
-    shelfOrder(list).forEach((b, i) => {
-      const n = i + 1;
-      out[b.id] = { n, folder: f, label: `${f.code ?? f.name}-${String(n).padStart(2, "0")}` };
-    });
-  }
-  return out;
-}
-
 /** "Autor — Título" (autor antes do título). */
 export function bookName(b: Pick<Book, "author" | "title">) {
   return b.author ? `${b.author} — ${b.title}` : b.title;
