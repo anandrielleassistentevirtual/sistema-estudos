@@ -8,7 +8,7 @@ import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Page } from "@/components/page";
 import { EstacaoIcone } from "@/components/estacao-icone";
 import { supabase } from "@/lib/supabase/client";
-import { addDays, dayKey, fmtDuration, nf, parseDay } from "@/lib/dates";
+import { addDays, dayKey, fmtDuration, nf, nfc, parseDay, weekStart } from "@/lib/dates";
 import type { PastaEstudo } from "@/lib/estudos";
 import { loadLanguages } from "@/lib/languages";
 import {
@@ -17,9 +17,9 @@ import {
   type Area, type Estacao, type Meta, type Registros, type Temporada, type Unidade,
 } from "@/lib/temporadas";
 import { NovaMeta } from "./nova-meta";
-import { COR_ESTADO, calculoDasMetas, carregarDadosDasMetas, fmtData, fmtQ, redondo, type AnkiDia, type AulaT, type BaralhoT, type Livro } from "@/lib/metas";
+import { COR_ESTADO, calculoDasMetas, carregarDadosDasMetas, fmtData, redondo, type AnkiDia, type AulaT, type BaralhoT, type Livro } from "@/lib/metas";
 import { corDaNota } from "@/lib/cores";
-import { DetalheDaMeta, type ItemDaMeta } from "./detalhe-meta";
+import { DetalheDaMeta } from "./detalhe-meta";
 import { VisaoAno } from "./visao-ano";
 
 /** nota da semana → verde, âmbar ou vermelho (a mesma régua do Dashboard) */
@@ -97,7 +97,7 @@ export default function Temporadas() {
   // ainda não planejada: mostra como seria, com o seu ritmo atual (a partir desta semana, se for a atual)
   const t: Temporada = registro ?? {
     ano: sel.ano, estacao: sel.estacao, inicio: lim.inicio, fim: lim.fim,
-    comeca_em: ehAtual ? dayKey(addDays(new Date(), -((new Date().getDay() + 6) % 7))) : lim.inicio, plano: {},
+    comeca_em: ehAtual ? dayKey(weekStart(new Date())) : lim.inicio, plano: {},
   };
   const u = (a: Area) => unidadeDe(t, a);
   const unidadesCompletas = Object.fromEntries(AREAS.map((a) => [a.id, u(a.id)])) as Record<Area, Unidade>;
@@ -190,7 +190,6 @@ export default function Temporadas() {
   }
 
   // uma linha do plano por área (a tabela no computador e a lista no celular usam as mesmas contas)
-  const compacto = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
   const linhasDoPlano = AREAS.map((a) => {
     const p = plano(a.id);
     const un = u(a.id);
@@ -205,7 +204,7 @@ export default function Temporadas() {
     const dia = (v: number) => (v >= 0.5 ? nf.format(un === "cartoes" && v < 10 && v % 1 ? Math.round(v * 10) / 10 : Math.round(v)) : "—");
     const tot = (v: number) => (v < 1 ? "—" : un === "min" ? fmtDuration(v * 60) : nf.format(Math.round(v)));
     /** total curto para o celular: 433 mil, 36 h */
-    const curto = (v: number) => (v < 1 ? "—" : un === "min" ? (v >= 600 ? `${Math.round(v / 60)} h` : fmtDuration(v * 60)) : v >= 10000 ? compacto.format(v) : nf.format(Math.round(v)));
+    const curto = (v: number) => (v < 1 ? "—" : un === "min" ? (v >= 600 ? `${Math.round(v / 60)} h` : fmtDuration(v * 60)) : v >= 10000 ? nfc.format(v) : nf.format(Math.round(v)));
     return { a, p, un, feito, hojeFeito, pctHoje, mt, precisa, corPrecisa, vazio, dia, tot, curto };
   });
   /** a caixa do plano: o número por dia e a unidade (o plano é convertido pelo seu ritmo ao trocar a unidade) */

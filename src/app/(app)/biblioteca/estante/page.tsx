@@ -66,7 +66,7 @@ export default function Estante() {
     // ordem de estante: pela pasta (CDD) e, dentro dela, pelo autor
     return [...l].sort((a, b) => (ordemDaPasta.get(a.folder_id ?? "") ?? 1e6) - (ordemDaPasta.get(b.folder_id ?? "") ?? 1e6)
       || (a.author ?? "").localeCompare(b.author ?? "", "pt-BR") || a.title.localeCompare(b.title, "pt-BR"));
-  }, [d.livros, d, sel, status, perfil, q, naPasta, ordemDaPasta]);
+  }, [d.livros, d.pastaDe, sel, status, perfil, q, naPasta, ordemDaPasta]);
 
   // agrupados por pasta, para a estante ter "prateleiras"
   const prateleiras = useMemo(() => {

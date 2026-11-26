@@ -5,7 +5,7 @@ import { BookHeart, Check, Pencil, Search, Trash2, X } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { NotasTabs } from "@/components/notas-tabs";
 import { supabase } from "@/lib/supabase/client";
-import { fmtDuration, parseDay } from "@/lib/dates";
+import { fmtDayLong, fmtDuration, parseDay } from "@/lib/dates";
 import { nomeLivro, ordemLivro, parseRef } from "@/lib/evangelho";
 import { FONTS } from "@/components/reader/types";
 
@@ -131,7 +131,7 @@ export default function Diario() {
                               <li key={r.id} className="card p-5">
                                 <div className="flex items-baseline justify-between gap-3 text-sm">
                                   <span className="first-letter:uppercase inline-block text-muted">
-                                    {parseDay(r.dia).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                                    {fmtDayLong(r.dia)}
                                   </span>
                                   <div className="flex items-center gap-1 shrink-0 text-faint">
                                     <span className="text-xs mr-1">{fmtDuration(r.segundos)}</span>

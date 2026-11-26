@@ -1,5 +1,6 @@
 "use client";
 import { supabase, userId } from "./supabase/client";
+import { baixarArquivo } from "./baixar";
 import { countWords } from "./text";
 import type { Book } from "./types";
 import { aliviarEpub, COMPRIMIR_ACIMA, LIMITE_ENVIO, mb } from "./epub-leve";
@@ -136,13 +137,7 @@ export async function saveBookFile(book: Book) {
   const blob = await downloadBook(book);
   const base = [book.author, book.title].filter(Boolean).join(" - ").replace(/[\\/:*?"<>|]/g, "-").trim() || "livro";
   const file = new File([blob], `${base}.${book.format}`, { type: blob.type || "application/octet-stream" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(file);
-  a.download = file.name;
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 10000);
+  baixarArquivo(file, file.name);
 }
 
 export async function deleteBook(book: Book) {

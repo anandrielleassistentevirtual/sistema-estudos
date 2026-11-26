@@ -15,13 +15,6 @@ export async function chavesListening(): Promise<ChaveListening[]> {
   return (data as ChaveListening[] | null) ?? [];
 }
 
-/** Cria a chave (o texto só existe agora; no banco fica só o hash). */
-export async function criarChaveListening(idioma: string): Promise<string> {
-  const { data, error } = await supabase().rpc("criar_chave_listening", { p_idioma: idioma });
-  if (error || !data) throw new Error(error?.message ?? "Não consegui criar a chave.");
-  return data as string;
-}
-
 export async function cancelarChaveListening(id: string) {
   await supabase().from("integracao_chaves").update({ revogada: true }).eq("id", id);
 }

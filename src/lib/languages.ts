@@ -1,5 +1,6 @@
 "use client";
 import { supabase } from "./supabase/client";
+import { semAcento } from "@/lib/text";
 
 export interface Language {
   id: string;
@@ -29,13 +30,12 @@ export const ONDE = ["Plataforma do Mairo", "Anki", "Aula / professor", "Leitura
 
 /** Palpite dos baralhos do Anki de um idioma, pelo nome (Inglês ↔ "English", "CIMV - Inglês"…). */
 export function palpiteDeBaralhos(idioma: string, baralhos: string[]): string[] {
-  const tira = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   const chaves: Record<string, string[]> = {
     ingles: ["ingles", "english"], italiano: ["italiano", "italian"], frances: ["frances", "french", "francais"],
     espanhol: ["espanhol", "spanish", "espanol"], alemao: ["alemao", "german", "deutsch"], latim: ["latim", "latin"],
     grego: ["grego", "greek"], russo: ["russo", "russian"], japones: ["japones", "japanese"], mandarim: ["mandarim", "chines", "chinese"],
   };
-  const i = tira(idioma);
+  const i = semAcento(idioma);
   const palavras = Object.entries(chaves).find(([k]) => i.includes(k))?.[1] ?? [i];
-  return baralhos.filter((b) => palavras.some((p) => tira(b).includes(p)));
+  return baralhos.filter((b) => palavras.some((p) => semAcento(b).includes(p)));
 }

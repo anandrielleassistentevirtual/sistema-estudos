@@ -97,7 +97,6 @@ export function LessonReader({ note, prefs, onProgress, onPosition }: {
           startAt={startAt}
           prefs={prefs}
           annotations={[]}
-          knownWords={null}
           onTurn={(words, forward) => tracker.current?.turn(words, forward)}
           onView={(words, last) => tracker.current?.see(words, last)}
           onLocation={(loc, p, l) => {

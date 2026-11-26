@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { semAcento } from "@/lib/text";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -414,9 +415,8 @@ function FormTarefa({ ordem, filhos, porId, livros, aulas, inicial, rotulo, onSa
   const [mais, setMais] = useState(!!(inicial.prazo || inicial.link || inicial.book_id || inicial.pasta_id || inicial.aula_id || inicial.descricao));
   const [indo, setIndo] = useState(false);
   const livro = bookId ? livros.find((b) => b.id === bookId) : undefined;
-  const dobra = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   const achados = busca.trim().length >= 2
-    ? livros.filter((b) => dobra(busca).split(/\s+/).every((w) => dobra(`${b.title} ${b.author ?? ""}`).includes(w))).slice(0, 8) : [];
+    ? livros.filter((b) => semAcento(busca).split(/\s+/).every((w) => semAcento(`${b.title} ${b.author ?? ""}`).includes(w))).slice(0, 8) : [];
   const exemplo = TIPOS.find((t) => t.id === tipo)?.exemplo ?? "";
 
   // aulas do curso escolhido (com as das subpastas), na ordem das pastas e, dentro delas, na ordem das aulas

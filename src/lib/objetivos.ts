@@ -89,9 +89,6 @@ export function acharLivro(item: { autor: string; titulo: string }, livros: Pick
   return candidatos.find((b) => norm(`${b.author ?? ""} ${b.title}`).includes(sob)) ?? null;
 }
 
-/** Nome para exibir: "AUTOR – Título" */
-export const nomeDoItem = (i: Pick<ItemObjetivo, "autor" | "titulo">) => (i.autor ? `${i.autor} – ${i.titulo}` : i.titulo);
-
 /**
  * Progresso da mesa medido em palavras: livros lidos contam inteiros, os que estão em leitura contam
  * o quanto já foi lido. Livro sem contagem de palavras entra com a média dos outros da mesa.

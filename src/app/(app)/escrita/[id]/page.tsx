@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { semAcento } from "@/lib/text";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -7,6 +8,7 @@ import {
   PanelRightClose, PanelRightOpen, Plus, Printer, Table2, BarChart3, PenLine, Trash2, ArrowUp, ArrowDown, Upload, Pencil, Settings2, X, CornerUpLeft, BookOpenText, Library, Search, Quote,
 } from "lucide-react";
 import { supabase, fire } from "@/lib/supabase/client";
+import { baixarArquivo } from "@/lib/baixar";
 import { todas } from "@/lib/supabase/todas";
 import { dayKey, fmtClock, fmtDuration, nf, addDays, parseDay } from "@/lib/dates";
 import {
@@ -295,11 +297,7 @@ export default function SalaDeEscrita() {
   function baixarMd() {
     if (!projeto) return;
     const blob = new Blob([compilarMarkdown(projeto, docs, E.referencias ? refs : [])], { type: "text/markdown;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${projeto.titulo}.md`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    baixarArquivo(blob, `${projeto.titulo}.md`);
   }
   function imprimir() {
     if (!projeto) return;
@@ -888,7 +886,6 @@ function Card({ l, v, h }: { l: string; v: string; h?: string }) {
 interface NotaConsulta { id: string; kind: string; title: string; quote: string | null; content: string; book_id: string | null }
 interface LivroLite { id: string; title: string; author: string | null }
 
-const dobrar = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 function Consulta({ refs, onInserir }: { refs: Referencia[]; onInserir: (txt: string) => void }) {
   const [notas, setNotas] = useState<NotaConsulta[] | null>(null);
@@ -934,8 +931,8 @@ function Consulta({ refs, onInserir }: { refs: Referencia[]; onInserir: (txt: st
     });
     return () => { vivo = false; };
   }, [q, notas, tudoCarregado]);
-  const termos = dobrar(q).split(/\s+/).filter(Boolean);
-  const casa = (t: string) => termos.every((w) => dobrar(t).includes(w));
+  const termos = semAcento(q).split(/\s+/).filter(Boolean);
+  const casa = (t: string) => termos.every((w) => semAcento(t).includes(w));
   const lista = (notas ?? []).filter((n) => {
     const l = n.book_id ? livros.get(n.book_id) : undefined;
     return casa(`${n.title} ${n.quote ?? ""} ${n.content} ${l?.title ?? ""} ${l?.author ?? ""}`);

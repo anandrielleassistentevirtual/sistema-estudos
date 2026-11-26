@@ -1,5 +1,7 @@
 "use client";
 import { supabase } from "./supabase/client";
+import { baixarArquivo } from "./baixar";
+import { isLink } from "./covers";
 import { compilarMarkdown, type Doc, type Projeto, type Referencia } from "./escrita";
 
 /** Todas as tabelas com dados da conta (cada uma vira dados/<tabela>.json na cópia). */
@@ -29,7 +31,6 @@ async function tudo(tabela: string): Promise<Linha[]> {
 }
 
 const seguro = (s: string) => (s || "sem nome").replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim().slice(0, 120);
-const ehLink = (s: string) => /^https?:\/\//.test(s);
 
 /**
  * Gera um .zip com uma cópia completa da conta:
@@ -84,7 +85,7 @@ export async function baixarCopia(progresso: (msg: string) => void): Promise<{ a
   const lista: { bucket: string; path: string }[] = [];
   for (const b of dados.books as Linha[]) {
     if (b.file_path) lista.push({ bucket: "livros", path: String(b.file_path) });
-    if (b.cover_path && !ehLink(String(b.cover_path))) lista.push({ bucket: "livros", path: String(b.cover_path) });
+    if (b.cover_path && !isLink(String(b.cover_path))) lista.push({ bucket: "livros", path: String(b.cover_path) });
   }
   const unicos = [...new Map(lista.map((x) => [`${x.bucket}/${x.path}`, x])).values()];
   const falhas: string[] = [];
@@ -108,12 +109,7 @@ export async function baixarCopia(progresso: (msg: string) => void): Promise<{ a
 
   progresso("Compactando…");
   const blob = await zip.generateAsync({ type: "blob" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `sistema-estudos-copia-${new Date().toISOString().slice(0, 10)}.zip`;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 10000);
+  baixarArquivo(blob, `sistema-estudos-copia-${new Date().toISOString().slice(0, 10)}.zip`);
   await sb.auth.updateUser({ data: { ultima_copia: new Date().toISOString() } });
   return { arquivos: unicos.length - falhas.length, falhas };
 }

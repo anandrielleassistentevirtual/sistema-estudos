@@ -4,7 +4,7 @@
  * As imagens ficam no armazenamento do sistema (reduzidas, como as capas) ou são o link de uma imagem da internet.
  */
 import { supabase, userId } from "./supabase/client";
-import { isLink, shrink } from "./covers";
+import { isLink, shrink, urlsAssinadas } from "./covers";
 
 export interface Sonho {
   id: string;
@@ -25,13 +25,7 @@ export async function carregarSonhos(): Promise<Sonho[]> {
 
 /** Links para mostrar as imagens (as guardadas no sistema precisam de um link assinado, válido por 12 h). */
 export async function imagensDosSonhos(sonhos: Sonho[]): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
-  for (const s of sonhos) if (s.imagem && isLink(s.imagem)) out[s.id] = s.imagem;
-  const guardadas = sonhos.filter((s) => s.imagem && !isLink(s.imagem));
-  if (!guardadas.length) return out;
-  const { data } = await supabase().storage.from("livros").createSignedUrls(guardadas.map((s) => s.imagem!), 60 * 60 * 12);
-  (Array.isArray(data) ? data : []).forEach((d, i) => { if (d.signedUrl) out[guardadas[i].id] = d.signedUrl; });
-  return out;
+  return urlsAssinadas(sonhos.map((s) => ({ id: s.id, path: s.imagem })));
 }
 
 /** Guarda uma imagem (arquivo ou colada) reduzida a 1200px no maior lado; devolve o caminho. */

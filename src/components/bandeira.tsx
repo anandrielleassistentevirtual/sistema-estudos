@@ -1,3 +1,4 @@
+import { semAcento } from "@/lib/text";
 /**
  * Bandeiras desenhadas (SVG): aparecem iguais em qualquer aparelho — o Windows não mostra emoji de bandeira.
  * Simplificadas, no tamanho de um ícone.
@@ -21,7 +22,7 @@ export const BANDEIRAS: { id: string; nome: string }[] = [
 
 /** Bandeira sugerida pelo nome do idioma. */
 export function bandeiraDoIdioma(nome: string): string | null {
-  const n = nome.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const n = semAcento(nome);
   const m: [RegExp, string][] = [
     [/ingles|english/, "us"], [/portugues/, "br"], [/espanhol|spanish|castelhano/, "es"], [/italiano|italian/, "it"],
     [/frances|french/, "fr"], [/alemao|german|deutsch/, "de"], [/latim|latin/, "va"], [/grego|greek/, "gr"],

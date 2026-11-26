@@ -55,7 +55,6 @@ export interface ReaderProps {
   startAt: string | null;
   prefs: ReaderPrefs;
   annotations: Annotation[];
-  knownWords: number | null;
   onTurn: (words: number, forward: boolean) => void;
   onLocation: (location: string, progress: number, label: string) => void;
   /** trecho selecionado (abre a barra de anotação); null quando a seleção é desfeita */

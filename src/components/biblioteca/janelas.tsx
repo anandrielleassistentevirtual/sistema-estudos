@@ -1,6 +1,7 @@
 "use client";
 /** As janelas da Biblioteca, num só molde: editar livro, livro físico, pasta, mesa, colar lista e escolher livro. */
 import { useMemo, useRef, useState } from "react";
+import { semAcento } from "@/lib/text";
 import { Search, Trash2, Upload, X } from "lucide-react";
 import { Cover } from "@/components/cover";
 import { FolderSelect } from "@/components/folder-select";
@@ -417,9 +418,8 @@ export function EscolherLivro({ titulo, livros, onClose, onEscolher, dica }: {
   titulo: string; livros: Book[]; onClose: () => void; onEscolher: (b: Book) => void; dica?: (b: Book) => string;
 }) {
   const [q, setQ] = useState("");
-  const dobra = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   const achados = livros
-    .filter((b) => dobra(q).split(/\s+/).filter(Boolean).every((w) => dobra(`${b.title} ${b.author ?? ""}`).includes(w)))
+    .filter((b) => semAcento(q).split(/\s+/).filter(Boolean).every((w) => semAcento(`${b.title} ${b.author ?? ""}`).includes(w)))
     .sort((a, b) => a.title.localeCompare(b.title, "pt-BR"));
   return (
     <Janela titulo={titulo} onClose={onClose}>

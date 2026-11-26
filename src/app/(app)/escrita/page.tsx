@@ -57,6 +57,7 @@ export default function Escrita() {
     void load();
   }
 
+  const quinzena = QUINZENA();
   return (
     <Page title="Escrita" subtitle="Contos, novelas, romances e ensaios em produção."
       actions={<button className="btn btn-primary" onClick={() => setNovo(true)}><Plus size={15} /> Novo projeto</button>}>
@@ -66,7 +67,7 @@ export default function Escrita() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {projetos?.map((p) => {
           const r = resumo[p.id] ?? { palavras: 0, hoje: 0, dias: new Map<string, number>() };
-          const serie = QUINZENA().map((k) => Math.max(0, r.dias.get(k) ?? 0));
+          const serie = quinzena.map((k) => Math.max(0, r.dias.get(k) ?? 0));
           const pct = p.meta_palavras ? Math.min(1, r.palavras / p.meta_palavras) : 0;
           const tipo = tipoDe(p.tipo);
           const Icone = ICONE[p.tipo] ?? BookOpen;

@@ -26,14 +26,6 @@ export function parseRef(ref: string): Ref | null {
   return { livro: m[1].replace(/\s/g, ""), cap, v1, cap2, v2 };
 }
 
-/** As duas passagens têm versículos em comum? */
-export function sobrepoe(a: Ref, b: Ref): boolean {
-  if (a.livro !== b.livro) return false;
-  const ini = (r: Ref) => r.cap * 1000 + r.v1;
-  const fim = (r: Ref) => r.cap2 * 1000 + r.v2;
-  return ini(a) <= fim(b) && ini(b) <= fim(a);
-}
-
 export function ordemLivro(livro: string): number {
   const i = EVANGELHOS.findIndex((e) => e.abbr === livro);
   return i < 0 ? 99 : i;

@@ -1,3 +1,4 @@
+import { semAcento } from "@/lib/text";
 /**
  * Glossário dentro do próprio texto (aulas e livros em Markdown).
  *
@@ -73,7 +74,6 @@ export function termoDoHref(href: string): string | null {
 // ── todas as vezes que o termo aparece ─────────────────────────────────────────────────────────────────────
 
 const ARTIGOS = /^(?:o|a|os|as|um|uma|do|da|dos|das|de|pelo|pela|pelos|pelas|no|na|nos|nas|ao|à|e)\s+/i;
-const normal = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 /** plural e feminino/masculino de uma palavra (tragédia → tragédias; ação → ações; cômico → cômica, cômicos) */
 function variantes(p: string): string[] {
@@ -116,7 +116,7 @@ export function formasDosTermos(texto: string, verbetes: Map<string, Verbete>): 
     const dentro = [...titulo.matchAll(/\(([^)]*)\)/g)].flatMap((m) => m[1].split(/[,/]/));
     const partes = [inteiro, ...inteiro.split(/\s*,\s*|\s*\/\s*|\s+e\s+/), ...dentro]
       .map((x) => x.replace(ARTIGOS, "").trim()).filter(Boolean);
-    for (const p of partes) if (p.includes(" ")) primeirasDeCompostos.add(normal(p.split(" ")[0]));
+    for (const p of partes) if (p.includes(" ")) primeirasDeCompostos.add(semAcento(p.split(" ")[0]));
     return partes;
   };
   const validos = [...verbetes.values()].filter((v) => !/^termos sem verbete/i.test(v.titulo));
@@ -127,13 +127,13 @@ export function formasDosTermos(texto: string, verbetes: Map<string, Verbete>): 
     if (!v || /^termos sem verbete/i.test(v.titulo)) continue;
     const visto = (m[2] ?? m[1]).replace(ARTIGOS, "").trim();
     if (visto.includes(" ")) continue;
-    if (primeirasDeCompostos.has(normal(visto))) continue;
+    if (primeirasDeCompostos.has(semAcento(visto))) continue;
     for (const f of variantes(visto)) por(f, v.titulo);
   }
   // 2) o título e as partes dele
   for (const v of validos) {
     for (const p of partesDe(v.titulo)) {
-      if (!p.includes(" ") && primeirasDeCompostos.has(normal(p)) && p.toLowerCase() !== v.titulo.toLowerCase()) continue;
+      if (!p.includes(" ") && primeirasDeCompostos.has(semAcento(p)) && p.toLowerCase() !== v.titulo.toLowerCase()) continue;
       for (const f of p.includes(" ") ? [p] : variantes(p)) por(f, v.titulo);
     }
   }
