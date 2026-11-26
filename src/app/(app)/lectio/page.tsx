@@ -1,8 +1,9 @@
 "use client";
 import { OracaoTabs } from "@/components/oracao-tabs";
+import { Page } from "@/components/page";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookHeart, ChevronLeft, ChevronRight, ExternalLink, Pause, Play, RotateCcw, SkipForward, ZoomIn, ZoomOut } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ExternalLink, Pause, Play, RotateCcw, SkipForward, ZoomIn, ZoomOut } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { addDays, dayKey, fmtClock, fmtDuration, parseDay } from "@/lib/dates";
 import { FONTS } from "@/components/reader/types";
@@ -187,199 +188,217 @@ export default function Lectio() {
 
   const atual = ETAPAS[etapa];
   const antesDeComecar = etapa === 0 && total === 0 && !rodando;
+  // antes de começar, quem dá a partida é o "Começar a Leitura" no fim do Veni (um botão só);
+  // o Iniciar do cartão só fica se a liturgia não carregar
+  const comVeni = antesDeComecar && (carregando || !!dado);
+  const comZoom = !carregando && !!dado && !fim;
   const pct = 1 - Math.max(0, restante) / (minutos * 60);
   const comentarios = useMemo(() => [...(dado?.comentarios ?? [])].sort((a, b) => Number(b.destaque) - Number(a.destaque)), [dado]);
   const dataLonga = parseDay(dia).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+  const mudarDia = (n: number) => setDia(dayKey(addDays(parseDay(dia), n)));
   const serif = { fontFamily: FONTS[prefs.font].css };
+  // texto corrido: hifenização (o html é pt-BR) para o justificado não abrir buracos
+  const prosa: React.CSSProperties = { ...serif, hyphens: "auto", WebkitHyphens: "auto" };
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-8">
-        <OracaoTabs />
-        {/* cabeçalho */}
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <button className="btn btn-ghost px-2" onClick={() => setDia(dayKey(addDays(parseDay(dia), -1)))} disabled={rodando}><ChevronLeft size={16} /></button>
-          <div className="text-center min-w-0">
-            <div className="text-xs uppercase tracking-wider text-muted first-letter:uppercase">{dataLonga}</div>
-            <h1 className="text-xl font-medium flex items-center justify-center gap-2">
-              <BookHeart size={18} className="text-icon" /> Lectio Divina
-            </h1>
-          </div>
-          <button className="btn btn-ghost px-2" onClick={() => setDia(dayKey(addDays(parseDay(dia), 1)))} disabled={rodando}><ChevronRight size={16} /></button>
+    <Page largura="texto" tabs={<OracaoTabs />} title="Oração"
+      subtitle={dado ? (
+        <>
+          <span className="inline-block w-2.5 h-2.5 rounded-full border border-line mr-1.5 align-[-1px]" style={{ background: COR[dado.cor?.toLowerCase()] ?? "#999" }} title={`Cor litúrgica: ${dado.cor}`} />
+          {/* o "·" fica preso à liturgia: se a referência não couber, ela desce sozinha (a linha não começa com "·") */}
+          {dado.liturgia}{" · "}
+          <span className="whitespace-nowrap font-medium text-ink">{dado.referencia}</span>
+        </>
+      ) : carregando ? "\u00a0" /* guarda a linha enquanto carrega: o cabeçalho não pula */ : undefined}
+      actions={
+        <div className="flex items-center rounded-lg border border-line">
+          <button className="btn btn-ghost px-2" onClick={() => mudarDia(-1)} disabled={rodando} title="Dia anterior"><ChevronLeft size={16} /></button>
+          <span className="text-sm px-2 first-letter:uppercase">{dataLonga}</span>
+          <button className="btn btn-ghost px-2" onClick={() => mudarDia(1)} disabled={rodando} title="Dia seguinte"><ChevronRight size={16} /></button>
         </div>
-        {dado && (
-          <p className="text-center text-sm text-muted flex items-center justify-center gap-2 flex-wrap">
-            <span className="inline-block w-2.5 h-2.5 rounded-full border border-line" style={{ background: COR[dado.cor?.toLowerCase()] ?? "#999" }} title={`Cor litúrgica: ${dado.cor}`} />
-            {dado.liturgia} · <span className="font-medium text-ink">{dado.referencia}</span>
-          </p>
-        )}
-
-        {/* etapas */}
-        <div className="grid grid-cols-2 min-[400px]:grid-cols-4 gap-1.5 mt-6">
-          {ETAPAS.map((e, i) => (
-            <button key={e.id} disabled={rodando} onClick={() => { setEtapa(i); setRestante(minutos * 60); setFim(false); }}
-              className={`rounded-lg px-1 py-2.5 sm:py-2 text-[13px] min-[400px]:text-xs sm:text-sm truncate transition-colors ${i === etapa && !fim ? "bg-accent text-accent-ink font-medium" : i < etapa || fim ? "bg-accent-soft text-ink" : "bg-surface-2 text-muted"}`}>
-              {e.nome}
-            </button>
-          ))}
+      }>
+      {/* etapas e relógio num cartão só: as 4 etapas são uma barra de 20 minutos que se enche na cor da Oração.
+          O cartão é um @container: a linha de controles só fica inteira quando ele tem ~40rem (no celular e entre
+          768 e 1000 px, com o menu aberto, ela quebra) */}
+      <section className="card p-4 @container">
+        <div className="grid grid-cols-4 gap-2">
+          {ETAPAS.map((e, i) => {
+            const agora = i === etapa && !fim;
+            const feita = fim || i < etapa;
+            const cheio = feita ? 1 : agora ? pct : 0;
+            return (
+              <button key={e.id} disabled={rodando} onClick={() => { setEtapa(i); setRestante(minutos * 60); setFim(false); }}
+                title={`${e.nome} — ${e.pergunta}`} aria-current={agora ? "step" : undefined}
+                className={`min-w-0 text-left py-1 transition-colors disabled:cursor-default ${agora ? "text-ink font-medium" : `${feita ? "text-muted" : "text-faint"} enabled:hover:text-ink`}`}>
+                <span className="block h-1 rounded-full bg-surface-2 overflow-hidden">
+                  <span className="block h-full rounded-full" style={{ width: `${cheio * 100}%`, background: "var(--area-oracao)", transition: "width .25s linear" }} />
+                </span>
+                <span className="mt-1.5 flex items-center gap-1 text-[11px] sm:text-xs">
+                  {feita && <Check size={11} className="shrink-0" />}<span className="truncate">{e.nome}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* relógio */}
-        <div className="card p-4 mt-3 flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-3">
-          <div className="relative w-16 h-16 shrink-0">
-            <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
-              <circle cx="32" cy="32" r="28" fill="none" stroke="var(--surface-2)" strokeWidth="5" />
-              <circle cx="32" cy="32" r="28" fill="none" stroke="var(--area-oracao)" strokeWidth="5" strokeLinecap="round"
-                strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - (fim ? 1 : pct))} style={{ transition: "stroke-dashoffset .25s linear" }} />
-            </svg>
-            <span className="absolute inset-0 grid place-items-center text-[13px] tabular-nums">{fim ? "✓" : fmtClock(Math.max(0, restante))}</span>
-          </div>
-          <div className="flex-1 min-w-0">
+        <div className="mt-4 pt-4 border-t border-line flex flex-wrap @[40rem]:flex-nowrap items-center gap-3">
+          {/* estreito, o texto pede ~12rem: o que não cabe ao lado dele desce para uma linha própria */}
+          <div className="grow basis-48 @[40rem]:basis-0 min-w-0">
             <div className="font-medium">{fim ? "Lectio concluída" : `${atual.nome} — ${atual.pergunta}`}</div>
             <div className="text-xs text-muted">{fim ? `Tempo total: ${fmtDuration(total)}` : atual.guia}</div>
           </div>
-          {/* celular: os botões ganham uma linha própria (o texto da etapa fica com a largura toda) */}
-          <div className="flex gap-1 shrink-0 w-full sm:w-auto justify-end border-t border-line pt-3 sm:border-0 sm:pt-0">
-            {!fim && (rodando
-              ? <button className="btn" onClick={() => setRodando(false)} title="Pausar"><Pause size={15} /></button>
-              : <button className="btn btn-primary" onClick={iniciar} title="Iniciar"><Play size={15} /> <span>{total ? "Continuar" : "Iniciar"}</span></button>)}
-            {!fim && <button className="btn btn-ghost px-2" onClick={avancar} title="Próxima etapa"><SkipForward size={15} /></button>}
-            <button className="btn btn-ghost px-2" onClick={recomecar} title="Recomeçar"><RotateCcw size={15} /></button>
+          {fim
+            ? <Check size={26} className="shrink-0" style={{ color: "var(--area-oracao)" }} aria-label="Concluída" />
+            : <span className="shrink-0 text-2xl font-light tabular-nums">{fmtClock(Math.max(0, restante))}</span>}
+          {/* estreito: com o zoom, uma linha própria (zoom à esquerda, botões à direita); sem ele, os botões vão para a direita */}
+          {(comZoom || !comVeni) && (
+            <div className={`flex items-center gap-2 ml-auto ${comZoom ? "w-full @[40rem]:w-auto justify-between" : ""}`}>
+              {comZoom && (
+                <div className="flex items-center text-muted @[40rem]:border-l @[40rem]:border-line @[40rem]:pl-2" title="Zoom (teclas + e −)">
+                  <button className="p-1.5 hover:text-ink disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, -1))} disabled={zoom <= ZOOM[0]} aria-label="Diminuir"><ZoomOut size={16} /></button>
+                  <button className="text-xs tabular-nums w-11 text-center hover:text-ink" onClick={() => setPrefs((p) => ({ ...p, sizePt: 12 }))} title="Voltar a 100%">{zoom}%</button>
+                  <button className="p-1.5 hover:text-ink disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, 1))} disabled={zoom >= ZOOM[ZOOM.length - 1]} aria-label="Aumentar"><ZoomIn size={16} /></button>
+                </div>
+              )}
+              {!comVeni && (
+                <div className="flex gap-1">
+                  {!fim && (rodando
+                    ? <button className="btn" onClick={() => setRodando(false)} title="Pausar"><Pause size={15} /></button>
+                    : <button className="btn btn-primary" onClick={iniciar} title="Iniciar"><Play size={15} /> <span>{total ? "Continuar" : "Iniciar"}</span></button>)}
+                  {!fim && <button className="btn btn-ghost px-2" onClick={avancar} title="Próxima etapa"><SkipForward size={15} /></button>}
+                  <button className="btn btn-ghost px-2" onClick={recomecar} title="Recomeçar"><RotateCcw size={15} /></button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {carregando && <p className="text-center text-sm text-muted mt-10">Carregando o Evangelho do dia…</p>}
+      {!carregando && !dado && <p className="text-center text-sm text-muted mt-10">Não consegui carregar a liturgia deste dia.</p>}
+
+      {!carregando && dado && !fim && (
+        <div className="mt-6" style={{ fontSize: `${prefs.sizePt}pt` }}>
+          {/* ORAÇÃO INICIAL — antes de começar */}
+          {antesDeComecar && (
+            <section className="card p-6 md:p-8 text-center" style={serif}>
+              <h2 className="text-[1.25em] mb-1">Veni Sancte Spíritus</h2>
+              <p className="text-[0.8em] text-muted mb-5 font-sans">Reze antes de começar a Lectio.</p>
+              <div className="inline-block text-left leading-[1.8] text-[1.08em]">
+                {/* a rubrica numa coluna própria: quando a linha quebra, a continuação fica recuada embaixo do texto */}
+                {VENI.map(([r, t], i) => (
+                  <p key={i} className="grid grid-cols-[1.6em_1fr]">
+                    <span className="text-rubrica">{r}</span><span>{t}</span>
+                  </p>
+                ))}
+              </div>
+              <div className="mt-6 font-sans text-base">
+                <button className="btn btn-primary" onClick={iniciar}><Play size={15} /> Começar a Leitura</button>
+              </div>
+            </section>
+          )}
+
+          {/* LEITURA */}
+          {atual.id === "leitura" && !antesDeComecar && (
+            <article className="leading-[1.8] text-[1.12em] text-left sm:text-justify" style={prosa}>
+              <p className="text-[0.85em] text-muted mb-3 text-left">{dado.titulo}</p>
+              {dado.introducao && <span>{dado.introducao} </span>}
+              {dado.versiculos.map((v) => (
+                <span key={v.n}><sup className="text-[0.65em] text-rubrica font-sans mr-0.5">{v.n}</sup>{v.texto} </span>
+              ))}
+            </article>
+          )}
+
+          {/* MEDITAÇÃO */}
+          {atual.id === "meditacao" && (
+            <div className="space-y-4">
+              {comentarios.length === 0 ? (
+                <div className="card p-5 text-sm text-muted">
+                  A curadoria dos comentários deste dia ainda não foi feita. Medite no texto
+                  {dado.catena_url && <> — ou veja todos os comentários na <a className="text-accent underline" href={dado.catena_url} target="_blank" rel="noreferrer">Catena Aurea</a></>}.
+                </div>
+              ) : comentarios.map((c, i) => (
+                <figure key={i} className={`card p-5 ${c.destaque ? "border-accent/50" : ""}`}>
+                  <blockquote className="leading-[1.75] text-[1.08em] text-left sm:text-justify" style={prosa}>“{c.texto}”</blockquote>
+                  <figcaption className="mt-3 text-[0.85em] flex flex-wrap items-baseline justify-between gap-2">
+                    <span><span className="font-medium">{c.autor}</span>{c.fonte && !/^ubi sup/i.test(c.fonte) && <span className="text-muted"> · {c.fonte}</span>}</span>
+                    {c.sobre && <span className="text-xs text-faint">sobre {c.sobre}</span>}
+                  </figcaption>
+                </figure>
+              ))}
+              <label className="block">
+                <span className="label">Palavra que tocou o meu coração</span>
+                <input className="input mt-1 text-[1em]" style={serif} value={palavra} onChange={(e) => setPalavra(e.target.value)} placeholder="Uma palavra ou frase do Evangelho" />
+              </label>
+              {dado.catena_url && curado && (
+                <a className="text-xs text-muted hover:text-accent inline-flex items-center gap-1" href={dado.catena_url} target="_blank" rel="noreferrer">
+                  Ver todos os comentários na Catena Aurea <ExternalLink size={11} />
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* ORAÇÃO */}
+          {atual.id === "oracao" && (
+            <div className="space-y-3">
+              {palavra && <p className="text-center italic text-muted text-[1.05em]" style={serif}>“{palavra}”</p>}
+              <textarea className="input min-h-[220px] leading-relaxed text-[1.05em]" style={serif} value={oracao} onChange={(e) => setOracao(e.target.value)}
+                placeholder="Senhor, …" />
+              <p className="text-xs text-faint text-center">Escrever é opcional — pode também rezar em silêncio.</p>
+            </div>
+          )}
+
+          {/* CONTEMPLAÇÃO */}
+          {atual.id === "contemplacao" && (
+            <div className="py-12 md:py-20 text-center">
+              <p className="text-[1.5em] md:text-[1.85em] leading-relaxed px-2" style={serif}>
+                {palavra || dado.chave || dado.versiculos[dado.versiculos.length - 1]?.texto}
+              </p>
+              {!palavra && dado.chave_ref && <p className="text-sm text-muted mt-4">{dado.chave_ref}</p>}
+              <p className="text-xs text-faint mt-10">Permaneça em silêncio na presença de Deus.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* FIM */}
+      {fim && dado && (
+        <div className="mt-6 space-y-3">
+          <p className="text-center leading-relaxed" style={{ ...serif, fontSize: `${prefs.sizePt * 1.25}pt` }}>{palavra || dado.chave}</p>
+          <label className="block">
+            <span className="label">Propósito para hoje (opcional)</span>
+            <input className="input mt-1" value={proposito} onChange={(e) => setProposito(e.target.value)} placeholder="Um gesto concreto que nasce desta oração" />
+          </label>
+          <div className="flex justify-center gap-2 pt-2">
+            {salvo ? <span className="text-sm text-good">Guardado no seu diário. Deus te abençoe!</span>
+              : <button className="btn btn-primary" onClick={salvar}>Guardar no diário</button>}
           </div>
         </div>
+      )}
 
-        {carregando && <p className="text-center text-sm text-muted mt-10">Carregando o Evangelho do dia…</p>}
-        {!carregando && !dado && <p className="text-center text-sm text-muted mt-10">Não consegui carregar a liturgia deste dia.</p>}
-
-        {!carregando && dado && !fim && (
-          <div className="mt-6" style={{ fontSize: `${prefs.sizePt}pt` }}>
-            <div className="flex justify-end mb-2 text-base">
-              <div className="flex items-center rounded-lg border border-line text-muted" title="Zoom (teclas + e −)">
-                <button className="p-1.5 hover:text-ink disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, -1))} disabled={zoom <= ZOOM[0]} aria-label="Diminuir"><ZoomOut size={16} /></button>
-                <button className="text-xs tabular-nums w-11 text-center hover:text-ink" onClick={() => setPrefs((p) => ({ ...p, sizePt: 12 }))} title="Voltar a 100%">{zoom}%</button>
-                <button className="p-1.5 hover:text-ink disabled:opacity-30" onClick={() => setPrefs((p) => stepZoom(p, 1))} disabled={zoom >= ZOOM[ZOOM.length - 1]} aria-label="Aumentar"><ZoomIn size={16} /></button>
-              </div>
-            </div>
-            {/* ORAÇÃO INICIAL — antes de começar */}
-            {antesDeComecar && (
-              <section className="card p-6 md:p-8 text-center" style={serif}>
-                <h2 className="text-[1.25em] mb-1">Veni Sancte Spíritus</h2>
-                <p className="text-[0.8em] text-muted mb-5 font-sans">Reze antes de começar a Lectio.</p>
-                <div className="inline-block text-left leading-[1.8] text-[1.08em]">
-                  {VENI.map(([r, t], i) => (
-                    <p key={i} className={r === "" ? "pl-[1.6em]" : ""}>
-                      {r && <span className="text-rubrica inline-block w-[1.6em]">{r}</span>}{t}
-                    </p>
-                  ))}
+      {/* diário */}
+      {!rodando && registros.length > 0 && (
+        <section className="mt-12">
+          <div className="flex items-baseline justify-between mb-2"><h2 className="label">Diário de oração</h2><Link href="/notas/diario" className="text-xs text-muted hover:text-ink">Ver tudo em Notas → Diário</Link></div>
+          <ul className="space-y-2">
+            {registros.slice(0, 10).map((r) => (
+              <li key={r.id} className="card p-3 text-sm">
+                <div className="flex justify-between text-xs text-muted">
+                  <span>{parseDay(r.dia).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })} · {r.referencia}</span>
+                  <span>{fmtDuration(r.segundos)}</span>
                 </div>
-                <div className="mt-6 font-sans text-base">
-                  <button className="btn btn-primary w-11 h-11 p-0 justify-center rounded-full" onClick={iniciar} title="Começar a Leitura" aria-label="Começar a Leitura"><Play size={18} /></button>
-                </div>
-              </section>
-            )}
+                {r.palavra && <p className="mt-1 italic" style={serif}>“{r.palavra}”</p>}
+                {r.oracao && <p className="mt-1 text-muted whitespace-pre-wrap line-clamp-3">{r.oracao}</p>}
+                {r.proposito && <p className="mt-1 text-xs"><span className="text-muted">Propósito:</span> {r.proposito}</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
-            {/* LEITURA */}
-            {atual.id === "leitura" && !antesDeComecar && (
-              <article className="leading-[1.8] text-[1.12em] text-justify" style={serif}>
-                <p className="text-[0.85em] text-muted mb-3 text-left">{dado.titulo}</p>
-                {dado.introducao && <span>{dado.introducao} </span>}
-                {dado.versiculos.map((v) => (
-                  <span key={v.n}><sup className="text-[0.65em] text-rubrica font-sans mr-0.5">{v.n}</sup>{v.texto} </span>
-                ))}
-              </article>
-            )}
-
-            {/* MEDITAÇÃO */}
-            {atual.id === "meditacao" && (
-              <div className="space-y-4">
-                {comentarios.length === 0 ? (
-                  <div className="card p-5 text-sm text-muted">
-                    A curadoria dos comentários deste dia ainda não foi feita. Medite no texto
-                    {dado.catena_url && <> — ou veja todos os comentários na <a className="text-accent underline" href={dado.catena_url} target="_blank" rel="noreferrer">Catena Aurea</a></>}.
-                  </div>
-                ) : comentarios.map((c, i) => (
-                  <figure key={i} className={`card p-5 ${c.destaque ? "border-accent/50" : ""}`}>
-                    <blockquote className="leading-[1.75] text-[1.08em] text-justify" style={serif}>“{c.texto}”</blockquote>
-                    <figcaption className="mt-3 text-[0.85em] flex flex-wrap items-baseline justify-between gap-2">
-                      <span><span className="font-medium">{c.autor}</span>{c.fonte && !/^ubi sup/i.test(c.fonte) && <span className="text-muted"> · {c.fonte}</span>}</span>
-                      {c.sobre && <span className="text-xs text-faint">sobre {c.sobre}</span>}
-                    </figcaption>
-                  </figure>
-                ))}
-                <label className="block">
-                  <span className="label">Palavra que tocou o meu coração</span>
-                  <input className="input mt-1 text-[1em]" style={serif} value={palavra} onChange={(e) => setPalavra(e.target.value)} placeholder="Uma palavra ou frase do Evangelho" />
-                </label>
-                {dado.catena_url && curado && (
-                  <a className="text-xs text-muted hover:text-accent inline-flex items-center gap-1" href={dado.catena_url} target="_blank" rel="noreferrer">
-                    Ver todos os comentários na Catena Aurea <ExternalLink size={11} />
-                  </a>
-                )}
-              </div>
-            )}
-
-            {/* ORAÇÃO */}
-            {atual.id === "oracao" && (
-              <div className="space-y-3">
-                {palavra && <p className="text-center italic text-muted text-[1.05em]" style={serif}>“{palavra}”</p>}
-                <textarea className="input min-h-[220px] leading-relaxed text-[1.05em]" style={serif} value={oracao} onChange={(e) => setOracao(e.target.value)}
-                  placeholder="Senhor, …" />
-                <p className="text-xs text-faint text-center">Escrever é opcional — pode também rezar em silêncio.</p>
-              </div>
-            )}
-
-            {/* CONTEMPLAÇÃO */}
-            {atual.id === "contemplacao" && (
-              <div className="py-12 md:py-20 text-center">
-                <p className="text-[1.5em] md:text-[1.85em] leading-relaxed px-2" style={serif}>
-                  {palavra || dado.chave || dado.versiculos[dado.versiculos.length - 1]?.texto}
-                </p>
-                {!palavra && dado.chave_ref && <p className="text-sm text-muted mt-4">{dado.chave_ref}</p>}
-                <p className="text-xs text-faint mt-10">Permaneça em silêncio na presença de Deus.</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* FIM */}
-        {fim && dado && (
-          <div className="mt-6 space-y-3">
-            <p className="text-center leading-relaxed" style={{ ...serif, fontSize: `${prefs.sizePt * 1.25}pt` }}>{palavra || dado.chave}</p>
-            <label className="block">
-              <span className="label">Propósito para hoje (opcional)</span>
-              <input className="input mt-1" value={proposito} onChange={(e) => setProposito(e.target.value)} placeholder="Um gesto concreto que nasce desta oração" />
-            </label>
-            <div className="flex justify-center gap-2 pt-2">
-              {salvo ? <span className="text-sm text-good">Guardado no seu diário. Deus te abençoe!</span>
-                : <button className="btn btn-primary" onClick={salvar}>Guardar no diário</button>}
-            </div>
-          </div>
-        )}
-
-        {/* diário */}
-        {!rodando && registros.length > 0 && (
-          <section className="mt-12">
-            <div className="flex items-baseline justify-between mb-2"><h2 className="label">Diário de oração</h2><Link href="/notas/diario" className="text-xs text-muted hover:text-ink">Ver tudo em Notas → Diário</Link></div>
-            <ul className="space-y-2">
-              {registros.slice(0, 10).map((r) => (
-                <li key={r.id} className="card p-3 text-sm">
-                  <div className="flex justify-between text-xs text-muted">
-                    <span>{parseDay(r.dia).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })} · {r.referencia}</span>
-                    <span>{fmtDuration(r.segundos)}</span>
-                  </div>
-                  {r.palavra && <p className="mt-1 italic" style={serif}>“{r.palavra}”</p>}
-                  {r.oracao && <p className="mt-1 text-muted whitespace-pre-wrap line-clamp-3">{r.oracao}</p>}
-                  {r.proposito && <p className="mt-1 text-xs"><span className="text-muted">Propósito:</span> {r.proposito}</p>}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <p className="text-[11px] text-faint text-center mt-10">
-          Comentários: Catena Aurea, de Santo Tomás de Aquino (texto de catenaaurea.com.br), com curadoria. Liturgia: liturgia.up.railway.app.
-        </p>
-      </div>
-    </div>
+      <p className="text-[11px] text-faint text-center mt-10">
+        Comentários: Catena Aurea, de Santo Tomás de Aquino (texto de catenaaurea.com.br), com curadoria. Liturgia: liturgia.up.railway.app.
+      </p>
+    </Page>
   );
 }

@@ -1,14 +1,16 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronRight, CircleCheck, Download, FileText, Folder, FolderInput, FolderOpen, FolderPlus, FolderUp,
+  ArrowDown, ArrowUp, BookOpen, Check, ChevronDown, ChevronRight, CircleCheck, Download, FileText, Folder, FolderInput, FolderOpen, FolderPlus, FolderUp,
   GraduationCap, ListChecks, ListOrdered, NotebookPen, Pencil, Plus, Search, Trash2, Upload, X,
 } from "lucide-react";
 import { Empty, Page } from "@/components/page";
 import { EstudosTabs } from "@/components/estudos-tabs";
 import { RowMenu } from "@/components/row-menu";
-import { SITUACOES_AULA, StatusPill, type SituacaoAula } from "@/components/status-pill";
+import { Anel, BarraMarcos } from "@/components/biblioteca/visual";
+import { SITUACOES_AULA, type SituacaoAula } from "@/components/status-pill";
 import { supabase } from "@/lib/supabase/client";
 import { todas } from "@/lib/supabase/todas";
 import {
@@ -19,6 +21,8 @@ import { fmtDuration, nf } from "@/lib/dates";
 
 type Filtro = "todas" | SituacaoAula;
 const SEM_PASTA = "sem";
+/** O grupo em que a aula aparece: a pasta dela (as sem pasta, ou de uma pasta que sumiu, ficam juntas). */
+const pastaDaAula = (a: Pick<Aula, "pasta_id">, porId: Map<string, PastaEstudo>) => (a.pasta_id && porId.has(a.pasta_id) ? a.pasta_id : SEM_PASTA);
 
 export default function Estudos() {
   const router = useRouter();
@@ -126,19 +130,45 @@ export default function Estudos() {
   const grupos = useMemo(() => {
     const g = new Map<string, Aula[]>();
     for (const a of visiveis) {
-      const k = a.pasta_id && porId.has(a.pasta_id) ? a.pasta_id : SEM_PASTA;
+      const k = pastaDaAula(a, porId);
       g.set(k, [...(g.get(k) ?? []), a]);
     }
     return [...g.entries()]
       .sort(([a], [b]) => (posNaArvore.get(a) ?? 1e9) - (posNaArvore.get(b) ?? 1e9))
-      .map(([k, l]) => [k === SEM_PASTA ? "Sem pasta" : caminhoDaPasta(k, porId), [...l].sort(porOrdem)] as [string, Aula[]]);
+      .map(([k, l]) => ({ chave: k, caminho: k === SEM_PASTA ? "Sem pasta" : caminhoDaPasta(k, porId), lista: [...l].sort(porOrdem) }));
   }, [visiveis, porId, posNaArvore]);
+
+  // cada pasta inteira (sem filtro nem busca): o cabeçalho do bloco conta por ela, para a barra não cair a 0% com um filtro,
+  // e a posição da aula na pasta é o número do anel quando o título não traz um
+  const porPasta = useMemo(() => {
+    const listas = new Map<string, Aula[]>();
+    for (const a of aulas ?? []) {
+      const k = pastaDaAula(a, porId);
+      const l = listas.get(k);
+      if (l) l.push(a); else listas.set(k, [a]);
+    }
+    const resumo = new Map<string, { total: number; feitas: number; faltam: number }>();
+    const posicao = new Map<string, number>();
+    // pastas com aulas numeradas no título: nelas a aula sem número fica com o ícone, para a posição não repetir o número de outra
+    const comNumero = new Set<string>();
+    for (const [k, l] of listas) {
+      l.sort(porOrdem).forEach((a, i) => posicao.set(a.id, i + 1));
+      if (l.some((a) => numeroDaAula(a.title))) comNumero.add(k);
+      resumo.set(k, { total: l.length, feitas: l.filter((a) => a.situacao === "concluida").length, faltam: l.reduce((n, a) => n + faltam(a), 0) });
+    }
+    return { resumo, posicao, comNumero };
+  }, [aulas, porId]);
 
   // aulas em leitura (as mais adiantadas primeiro)
   const lendo = useMemo(() => (aulas ?? []).filter((a) => a.situacao === "lendo").sort((x, y) => (y.progresso ?? 0) - (x.progresso ?? 0)), [aulas]);
+  // sem nenhuma em leitura, o painel sugere a próxima: a 1ª a fazer na ordem da árvore e, dentro da pasta, na ordem dela
+  const aSeguir = useMemo(() => {
+    const pos = (a: Aula) => posNaArvore.get(pastaDaAula(a, porId)) ?? 1e9;
+    return (aulas ?? []).filter((a) => a.situacao === "pendente").sort((x, y) => pos(x) - pos(y) || porOrdem(x, y))[0] ?? null;
+  }, [aulas, porId, posNaArvore]);
 
   // ---- ordem das aulas dentro da pasta ----
-  const chaveDaPasta = (a: Aula) => (a.pasta_id && porId.has(a.pasta_id) ? a.pasta_id : SEM_PASTA);
+  const chaveDaPasta = (a: Aula) => pastaDaAula(a, porId);
   /** Todas as aulas da mesma pasta (sem filtro nem busca), na ordem atual. */
   const daMesmaPasta = (a: Aula) => (aulas ?? []).filter((x) => chaveDaPasta(x) === chaveDaPasta(a)).sort(porOrdem);
   async function gravarOrdem(lista: Aula[]) {
@@ -269,20 +299,30 @@ export default function Estudos() {
 
   const total = aulas?.length ?? 0;
   const feitas = aulas?.filter((a) => a.situacao === "concluida").length ?? 0;
+  // "a fazer" conta só as pendentes: o mesmo número do filtro Pendentes (as em leitura têm a sua conta)
+  const pendentes = aulas?.filter((a) => a.situacao === "pendente").length ?? 0;
   const pelaFrente = (aulas ?? []).reduce((n, a) => n + faltam(a), 0);
+  const tarefasAntes = [...antesDe.values()].reduce((n, x) => n + x, 0);
   const alterna = (k: string) => setAbertos((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const abrir = (a: Aula) => router.push(`/estudos/${a.id}`);
+  const importarPasta = (destino: string | null) => { destinoDoImport.current = destino; pastaRef.current?.click(); };
+  const importarArquivos = (destino: string | null) => { destinoDoImport.current = destino; arquivosRef.current?.click(); };
 
   return (
-    <Page wide tabs={<EstudosTabs />} title="Estudos"
-      subtitle={total
-        ? `${total - feitas} ${total - feitas === 1 ? "aula pendente" : "aulas pendentes"} · ≈ ${tempo(pelaFrente)} de leitura pela frente a ${ppm.ppm} ppm`
+    <Page tabs={<EstudosTabs />} title="Estudos"
+      subtitle={aulas === null ? " " : total
+        ? `${lendo.length} em leitura · ${pendentes} a fazer · ≈ ${tempo(pelaFrente)} pela frente a ${ppm.ppm} ppm`
         : "Cursos e transcrições de aulas."}
+      ajuda={<>
+        Cada aula tem um anel: cinza é a fazer, violeta é em leitura (o traço mostra quanto já foi lido) e verde é concluída.
+        Clique no anel para mudar o status. Os tempos são calculados no seu ritmo de leitura ({ppm.ppm} ppm, {ppm.origem === "padrão" ? "o ritmo padrão, até haver leituras medidas" : `medido nas suas ${ppm.origem}`}).
+      </>}
       actions={
         <>
-          <button className="btn" onClick={() => { destinoDoImport.current = pastaSel; pastaRef.current?.click(); }}><FolderUp size={15} /> Importar curso</button>
           <button className="btn btn-primary" onClick={() => setNovaAberta(true)}><Plus size={15} /> Nova aula</button>
           <RowMenu label="Mais opções" items={[
-            { label: "Importar arquivos .md", icon: Upload, onClick: () => { destinoDoImport.current = pastaSel; arquivosRef.current?.click(); } },
+            { label: "Importar curso (pasta)", icon: FolderUp, onClick: () => importarPasta(pastaSel) },
+            { label: "Importar arquivos .md", icon: Upload, onClick: () => importarArquivos(pastaSel) },
             { label: "Baixar todas as aulas (.zip)", icon: Download, disabled: !total, onClick: () => aulas && void baixarTodas(aulas) },
           ]} />
         </>
@@ -291,21 +331,103 @@ export default function Estudos() {
       <input ref={arquivosRef} type="file" hidden multiple accept=".md,.markdown,.txt" onChange={(e) => escolher(e.target.files)} />
       {msg && <div className="mb-4 rounded-lg bg-surface-2 px-4 py-2 text-sm">{msg}</div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 lg:gap-5 items-start">
-        <button type="button" className="lg:hidden card flex items-center gap-2 px-3 py-2.5 text-sm text-left"
+      {/* o painel, no molde da Biblioteca: quanto do estudo já foi feito e o que está em andamento (ou a próxima aula) */}
+      {aulas && total > 0 && (
+        <div className="card grid grid-cols-1 md:grid-cols-2 gap-px bg-line overflow-hidden mb-4 lg:mb-5">
+          <section className="bg-surface px-4 py-3.5 sm:px-5 sm:py-4 min-w-0 flex flex-col">
+            <div className="ind-rotulo"><span className="text-ink font-medium">Aulas</span></div>
+            <div className="ind-valor mt-2.5">{Math.round((feitas / total) * 100)}%</div>
+            <div className="ind-nota mt-1.5">{feitas} de {total} {total === 1 ? "aula concluída" : "aulas concluídas"}</div>
+            {/* a barra fica no pé: na mesma linha da última barra da coluna ao lado */}
+            <div className="mt-auto pt-3"><BarraMarcos valor={feitas / total} cor="var(--area-estudos)" /></div>
+          </section>
+          <section className="bg-surface px-4 py-3.5 sm:px-5 sm:py-4 min-w-0 flex flex-col">
+            <div className="ind-rotulo">
+              <span className="text-ink font-medium"
+                title={lendo.length ? `≈ ${tempo(lendo.reduce((n, a) => n + faltam(a), 0))} pela frente nas aulas em leitura` : undefined}>
+                {lendo.length ? "Agora" : "A seguir"}
+              </span>
+              {/* a lista completa das em leitura é o filtro "Lendo" */}
+              {lendo.length > 2 && (
+                <button className="link-ir !text-xs ml-auto" onClick={() => { setSel("todas"); setQ(""); setFiltro("lendo"); }}>
+                  +{lendo.length - 2} em leitura<ChevronRight size={13} />
+                </button>
+              )}
+            </div>
+            {lendo.length ? (
+              // a última aula estica até o pé: a barra dela fecha na linha da barra das Aulas
+              <div className="mt-2.5 flex-1 flex flex-col gap-3.5">
+                {lendo.slice(0, 2).map((a) => {
+                  const pct = Math.round((a.progresso ?? 0) * 100);
+                  return (
+                    <button key={a.id} onClick={() => abrir(a)} className="group flex flex-col last:flex-1 w-full text-left" title="Abrir a aula">
+                      <span className="flex items-baseline gap-3">
+                        <span className="flex-1 min-w-0 truncate text-sm font-medium group-hover:underline underline-offset-2" title={a.title}>{a.title}</span>
+                        <span className="w-12 shrink-0 text-right text-sm font-medium tabular-nums">{pct}%</span>
+                      </span>
+                      <span className="mt-1 flex justify-between gap-3 ind-nota">
+                        <span className="truncate" title={a.course}>{a.course}</span>
+                        {a.palavras ? <span className="shrink-0 tabular-nums">faltam ≈ {tempo(faltam(a))}</span> : null}
+                      </span>
+                      <span className="mt-auto pt-2 block"><span className="block h-1 rounded-full bg-surface-2 overflow-hidden">
+                        <span className="block h-full rounded-full bg-area-estudos" style={{ width: `${pct}%` }} />
+                      </span></span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : aSeguir ? (
+              <>
+                <div className="mt-2.5 flex items-center gap-3">
+                  <button onClick={() => abrir(aSeguir)} className="group min-w-0 flex-1 text-left" title="Abrir a aula">
+                    <span className="block truncate text-sm font-medium group-hover:underline underline-offset-2" title={aSeguir.title}>{aSeguir.title}</span>
+                    {/* o caminho encurta com "…" e o tempo da aula fica sempre à vista */}
+                    <span className="flex gap-1 ind-nota mt-1 tabular-nums">
+                      {aSeguir.course && <span className="truncate" title={aSeguir.course}>{aSeguir.course}</span>}
+                      {aSeguir.palavras ? <span className="shrink-0">{aSeguir.course ? "· " : ""}≈ {tempo(aSeguir.palavras)}</span> : null}
+                    </span>
+                  </button>
+                  <button className="btn py-1 text-xs shrink-0" onClick={() => abrir(aSeguir)}><BookOpen size={13} /> Começar</button>
+                </div>
+                {/* a barra vazia da aula (como o próximo livro na Biblioteca): lado a lado, fecha na linha da barra das Aulas */}
+                <span className="hidden md:block mt-auto pt-3" aria-hidden><span className="block h-1 rounded-full bg-surface-2" /></span>
+              </>
+            ) : (
+              <p className="mt-2.5 text-sm text-muted">Nada em leitura nem a fazer.</p>
+            )}
+          </section>
+          {/* o que pede atenção antes de seguir: a última linha do mesmo cartão (só o ícone e a ação levam cor) */}
+          {antesDe.size > 0 && (
+            <Link href="/estudos/tarefas" className="group md:col-span-2 bg-surface px-4 sm:px-5 py-2 flex items-center gap-2 text-sm min-w-0"
+              title="Tarefas ligadas a uma aula (não bloqueiam a leitura)">
+              <ListChecks size={15} className="shrink-0" style={{ color: "var(--warn)" }} />
+              <span className="min-w-0 text-muted leading-snug group-hover:text-ink transition-colors">
+                <b className="text-ink font-medium tabular-nums">{tarefasAntes}</b> {tarefasAntes === 1 ? "tarefa" : "tarefas"}<span className="hidden sm:inline"> para fazer</span> antes de{" "}
+                <b className="text-ink font-medium tabular-nums">{antesDe.size}</b> {antesDe.size === 1 ? "aula" : "aulas"}
+              </span>
+              <span className="ml-auto shrink-0 inline-flex items-center font-medium" style={{ color: "var(--warn)" }}>Ver tarefas<ChevronRight size={14} /></span>
+            </Link>
+          )}
+        </div>
+      )}
+
+      <div className="grade-indice">
+        <button type="button" className="lg:hidden btn w-full justify-start text-left"
           aria-expanded={pastasNoCelular} onClick={() => setPastasNoCelular((v) => !v)}>
           {pastasNoCelular ? <FolderOpen size={16} className="text-icon shrink-0" /> : <Folder size={16} className="text-muted shrink-0" />}
-          <span className="text-muted shrink-0">Pasta:</span>
-          <span className="font-medium truncate flex-1">
+          <span className="text-muted font-normal shrink-0">Pasta:</span>
+          <span className="truncate flex-1 min-w-0">
             {sel === "todas" ? "Todas as aulas" : sel === SEM_PASTA ? "Sem pasta" : pastas.find((x) => x.id === sel)?.nome ?? "—"}
           </span>
           <ChevronDown size={16} className={`text-faint shrink-0 transition-transform ${pastasNoCelular ? "rotate-180" : ""}`} />
         </button>
         {/* pastas: autor › curso › módulo… */}
         <aside className={`card p-2 text-sm lg:sticky lg:top-4 ${pastasNoCelular ? "" : "hidden lg:block"}`}>
+          <div className="eyebrow px-2.5 pt-1 pb-1.5">Pastas</div>
+          {/* o respiro à direita é a largura do ⋯ das pastas (ícone de 17px + p-2 / sm:p-1.5): os números ficam numa coluna só */}
           <button onClick={() => setSel("todas")}
-            className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2.5 lg:py-1.5 ${sel === "todas" ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel/60 hover:text-ink"}`}>
-            <span>Todas as aulas</span><span className="text-xs text-faint tabular-nums">{total}</span>
+            className={`w-full flex items-center justify-between gap-2 rounded-lg pl-2.5 pr-[33px] sm:pr-[29px] py-2.5 lg:py-1.5 ${sel === "todas" ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel/60 hover:text-ink"}`}>
+            <span>Todas as aulas</span><Contagem feitas={feitas} total={total} />
           </button>
           <div className="my-1.5 border-t border-line" />
           {ordem.filter(({ pasta }) => visivel(pasta.id)).map(({ pasta: p, nivel }) => {
@@ -323,7 +445,7 @@ export default function Estudos() {
                   <FolderOpen size={14} className="text-icon shrink-0 mt-[3px]" />
                   {/* nome inteiro: quebra em mais linhas em vez de cortar com "…" */}
                   <span className="flex-1 min-w-0 break-words leading-snug" title={p.nome}>{p.nome}</span>
-                  {c && <span className="text-xs text-faint tabular-nums shrink-0 mt-[2px]">{c.feitas}/{c.total}</span>}
+                  <Contagem feitas={c?.feitas ?? 0} total={c?.total ?? 0} className="mt-[2px]" />
                 </button>
                 <span className="opacity-100 lg:opacity-0 lg:group-hover/p:opacity-100 focus-within:opacity-100 transition-opacity">
                   <RowMenu label={`Opções da pasta ${p.nome}`} items={[
@@ -340,8 +462,8 @@ export default function Estudos() {
           })}
           {semPasta.length > 0 && (
             <button onClick={() => setSel(SEM_PASTA)}
-              className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2.5 lg:py-1.5 ${sel === SEM_PASTA ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel/60 hover:text-ink"}`}>
-              <span>Sem pasta</span><span className="text-xs text-faint tabular-nums">{semPasta.length}</span>
+              className={`w-full flex items-center justify-between gap-2 rounded-lg pl-2.5 pr-[33px] sm:pr-[29px] py-2.5 lg:py-1.5 ${sel === SEM_PASTA ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel/60 hover:text-ink"}`}>
+              <span>Sem pasta</span><Contagem feitas={porPasta.resumo.get(SEM_PASTA)?.feitas ?? 0} total={semPasta.length} />
             </button>
           )}
           <button onClick={() => setNomeando({ pai: null })} className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2.5 lg:py-1.5 mt-1 text-muted hover:bg-sel/60 hover:text-ink">
@@ -366,108 +488,95 @@ export default function Estudos() {
           </div>
 
           {aulas && total === 0 && (
-            <Empty icone={GraduationCap}>Nenhuma aula ainda. Use <b>Importar curso</b> e escolha a pasta do curso no seu computador (cada arquivo .md vira uma aula).</Empty>
+            <Empty icone={GraduationCap}>Nenhuma aula ainda. Use <b>Nova aula › Importar a pasta de um curso</b> e escolha a pasta do curso no seu computador (cada arquivo .md vira uma aula).</Empty>
           )}
           {aulas && total > 0 && !visiveis.length && <p className="text-sm text-muted">Nada encontrado.</p>}
 
-          {lendo.length > 0 && !q.trim() && (
-            <section className="mb-6">
-              <div className="flex items-baseline justify-between mb-2 px-1">
-                <h2 className="card-title flex items-center gap-2"><BookOpen size={16} className="text-icon" /> Lendo agora</h2>
-                <span className="text-xs text-muted tabular-nums">≈ {tempo(lendo.reduce((n, a) => n + faltam(a), 0))} pela frente</span>
-              </div>
-              <div className="card divide-y divide-line">
-                {lendo.map((a) => (
-                  <button key={a.id} onClick={() => router.push(`/estudos/${a.id}`)} className="w-full flex items-center gap-3 p-3 text-left hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
-                    <span className="min-w-0 flex-1">
-                      <span className="line-clamp-2 sm:line-clamp-1 break-words leading-snug font-medium">{a.title}</span>
-                      <span className="block truncate text-xs text-muted mt-0.5">{a.course}</span>
-                      <span className="block h-1.5 rounded-full bg-surface-2 mt-1.5 overflow-hidden">
-                        <span className="block h-full bg-area-estudos rounded-full" style={{ width: `${Math.round((a.progresso ?? 0) * 100)}%` }} />
-                      </span>
-                    </span>
-                    <span className="text-right shrink-0 tabular-nums">
-                      <span className="block text-sm">{Math.round((a.progresso ?? 0) * 100)}%</span>
-                      {a.palavras ? <span className="block text-xs text-muted">faltam ≈ {tempo(faltam(a))}</span> : null}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <div className="space-y-6">
-            {grupos.map(([g, lista]) => (
-              <div key={g}>
-                <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-x-3 mb-2 px-1">
-                  {/* o caminho em cinza e a pasta do grupo em destaque: "Paulo Cantarelli › EFESC › Módulo 1" */}
-                  <h2 className="text-sm text-muted break-words sm:truncate min-w-0" title={g}>
-                    {g.split(" › ").map((parte, i, l) => (
-                      <span key={i}>{i > 0 && <span className="text-faint"> › </span>}<span className={i === l.length - 1 ? "text-ink font-medium" : ""}>{parte}</span></span>
-                    ))}
-                  </h2>
-                  <span className="text-xs text-faint tabular-nums sm:shrink-0">
-                    {lista.filter((a) => a.situacao === "concluida").length}/{lista.length}
-                    {lista.some((a) => a.situacao !== "concluida") && ` · ≈ ${tempo(lista.reduce((n, a) => n + faltam(a), 0))} pela frente`}
-                  </span>
-                </div>
-                <div className="card divide-y divide-line">
-                  {lista.map((a, k) => {
-                    const n = numeroDaAula(a.title);
-                    const feita = a.situacao === "concluida";
-                    return (
-                      <div key={a.id} className="group relative flex items-center gap-1 sm:gap-2 pr-1.5 sm:pr-2 hover:bg-sel/60 transition-colors first:rounded-t-[11px] last:rounded-b-[11px]">
-                        <button onClick={() => router.push(`/estudos/${a.id}`)} className="flex items-start sm:items-center gap-3 min-w-0 flex-1 p-3 text-left" title="Abrir a aula">
-                          <span className={`w-10 h-10 shrink-0 grid place-items-center rounded-lg text-[13px] font-medium tabular-nums ${feita ? "bg-good/15 text-good" : "bg-surface-2 text-ink/80"}`}>
-                            {feita ? <CircleCheck size={17} /> : n ?? <FileText size={16} className="text-icon" />}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="line-clamp-2 sm:line-clamp-1 break-words leading-snug font-medium">{a.title}</span>
-                            <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted mt-0.5">
-                              {/* o professor já aparece no nome do grupo: no celular sai daqui para a linha caber */}
-                              {a.professor && <span className="hidden sm:inline">{a.professor}{a.palavras || a.situacao === "lendo" ? " ·" : ""}</span>}
-                              {[
-                                a.situacao === "lendo" && (a.progresso ?? 0) > 0 ? `${Math.round((a.progresso ?? 0) * 100)}%` : null,
-                                // em leitura: o que falta, no seu ritmo; senão, o total
-                                a.palavras ? (a.situacao === "lendo" ? `faltam ${nf.format(Math.round(faltam(a)))} palavras · ≈ ${tempo(faltam(a))}` : `${nf.format(a.palavras)} palavras · ≈ ${tempo(a.palavras)}`) : null,
-                              ].filter(Boolean).join(" · ")}
-                              {!!antesDe.get(a.id) && (
-                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-px font-medium" title="Tarefas para fazer antes desta aula (não bloqueia a leitura)"
-                                  style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)", color: "var(--warn)" }}>
-                                  <ListChecks size={11} /> {antesDe.get(a.id)} {antesDe.get(a.id) === 1 ? "tarefa antes" : "tarefas antes"}
-                                </span>
-                              )}
-                              {a.anotacoes_em && (
-                                <span className="inline-flex items-center gap-1" title="Esta aula tem anotações suas">
-                                  · <NotebookPen size={11} /> anotações
-                                </span>
-                              )}
+          <div className="space-y-3 md:space-y-4">
+            {grupos.map(({ chave, caminho, lista }) => {
+              // o cabeçalho conta a pasta inteira (com filtro ou busca, diz quantas estão à vista)
+              const r = porPasta.resumo.get(chave) ?? { total: lista.length, feitas: 0, faltam: 0 };
+              const completo = r.total > 0 && r.feitas === r.total;
+              return (
+                <section key={chave} className="card overflow-hidden">
+                  <header className="px-4 pt-3.5 pb-3 border-b border-line">
+                    <div className="flex items-baseline justify-between gap-3">
+                      {/* o caminho em cinza e a pasta do grupo em destaque: "Paulo Cantarelli › EFESC › Módulo 1" */}
+                      <h2 className="text-sm min-w-0 break-words sm:truncate" title={caminho}>
+                        {caminho.split(" › ").map((parte, i, l) => (
+                          <span key={i}>{i > 0 && <span className="text-faint"> › </span>}<span className={i === l.length - 1 ? "text-ink font-semibold" : "text-muted"}>{parte}</span></span>
+                        ))}
+                      </h2>
+                      <span className="text-sm font-semibold tabular-nums shrink-0">{Math.round((r.feitas / r.total) * 100)}%</span>
+                    </div>
+                    <div className="mt-2"><BarraMarcos valor={r.feitas / r.total} cor={completo ? "var(--good)" : "var(--area-estudos)"} /></div>
+                    <div className="mt-1.5 flex justify-between gap-3 text-[11.5px] text-muted tabular-nums">
+                      <span>{r.feitas} de {r.total} {r.total === 1 ? "aula" : "aulas"}{lista.length !== r.total && ` · mostrando ${lista.length}`}</span>
+                      <span className="text-right">{completo ? "concluído" : r.faltam > 0 ? `≈ ${tempo(r.faltam)} pela frente` : null}</span>
+                    </div>
+                  </header>
+                  <div className="divide-y divide-line">
+                    {lista.map((a, k) => {
+                      const feita = a.situacao === "concluida";
+                      const emLeitura = a.situacao === "lendo";
+                      // o tempo: em leitura, o que falta no seu ritmo; a fazer, o da aula inteira; concluída, nada
+                      const tempoDaAula = feita || !a.palavras ? null : emLeitura ? `faltam ≈ ${tempo(faltam(a))}` : `≈ ${tempo(a.palavras)}`;
+                      const meta = [
+                        emLeitura ? `${Math.round((a.progresso ?? 0) * 100)}%` : null,
+                        // o professor só quando o caminho do grupo ainda não o diz
+                        a.professor && !caminho.includes(a.professor) ? a.professor : null,
+                        a.palavras ? `${nf.format(a.palavras)} palavras` : null,
+                      ].filter(Boolean).join(" · ");
+                      return (
+                        <div key={a.id} className="flex items-center gap-3 pl-4 pr-2 hover:bg-sel/60 transition-colors">
+                          <StatusAnel aula={a} numero={numeroDaAula(a.title) ?? (porPasta.comNumero.has(chave) ? null : String(porPasta.posicao.get(a.id) ?? k + 1).padStart(2, "0"))}
+                            onChange={(v) => mudarSituacao(a, v)} />
+                          <button onClick={() => abrir(a)} className="flex-1 min-w-0 flex items-center gap-3 py-2.5 text-left" title="Abrir a aula">
+                            <span className="flex-1 min-w-0">
+                              <span className={`line-clamp-2 sm:line-clamp-1 break-words leading-snug text-sm ${feita ? "text-muted" : "font-medium"}`} title={a.title}>{a.title}</span>
+                              <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-faint mt-0.5 tabular-nums">
+                                {/* a meta numa linha só: no aperto o texto encurta com "…" e o tempo fica
+                                    (no celular a coluna do tempo não cabe e ele vem aqui) */}
+                                {(meta || a.anotacoes_em) && (
+                                  <span className="flex items-center gap-1 min-w-0 max-w-full">
+                                    {meta && <span className="truncate" title={emLeitura && a.palavras ? `${meta} · faltam ${nf.format(Math.round(faltam(a)))} palavras` : meta}>{meta}</span>}
+                                    {meta && tempoDaAula && <span className="sm:hidden shrink-0 whitespace-nowrap">· {tempoDaAula}</span>}
+                                    {a.anotacoes_em && (
+                                      <span className="inline-flex shrink-0 ml-0.5 text-muted" title="Esta aula tem anotações suas">
+                                        <NotebookPen size={12} aria-hidden /><span className="sr-only">tem anotações</span>
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
+                                {!!antesDe.get(a.id) && (
+                                  <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-px font-medium" title="Tarefas para fazer antes desta aula (não bloqueia a leitura)"
+                                    style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)", color: "var(--warn)" }}>
+                                    <ListChecks size={11} /> {antesDe.get(a.id)} {antesDe.get(a.id) === 1 ? "tarefa antes" : "tarefas antes"}
+                                  </span>
+                                )}
+                              </span>
                             </span>
-                            {/* espaço para o status, que no celular fica embaixo do texto */}
-                            <span className="block h-8 sm:hidden" aria-hidden />
-                          </span>
-                        </button>
-                        <span className="absolute left-16 bottom-3 sm:static">
-                          <StatusPill label="Status da aula" value={a.situacao ?? "pendente"} options={SITUACOES_AULA} onChange={(v) => mudarSituacao(a, v)} />
-                        </span>
-                        <RowMenu items={[
-                          { label: "Abrir a aula", icon: BookOpen, onClick: () => router.push(`/estudos/${a.id}`) },
-                          { label: "Editar nome e professor", icon: Pencil, onClick: () => setEditando(a) },
-                          { label: "Mover para outra pasta", icon: FolderInput, onClick: () => setMovendo({ aula: a }) },
-                          { label: "Subir", icon: ArrowUp, separar: true, disabled: k === 0, onClick: () => moverNaLista(a, -1) },
-                          { label: "Descer", icon: ArrowDown, disabled: k === lista.length - 1, onClick: () => moverNaLista(a, 1) },
-                          { label: "Mover para a posição…", icon: ListOrdered, disabled: lista.length < 2 && daMesmaPasta(a).length < 2, onClick: () => setPosicionando(a) },
-                          { label: "Editar a transcrição", icon: FileText, onClick: () => router.push(`/estudos/${a.id}?editar=1`) },
-                          { label: "Baixar a transcrição (.md)", icon: Download, onClick: () => void baixarAula(a) },
-                          { label: feita ? "Voltar para pendente" : "Marcar como concluída", icon: CircleCheck, onClick: () => mudarSituacao(a, feita ? "pendente" : "concluida"), separar: true },
-                          { label: "Apagar aula", icon: Trash2, danger: true, separar: true, onClick: () => apagar(a) },
-                        ]} />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+                            <span className="hidden sm:block w-28 shrink-0 text-right text-xs tabular-nums text-muted whitespace-nowrap">{tempoDaAula}</span>
+                          </button>
+                          <RowMenu items={[
+                            { label: "Abrir a aula", icon: BookOpen, onClick: () => abrir(a) },
+                            { label: "Editar nome e professor", icon: Pencil, onClick: () => setEditando(a) },
+                            { label: "Mover para outra pasta", icon: FolderInput, onClick: () => setMovendo({ aula: a }) },
+                            { label: "Subir", icon: ArrowUp, separar: true, disabled: k === 0, onClick: () => moverNaLista(a, -1) },
+                            { label: "Descer", icon: ArrowDown, disabled: k === lista.length - 1, onClick: () => moverNaLista(a, 1) },
+                            { label: "Mover para a posição…", icon: ListOrdered, disabled: lista.length < 2 && daMesmaPasta(a).length < 2, onClick: () => setPosicionando(a) },
+                            { label: "Editar a transcrição", icon: FileText, onClick: () => router.push(`/estudos/${a.id}?editar=1`) },
+                            { label: "Baixar a transcrição (.md)", icon: Download, onClick: () => void baixarAula(a) },
+                            { label: feita ? "Voltar para pendente" : "Marcar como concluída", icon: CircleCheck, onClick: () => mudarSituacao(a, feita ? "pendente" : "concluida"), separar: true },
+                            { label: "Apagar aula", icon: Trash2, danger: true, separar: true, onClick: () => apagar(a) },
+                          ]} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         </section>
       </div>
@@ -514,7 +623,8 @@ export default function Estudos() {
       )}
 
       {novaAberta && <NovaAula ordem={ordem} inicial={pastaSel} onClose={() => setNovaAberta(false)}
-        onImportar={(destino) => { setNovaAberta(false); destinoDoImport.current = destino; arquivosRef.current?.click(); }}
+        onImportarPasta={(destino) => { setNovaAberta(false); importarPasta(destino); }}
+        onImportar={(destino) => { setNovaAberta(false); importarArquivos(destino); }}
         onEmBranco={(destino) => { setNovaAberta(false); void novaAula(destino); }} />}
       {posicionando && (() => {
         const lista = daMesmaPasta(posicionando);
@@ -632,9 +742,44 @@ function SeletorDePasta({ ordem, valor, vazio, onMudar }: {
   );
 }
 
-function NovaAula({ ordem, inicial, onClose, onImportar, onEmBranco }: {
+/**
+ * O status da aula num anel: o traço é o quanto foi lido (cinza a fazer, violeta em leitura, verde concluída)
+ * e no meio vai o número da aula. Por cima, o mesmo <select> invisível do StatusPill troca o status.
+ */
+function StatusAnel({ aula, numero, onChange }: { aula: Aula; numero: string | null; onChange: (s: SituacaoAula) => void }) {
+  const s = aula.situacao ?? "pendente";
+  const feita = s === "concluida";
+  const rotulo = SITUACOES_AULA.find((o) => o.value === s)?.label ?? s;
+  const titulo = `${rotulo}${s === "lendo" ? ` · ${Math.round((aula.progresso ?? 0) * 100)}%` : ""} — mudar o status`;
+  return (
+    // grid: sem a linha de texto em volta do anel (inline), ele fica com 30px e centrado na linha
+    <span className="relative grid shrink-0 rounded-full focus-within:ring-2 focus-within:ring-accent/40">
+      <Anel valor={feita ? 1 : s === "lendo" ? aula.progresso ?? 0 : 0} cor={feita ? "var(--good)" : "var(--area-estudos)"} tamanho={30} espessura={2.5}>
+        {/* em leitura o número também fica violeta: com 0% o traço ainda não aparece */}
+        {feita ? <Check size={14} strokeWidth={2.5} className="text-good" />
+          : <span className={`text-[11px] tabular-nums ${s === "lendo" ? "text-area-estudos font-medium" : "text-muted"}`}>{numero ?? <FileText size={12} className="text-icon" />}</span>}
+      </Anel>
+      {/* a área de toque é maior que o anel; letra de 16px para o iPhone não dar zoom */}
+      <select aria-label={`Status da aula: ${rotulo}`} title={titulo} value={s} onChange={(e) => onChange(e.target.value as SituacaoAula)}
+        className="absolute -inset-1.5 opacity-0 cursor-pointer appearance-none text-base">
+        {SITUACOES_AULA.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </span>
+  );
+}
+
+/** feitas/total à direita de cada item do índice; verde quando a pasta está toda feita, "0" apagado quando vazia. */
+function Contagem({ feitas, total, className = "" }: { feitas: number; total: number; className?: string }) {
+  return (
+    <span className={`text-xs tabular-nums shrink-0 font-normal ${total && feitas === total ? "text-good" : "text-faint"} ${className}`}>
+      {total ? `${feitas}/${total}` : "0"}
+    </span>
+  );
+}
+
+function NovaAula({ ordem, inicial, onClose, onImportarPasta, onImportar, onEmBranco }: {
   ordem: { pasta: PastaEstudo; nivel: number }[]; inicial: string | null; onClose: () => void;
-  onImportar: (destino: string | null) => void; onEmBranco: (destino: string | null) => void;
+  onImportarPasta: (destino: string | null) => void; onImportar: (destino: string | null) => void; onEmBranco: (destino: string | null) => void;
 }) {
   const [destino, setDestino] = useState<string | null>(inicial);
   return (
@@ -646,6 +791,13 @@ function NovaAula({ ordem, inicial, onClose, onImportar, onEmBranco }: {
         </div>
         <label className="block"><span className="label">Em qual pasta?</span>
           <div className="mt-1 flex"><SeletorDePasta ordem={ordem} valor={destino} vazio="Primeiro nível (sem pasta)" onMudar={setDestino} /></div></label>
+        <button className="w-full card p-4 text-left hover:border-faint transition-colors flex gap-3 items-start" onClick={() => onImportarPasta(destino)}>
+          <FolderUp size={18} className="text-icon mt-0.5 shrink-0" />
+          <span>
+            <span className="block font-medium">Importar a pasta de um curso</span>
+            <span className="block text-sm text-muted">Escolha a pasta do curso no seu computador: cada arquivo .md vira uma aula, e as subpastas viram módulos.</span>
+          </span>
+        </button>
         <button className="w-full card p-4 text-left hover:border-faint transition-colors flex gap-3 items-start" onClick={() => onImportar(destino)}>
           <Upload size={18} className="text-icon mt-0.5 shrink-0" />
           <span>

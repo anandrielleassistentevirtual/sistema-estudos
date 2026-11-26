@@ -7,7 +7,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Check, CornerDownRight, Feather, ListChecks, Play, Plus, X } from "lucide-react";
+import { BookOpen, Check, CornerDownRight, Eye, Feather, ListChecks, Play, Plus, RefreshCw, Repeat, X, type LucideIcon } from "lucide-react";
 import { useTimerEstado } from "@/components/timer-context";
 import { FolhaDaTarefa } from "@/components/folha-da-tarefa";
 import { supabase } from "@/lib/supabase/client";
@@ -17,6 +17,26 @@ import {
 } from "@/lib/tarefas";
 
 type Livro = { id: string; title: string; format: string };
+
+/** O ícone de cada tipo de tarefa: o mesmo na lista de Tarefas e no painel da aula. */
+export const ICONE_DO_TIPO: Record<TipoTarefa, LucideIcon> = { ler: BookOpen, assistir: Eye, escrever: Feather, revisar: RefreshCw, praticar: Repeat, outro: ListChecks };
+
+/** O seletor de tipo, um só para os dois formulários (a lista de Tarefas importa daqui: página do Next não exporta componentes). */
+export function EscolhaDoTipo({ valor, onMudar }: { valor: TipoTarefa; onMudar: (t: TipoTarefa) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Tipo da tarefa">
+      {TIPOS.map((t) => {
+        const Icone = ICONE_DO_TIPO[t.id];
+        return (
+          <button key={t.id} type="button" onClick={() => onMudar(t.id)} aria-pressed={valor === t.id}
+            className={`text-xs rounded-full px-2.5 py-1 border inline-flex items-center gap-1 ${valor === t.id ? "border-ink text-ink" : "border-line text-muted hover:text-ink"}`}>
+            <Icone size={12} /> {t.nome}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
   aula: { id: string; title: string; pasta_id: string | null; situacao?: string };
@@ -89,7 +109,8 @@ export function TarefasDaAula({ aula, aberto, onFechar, onPendentes, avisar }: {
     const origem = t.aula_id && t.aula_id !== aula.id ? nomeDe.get(t.aula_id) : null;
     return (
       <li key={t.id} className="flex items-start gap-2 py-2.5">
-        <button className={`mt-0.5 w-5 h-5 shrink-0 rounded-md border grid place-items-center ${t.feita_em ? "bg-good/15 border-good/40 text-good" : "border-line hover:border-ink"}`}
+        {/* border-faint: a caixinha é o controle de "feita" e precisa aparecer no tema claro (border-line some no branco) */}
+        <button className={`mt-0.5 w-5 h-5 shrink-0 rounded-md border grid place-items-center ${t.feita_em ? "bg-good/15 border-good/40 text-good" : "border-faint hover:border-ink"}`}
           title={t.feita_em ? "Desfazer" : "Feita"} onClick={() => void (t.feita_em ? desfazer(t) : feita(t))}>
           {t.feita_em && <Check size={13} />}
         </button>
@@ -198,12 +219,7 @@ function NovaTarefaDaAula({ aula, proxima, onCriada }: {
 
   return (
     <form onSubmit={salvar} className="space-y-2">
-      <div className="flex flex-wrap gap-1">
-        {TIPOS.map((t) => (
-          <button key={t.id} type="button" onClick={() => setTipo(t.id)}
-            className={`text-xs rounded-full px-2 py-0.5 border ${tipo === t.id ? "border-ink text-ink" : "border-line text-muted hover:text-ink"}`}>{t.nome}</button>
-        ))}
-      </div>
+      <EscolhaDoTipo valor={tipo} onMudar={setTipo} />
       <div className="flex gap-2">
         <input className="input flex-1 min-w-0" value={texto} onChange={(e) => setTexto(e.target.value)}
           placeholder={`ex.: ${TIPOS.find((t) => t.id === tipo)?.exemplo ?? ""}`} />

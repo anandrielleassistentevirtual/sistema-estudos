@@ -3,14 +3,14 @@
  * MAR (imersão) dentro de Idiomas: a sua lista de inglês de verdade — séries, filmes, canais e podcasts —
  * e o TEMPO que ela vira. Este componente é o orquestrador:
  * - carrega os títulos do idioma e o livro-caixa (mar_log); rebusca ao voltar para a aba e quando o Timer grava;
- * - mostra os 4 números de tempo (Hoje, Por dia, o período, No MAR), as abas, a faixa de 15 s e a lista;
+ * - mostra os 3 números de tempo (Hoje, Média por dia, No MAR), as abas, a faixa de 15 s e a lista;
  * - fala com o banco (mar_registrar / mar_desfazer): nada é otimista na posição — o cartão troca pelo
  *   título que o banco devolveu.
  * O tempo vem sempre das sessões (sessoesMar, a fonte única); o livro-caixa só diz o que cada pedaço foi.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ListChecks, Plus, Timer as Relogio, Waves } from "lucide-react";
+import { ListChecks, Plus, Timer as Relogio } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { addDays, dayKey, nf } from "@/lib/dates";
 import type { Periodo } from "@/lib/periodo";
@@ -25,7 +25,9 @@ import { describe, useTimerEstado } from "./timer-context";
 import { MarCartao, NIVEIS, Pop, TIPOS, type AcoesCartao } from "./mar-cartao";
 import { MarEditor } from "./mar-editor";
 import { MarRegistros } from "./mar-registros";
+import { CardHead } from "./page";
 import { PLATAFORMAS, PlataformaIcone, plataformaDe } from "./plataforma";
+import { Variacao } from "./variacao";
 
 /** Sessão no formato da página (para o patch de onTempo). */
 export type SessaoPatch = SessaoIdioma;
@@ -195,17 +197,6 @@ export function MarPainel({
     return m;
   }, [meuLog, descartadas]);
 
-  const porPlataforma = useMemo(() => {
-    const m = new Map<string, { nome: string; n: number }>();
-    for (const t of lista ?? []) {
-      const p = plataformaDe(t.onde);
-      if (!p) continue;
-      const x = m.get(p) ?? { nome: PLATAFORMAS.find((y) => y.id === p)?.nome ?? t.onde, n: 0 };
-      x.n++;
-      m.set(p, x);
-    }
-    return [...m.values()].sort((a, b) => b.n - a.n);
-  }, [lista]);
   const emUso = [...col.assistindo, ...col.visto];
   const semBoia = emUso.length ? Math.round((emUso.filter((t) => t.legenda === "sem").length / emUso.length) * 100) : null;
 
@@ -441,71 +432,77 @@ export function MarPainel({
   const tituloAberto = (lista ?? []).find((x) => x.id === pergunta?.tituloId);
   const textoDaPergunta = pergunta && tituloAberto ? textoPergunta(pergunta.p, pergunta.seg) : null;
   const metaTxt = meta > 0 ? `meta ${duracao(meta * 60)}/dia` : "sem meta";
-  const varP = ind.totalA > 0 ? Math.round(((ind.totalP - ind.totalA) / ind.totalA) * 100) : null;
+  const diasTxt = ind.metaSeg > 0 && ind.diasP > 1 ? `meta em ${ind.diasNaMeta} de ${ind.diasP} dias` : `${ind.diasComMar} ${ind.diasComMar === 1 ? "dia" : "dias"} com MAR`;
+  // o que era a célula do período (marcado × Timer, episódios, terminados, anterior) fica no title da Média
+  const detalheMedia = `Média por dia: ${duracao(ind.mediaP)}. ${ind.resumo}. ${periodo.nome}: ${duracao(ind.totalP)} de MAR — marcado ${duracao(doPeriodo.marcado)} · Timer ${duracao(doPeriodo.timerSeg)}. ${nf.format(doPeriodo.eps)} ${doPeriodo.eps === 1 ? "episódio" : "episódios"}${doPeriodo.vistos ? `, ${doPeriodo.vistos} ${doPeriodo.vistos === 1 ? "título terminado" : "títulos terminados"}` : ""}. Período anterior: ${duracao(ind.totalA)}.`;
 
   return (
     <section id="mar" className={`card p-4 min-w-0 flex flex-col xl:h-full min-h-0 ${className}`}>
-      {/* 1) cabeçalho: uma linha */}
-      <div className="flex items-center justify-between gap-2 min-h-7 shrink-0">
-        <h3 className="card-title flex items-center gap-2 min-w-0" title={`${idioma} de verdade — séries, filmes, canais e podcasts. Do mais fácil, com boia, ao sem boia.`}>
-          <Waves size={16} style={{ color: COR_MAR }} className="shrink-0" />
-          <span className="shrink-0">MAR</span>
-          <span className="text-sm font-normal text-muted truncate">
-            <span className="hidden sm:inline">· {idioma.toLowerCase()} de verdade </span>·{" "}
-            {onConfigurar
-              ? <button type="button" className="hover:text-ink underline-offset-2 hover:underline" title="Mudar a meta por dia (Configurar)" onClick={onConfigurar}>{metaTxt}</button>
-              : metaTxt}
-          </span>
-        </h3>
-        <button type="button" className="btn py-2 sm:py-1 px-2.5 text-[13px] shrink-0" aria-expanded={!!adicionar}
-          onClick={(e) => setAdicionar(adicionar ? null : e.currentTarget)}>
-          <Plus size={14} /> Adicionar
-        </button>
-      </div>
+      {/* 1) cabeçalho: o mesmo de todos os cartões; a meta abre Configurar */}
+      <CardHead className="shrink-0" titulo="MAR"
+        meta={<>
+          <span title={`${idioma} de verdade — séries, filmes, canais e podcasts. Do mais fácil, com boia, ao sem boia.`}>{idioma.toLowerCase()} de verdade</span>
+          {" · "}
+          {onConfigurar
+            ? <button type="button" className="hover:text-ink underline-offset-2 hover:underline" title="Mudar a meta por dia (Configurar)" onClick={onConfigurar}>{metaTxt}</button>
+            : metaTxt}
+        </>}
+        acao={
+          <button type="button" className="btn py-2 sm:py-1 px-2.5 text-[13px]" aria-expanded={!!adicionar}
+            onClick={(e) => setAdicionar(adicionar ? null : e.currentTarget)}>
+            <Plus size={14} /> Adicionar
+          </button>
+        } />
 
-      {/* 2) os 4 números de tempo */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2.5 shrink-0">
+      {/* 2) três números na mesma régua: hoje × meta, a média por dia e o total rumo às 1.000 h.
+          Cada célula: rótulo, número, uma faixa de altura fixa (as dicas ficam na mesma linha) e a dica.
+          No celular, Hoje ocupa a linha e as outras duas fecham em par, como na <Faixa> */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-line border border-line rounded-lg overflow-hidden shrink-0">
+        {/* (flex-col: o botão centraliza o conteúdo na altura; assim ele começa no topo, como nas outras células) */}
         <button type="button" onClick={() => setRegistros(true)} title="MAR de hoje. O Mairo recomenda no mínimo 1 h por dia. (Toque para ver os registros.)"
-          className="text-left rounded-lg bg-surface-2/60 hover:bg-surface-2 transition-colors px-3 py-1.5 min-w-0">
+          className={`${CELULA} col-span-2 sm:col-span-1 flex flex-col text-left hover:bg-surface-2 transition-colors`}>
           <Rotulo>Hoje</Rotulo>
           <Valor>{duracao(ind.hoje)}</Valor>
-          <div className="mt-1 h-[3px] rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-            <div className="h-full rounded-full" style={{ width: `${ind.metaSeg ? Math.min(100, (ind.hoje / ind.metaSeg) * 100) : 0}%`, background: ind.naMetaHoje ? "var(--good)" : COR_MAR }} />
-          </div>
+          <Trilho>
+            <div className="w-full h-1 rounded-full overflow-hidden bg-line">
+              <div className="h-full rounded-full" style={{ width: `${ind.metaSeg ? Math.min(100, (ind.hoje / ind.metaSeg) * 100) : 0}%`, background: COR_MAR }} />
+            </div>
+          </Trilho>
           <Dica>
             {contando ? <span style={{ color: COR_MAR }}><Relogio size={10} className="inline -mt-px" /> contando · </span> : null}
             <span style={ind.naMetaHoje ? { color: "var(--good)" } : undefined}>{ind.dicaHoje}</span>
           </Dica>
         </button>
 
-        <div className="rounded-lg bg-surface-2/60 px-3 py-1.5 min-w-0" title={ind.resumo} aria-label={`Média por dia: ${duracao(ind.mediaP)}. ${ind.resumo}`}>
-          <Rotulo>Por dia · {periodo.nome.toLowerCase()}</Rotulo>
+        <div className={CELULA} title={detalheMedia} aria-label={detalheMedia}>
+          <Rotulo>Média por dia</Rotulo>
           <Valor>{duracao(ind.mediaP)}</Valor>
-          <Barrinhas ind={ind} />
+          <Trilho><Barrinhas ind={ind} /></Trilho>
+          {/* duas linhas: o total com a comparação, e os dias (na meta ou com MAR). Na célula estreita
+              (celular pequeno, tablet, período longo) cada uma quebra em vez de cortar o número */}
+          <div className="ind-nota mt-1.5 leading-snug min-w-0">
+            <div className="line-clamp-2">
+              total {duracao(ind.totalP)}
+              {ind.totalA > 0 && <> · <Variacao atual={ind.totalP} base={ind.totalA} /></>}
+            </div>
+            <div className="line-clamp-2">{diasTxt}</div>
+          </div>
         </div>
 
-        <div className="rounded-lg bg-surface-2/60 px-3 py-1.5 min-w-0"
-          title={`${periodo.nome}: ${duracao(ind.totalP)} de MAR — marcado ${duracao(doPeriodo.marcado)} · Timer ${duracao(doPeriodo.timerSeg)}. ${nf.format(doPeriodo.eps)} ${doPeriodo.eps === 1 ? "episódio" : "episódios"}${doPeriodo.vistos ? `, ${doPeriodo.vistos} ${doPeriodo.vistos === 1 ? "título terminado" : "títulos terminados"}` : ""}. Período anterior: ${duracao(ind.totalA)}.`}>
-          <Rotulo>{periodo.nome}</Rotulo>
-          <Valor>{duracao(ind.totalP)}</Valor>
-          <Dica>
-            {ind.metaSeg > 0 && ind.diasP > 1 ? `meta em ${ind.diasNaMeta} de ${ind.diasP} dias` : `${ind.diasComMar} ${ind.diasComMar === 1 ? "dia" : "dias"} com MAR`}
-            {varP !== null && <> · <span className="font-medium" style={{ color: varP > 0 ? "var(--good)" : varP < 0 ? "var(--critical)" : undefined }}>{varP > 0 ? "▲" : varP < 0 ? "▼" : "="} {Math.abs(varP)}%</span></>}
-          </Dica>
-        </div>
-
-        <div className="rounded-lg bg-surface-2/60 px-3 py-1.5 min-w-0" title={ind.tituloTotal}>
+        <div className={CELULA} title={`${ind.tituloTotal} (${ind.dicaTotal})`}>
           <Rotulo>No MAR</Rotulo>
           <Valor>{duracao(ind.total)}</Valor>
-          <div className="mt-1 h-[3px] rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-            <div className="h-full rounded-full" style={{ width: ind.total > 0 ? `max(3px, ${ind.fracTotal * 100}%)` : 0, background: COR_MAR }} />
-          </div>
+          <Trilho>
+            <div className="w-full h-1 rounded-full overflow-hidden bg-line">
+              <div className="h-full rounded-full" style={{ width: ind.total > 0 ? `max(4px, ${ind.fracTotal * 100}%)` : 0, background: COR_MAR }} />
+            </div>
+          </Trilho>
           <Dica>{ind.dicaTotal}</Dica>
         </div>
       </div>
 
-      {/* 3) abas · plataformas, sem boia, Registros — ou a faixa de 15 s no mesmo lugar */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2.5 shrink-0">
+      {/* 3) abas · sem boia, Registros — ou a faixa de 15 s no mesmo lugar */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-3 shrink-0">
         <div className="inline-flex rounded-lg bg-surface-2 p-0.5 text-[13px]" role="tablist" aria-label="Listas do MAR">
           {ABAS.map((x) => (
             <button key={x.id} type="button" role="tab" aria-selected={x.id === atual} onClick={() => setAba(x.id)}
@@ -514,19 +511,14 @@ export function MarPainel({
             </button>
           ))}
         </div>
-        <div className="w-full sm:w-auto sm:flex-1 min-w-0 flex items-center justify-end gap-x-3 min-h-7">
+        {/* sem a faixa, "sem boia · Registros" desce para a linha de baixo quando não cabe ao lado das abas
+            (cartão estreito, ~768px), em vez de passar da borda; a faixa encolhe e corta o texto (min-w-0) */}
+        <div className={`w-full sm:w-auto sm:flex-1 min-w-0 ${faixa ? "" : "sm:min-w-max"} flex items-center justify-end gap-x-3 min-h-7`}>
           {faixa ? (
             <FaixaMar f={faixa} ocupado={!!faixa.t && ocupados.has(faixa.t.id)} onDesfazer={() => void faixaDesfazer()}
               onSomarMesmo={() => void faixaSomarMesmo()} onTentar={faixaTentar} onFechar={() => setFaixa(null)} />
           ) : (
             <div className="flex items-center gap-x-3 text-xs text-muted min-w-0">
-              <span className="hidden md:flex items-center gap-2.5 min-w-0 overflow-hidden">
-                {porPlataforma.map((p) => (
-                  <span key={p.nome} className="inline-flex items-center gap-1 shrink-0" title={`${p.nome}: ${p.n} ${p.n === 1 ? "título" : "títulos"}`}>
-                    <PlataformaIcone onde={p.nome} tamanho={16} /><span className="tabular-nums">{p.n}</span>
-                  </span>
-                ))}
-              </span>
               {semBoia !== null && (
                 <span className="whitespace-nowrap shrink-0" title="Do que você assiste e já viu, quanto é sem legenda. Com boia = com legenda em inglês; o objetivo, com o tempo, é tirar a boia.">
                   sem boia <b className="font-medium text-ink tabular-nums">{semBoia}%</b>
@@ -591,23 +583,29 @@ export function MarPainel({
 
 // ─── peças ───
 
-const Rotulo = ({ children }: { children: React.ReactNode }) => <div className="text-[11px] text-muted truncate">{children}</div>;
-const Valor = ({ children }: { children: React.ReactNode }) => <div className="text-lg tabular-nums leading-tight tracking-tight">{children}</div>;
-const Dica = ({ children }: { children: React.ReactNode }) => <div className="mt-0.5 text-[11px] leading-snug text-faint sm:truncate">{children}</div>;
+/** As células dos três números: o fundo do cartão, separadas pelas linhas de 1px da grade. */
+const CELULA = "bg-surface px-3 py-2 min-w-0";
+const Rotulo = ({ children }: { children: React.ReactNode }) => <div className="ind-rotulo"><span className="truncate">{children}</span></div>;
+const Valor = ({ children }: { children: React.ReactNode }) => <div className="mt-1.5 text-lg font-medium tracking-[-0.02em] tabular-nums leading-none truncate">{children}</div>;
+/** A faixa visual (barra da meta, barrinhas, barra das 1.000 h): mesma altura nas três, encostada embaixo. */
+const Trilho = ({ children }: { children: React.ReactNode }) => <div className="mt-1.5 h-[18px] flex items-end">{children}</div>;
+/** Até duas linhas, nas três células (com a mesma altura de começo, as dicas ficam alinhadas). */
+const Dica = ({ children }: { children: React.ReactNode }) => <div className="ind-nota mt-1.5 leading-snug line-clamp-2">{children}</div>;
 
-/** As barrinhas do "Por dia": uma por dia (ou semana, ou mês), com a linha tracejada da meta. */
+/** As barrinhas da Média: uma por dia (ou semana, ou mês), com a linha tracejada da meta. */
 function Barrinhas({ ind }: { ind: ReturnType<typeof indicadores> }) {
   const H = 18;
   const meta = ind.metaSeg;
   const topo = Math.max(meta, ...ind.barrinhas.map((b) => b.porDia), 1);
   return (
-    <div className="relative mt-1 flex items-end gap-[2px]" style={{ height: H }} aria-hidden>
-      {meta > 0 && <div className="absolute inset-x-0 border-t border-dashed pointer-events-none" style={{ bottom: (meta / topo) * H, borderColor: "var(--good)", opacity: 0.7 }} />}
+    <div className="relative w-full flex items-end gap-[2px]" style={{ height: H }} aria-hidden>
+      {meta > 0 && <div className="absolute inset-x-0 border-t border-dashed pointer-events-none" style={{ bottom: (meta / topo) * H, borderColor: "var(--text)", opacity: 0.45 }} />}
       {ind.barrinhas.map((b) => (
         <div key={b.de} className="flex-1 min-w-0 h-full flex items-end" title={b.title}>
+          {/* a barra fica na cor da série: clara abaixo da meta, cheia quando chega nela (sem o verde de situação) */}
           <div className="w-full rounded-[2px]" style={{
             height: b.porDia > 0 ? Math.max(2, (b.porDia / topo) * H) : 2,
-            background: b.porDia <= 0 ? "var(--border)" : b.naMeta && meta > 0 ? "var(--good)" : `color-mix(in srgb, ${COR_MAR} ${meta > 0 ? 45 : 100}%, transparent)`,
+            background: b.porDia <= 0 ? "var(--border)" : b.naMeta || meta <= 0 ? COR_MAR : `color-mix(in srgb, ${COR_MAR} 45%, transparent)`,
           }} />
         </div>
       ))}

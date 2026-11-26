@@ -4,8 +4,8 @@
  * ler sintopicamente é fazer esses autores conversarem. (Substitui as antigas "obras de consulta".)
  */
 import { useMemo } from "react";
-import { Network, Pencil, Plus, Sparkles } from "lucide-react";
-import { Empty } from "@/components/page";
+import { ChevronDown, ChevronRight, Network, Pencil, Plus } from "lucide-react";
+import { Empty, Secao } from "@/components/page";
 import { RowMenu } from "@/components/row-menu";
 import { NIVEIS_LEITURA, progressoDoRoteiro, type Roteiro } from "@/lib/adler";
 import { palavrasCurto, pct } from "@/lib/leitura";
@@ -15,7 +15,8 @@ import { LivroLinha } from "@/components/biblioteca/linha";
 import { BibliotecaPagina } from "@/components/biblioteca/painel";
 import { BarraMarcos } from "@/components/biblioteca/visual";
 
-const COR = "var(--area-estudos)";
+// Temas são Leitura: a cor é a da área
+const COR = "var(--area-leitura)";
 
 export default function Temas() {
   const d = useBiblioteca();
@@ -35,20 +36,31 @@ export default function Temas() {
 
   return (
     <BibliotecaPagina actions={<button className="btn btn-primary" onClick={() => d.abrir({ tipo: "tema" })}><Plus size={15} /> Novo tema</button>}>
-      <div className="card p-4 sm:p-5 mb-6 flex gap-4 items-start" style={{ background: `color-mix(in srgb, ${COR} 6%, var(--surface))` }}>
-        <Network size={20} className="shrink-0 mt-0.5" style={{ color: COR }} />
-        <div className="text-sm leading-relaxed">
-          <b className="font-semibold">Leitura sintópica</b> (Adler): ler muitos livros sobre um mesmo assunto, ordenando-os em relação a ele.
-          Primeiro a bibliografia e uma inspeção de cada livro; depois, achar as passagens, pôr os autores em acordo nos termos,
-          esclarecer as questões, as divergências — e chegar a uma análise que não está em nenhum deles.
-          <span className="block text-muted mt-1">Para conduzir a leitura, abra a ficha de um livro do tema e escolha o nível <b className="text-ink font-medium">sintópico</b>: o roteiro das duas partes fica lá.</span>
-        </div>
-      </div>
-
       {!d.carregado ? <p className="text-sm text-muted">Carregando…</p> : (
         <>
-          {temas.length === 0 && (
-            <Empty icone={Network}>Nenhum tema ainda. Crie um assunto (por exemplo, “o método de estudo”) e marque os livros que falam dele.</Empty>
+          {temas.length === 0 ? (
+            // sem temas: a explicação e o vazio num bloco só
+            <Empty icone={Network}>
+              <p><b className="text-ink font-medium">Leitura sintópica</b>: vários livros sobre um mesmo assunto, postos para conversar.
+                Nenhum tema ainda: crie um assunto (por exemplo, “o método de estudo”) e marque os livros que falam dele.</p>
+              <details className="group mt-3 text-left">
+                <summary className="link-ir text-xs cursor-pointer justify-center w-full list-none [&::-webkit-details-marker]:hidden">
+                  Como funciona <ChevronDown size={13} className="transition-transform group-open:rotate-180" />
+                </summary>
+                <ComoFunciona />
+              </details>
+              <button className="btn mt-4" onClick={() => d.abrir({ tipo: "tema" })}><Plus size={15} /> Novo tema</button>
+            </Empty>
+          ) : (
+            // com temas: uma linha só; o texto inteiro fica no "Como funciona"
+            <details className="group mb-4 md:mb-5 text-sm">
+              <summary className="flex flex-wrap items-center gap-x-2 gap-y-1 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <Network size={15} className="shrink-0" style={{ color: COR }} />
+                <span className="text-muted"><b className="text-ink font-medium">Leitura sintópica</b>: vários livros sobre um mesmo assunto, postos para conversar.</span>
+                <span className="link-ir text-xs">Como funciona <ChevronDown size={13} className="transition-transform group-open:rotate-180" /></span>
+              </summary>
+              <div className="pl-[23px]"><ComoFunciona /></div>
+            </details>
           )}
           <div className="space-y-4">
             {temas.map(([tema, livros]) => {
@@ -81,20 +93,27 @@ export default function Temas() {
           </div>
 
           {sugestoes.length > 0 && (
-            <section className="mt-8">
-              <h2 className="text-[1.0625rem] font-semibold tracking-tight flex items-center gap-2"><Sparkles size={16} style={{ color: COR }} /> Temas possíveis</h2>
-              <p className="text-xs text-muted mt-0.5 mb-3">Pastas com vários livros ainda sem tema: livros da mesma pasta costumam conversar sobre o mesmo assunto.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                {sugestoes.map(({ pasta, livros }) => (
-                  <button key={pasta!.id} onClick={() => d.abrir({ tipo: "tema", tema: pasta!.name, ids: livros.map((b) => b.id) })}
-                    className="card card-hover p-4 text-left">
-                    <div className="text-sm font-medium">{pasta!.code && <span className="font-mono text-xs mr-1.5">{pasta!.code}</span>}{pasta!.name}</div>
-                    <div className="text-xs text-muted mt-1 line-clamp-2">{livros.map((b) => b.title).join(" · ")}</div>
-                    <div className="text-xs mt-2" style={{ color: COR }}>Criar tema com {livros.length} livros →</div>
-                  </button>
-                ))}
+            <Secao titulo="Temas possíveis" hint="Pastas com vários livros ainda sem tema: livros da mesma pasta costumam conversar sobre o mesmo assunto.">
+              <div className="card divide-y divide-line overflow-hidden">
+                {sugestoes.map(({ pasta, livros }) => {
+                  const titulos = livros.map((b) => b.title).join(" · ");
+                  return (
+                    // no celular os títulos descem para a segunda linha; a partir de 640px, tudo numa linha
+                    <button key={pasta!.id} onClick={() => d.abrir({ tipo: "tema", tema: pasta!.name, ids: livros.map((b) => b.id) })}
+                      className="w-full grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 sm:flex sm:items-center px-4 py-3 text-left hover:bg-sel/40 transition-colors">
+                      <span className="min-w-0 truncate text-sm font-medium sm:shrink-0 sm:max-w-[45%]" title={pasta!.name}>
+                        {pasta!.code && <span className="font-mono text-xs mr-1.5">{pasta!.code}</span>}{pasta!.name}
+                      </span>
+                      {/* no celular o "com N livros" desce para a frente dos títulos, para o nome da pasta caber */}
+                      <span className="link-ir shrink-0 sm:order-last"><span>Criar tema<span className="hidden sm:inline"> com {livros.length} livros</span></span><ChevronRight size={14} /></span>
+                      <span className="col-span-2 min-w-0 truncate text-xs text-muted sm:flex-1" title={titulos}>
+                        <span className="sm:hidden">{livros.length} livros · </span>{titulos}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            </section>
+            </Secao>
           )}
         </>
       )}
@@ -107,6 +126,20 @@ function Medida({ nome, valor }: { nome: string; valor: number | null }) {
     <div>
       <div className="flex justify-between text-[11.5px] mb-1"><span className="text-muted truncate">{nome}</span><span className="tabular-nums">{valor === null ? "—" : pct(valor)}</span></div>
       <BarraMarcos valor={valor ?? 0} cor={COR} />
+    </div>
+  );
+}
+
+/** O texto inteiro da leitura sintópica (Adler), guardado no "Como funciona". */
+function ComoFunciona() {
+  return (
+    <div className="mt-2 text-sm text-muted leading-relaxed max-w-3xl space-y-1">
+      <p>
+        <b className="text-ink font-medium">Leitura sintópica</b> (Adler): ler muitos livros sobre um mesmo assunto, ordenando-os em relação a ele.
+        Primeiro a bibliografia e uma inspeção de cada livro; depois, achar as passagens, pôr os autores em acordo nos termos,
+        esclarecer as questões, as divergências — e chegar a uma análise que não está em nenhum deles.
+      </p>
+      <p>Para conduzir a leitura, abra a ficha de um livro do tema e escolha o nível <b className="text-ink font-medium">sintópico</b>: o roteiro das duas partes fica lá.</p>
     </div>
   );
 }

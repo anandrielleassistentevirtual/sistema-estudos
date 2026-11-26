@@ -17,6 +17,7 @@ import {
 } from "@/lib/escrita";
 import { Editor, type EditorHandle } from "@/components/escrita/editor";
 import { BarChart } from "@/components/bar-chart";
+import { CardHead, Faixa, Indicador } from "@/components/page";
 import { FONTS } from "@/components/reader/types";
 import { useTimerEstado } from "@/components/timer-context";
 
@@ -483,17 +484,23 @@ export default function SalaDeEscrita() {
         )}
       </div>
 
-      {/* barra de status: cronômetro, palavras */}
-      <footer className={`h-8 shrink-0 flex items-center gap-3 sm:gap-4 px-4 overflow-hidden whitespace-nowrap text-xs text-muted border-t border-line tabular-nums transition-opacity ${foco ? "opacity-30 hover:opacity-100 border-transparent" : ""}`}>
+      {/* barra de status: cronômetro, palavras da sessão e do dia, do texto aberto e do livro */}
+      <footer className={`relative h-8 shrink-0 flex items-center gap-3 sm:gap-4 px-4 overflow-hidden whitespace-nowrap text-xs text-muted border-t border-line tabular-nums transition-opacity ${foco ? "opacity-30 hover:opacity-100 border-transparent" : ""}`}>
+        {/* o fio da meta do dia: cresce enquanto você escreve, sempre na cor da Escrita (a meta batida é a largura cheia) */}
+        {projeto.meta_diaria > 0 && (
+          <span className="absolute left-0 top-0 h-0.5" aria-hidden
+            style={{ width: `${Math.max(0, Math.min(1, hoje / projeto.meta_diaria)) * 100}%`, background: "var(--area-escrita)" }} />
+        )}
         <span className="flex items-center gap-1.5" title={relogio.parado ? `Pausado: parado há mais de ${prefs.ocioso < 60 ? `${prefs.ocioso} s` : `${prefs.ocioso / 60} min`}` : "Escrevendo"}>
-          <span className="w-1.5 h-1.5 rounded-full" style={{ background: !sess.current.iniciada ? "var(--faint)" : relogio.parado ? "#d0a24a" : "var(--good)" }} />
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: !sess.current.iniciada ? "var(--faint)" : relogio.parado ? "var(--warn)" : "var(--good)" }} />
           <span className="font-mono text-ink">{fmtClock(relogio.ativo)}</span>
           {relogio.ocioso >= 60 && <span className="text-faint">· parado {fmtDuration(relogio.ocioso)}</span>}
         </span>
-        <span title="Palavras escritas nesta sessão, em qualquer texto (cenas, rascunhos, notas). Apagar não desconta.">+{nf.format(palavrasSessao)} escritas</span>
+        <span title="Palavras escritas nesta sessão, em qualquer texto (cenas, rascunhos, notas). Apagar não desconta.">sessão +{nf.format(palavrasSessao)}</span>
+        {/* a meta do dia batida aparece no texto, em verde (o fio continua na cor da área) */}
+        <span className={projeto.meta_diaria > 0 && hoje >= projeto.meta_diaria ? "text-good" : ""} title="Palavras escritas hoje neste projeto (esforço)">hoje {nf.format(Math.max(0, hoje))}{projeto.meta_diaria > 0 ? ` / ${nf.format(projeto.meta_diaria)}` : ""}</span>
         {doc && doc.tipo !== "capitulo" && doc.tipo !== "pasta" && <span className="hidden sm:inline" title="Palavras neste texto">{nf.format(doc.palavras)} {doc.tipo === "cena" ? (E.unidade === "parte" ? "na parte" : "na cena") : doc.secao === "rascunhos" ? "no rascunho" : "na nota"}</span>}
         <span className="hidden sm:inline" title="Palavras do manuscrito">{nf.format(totalPalavras)}{projeto.meta_palavras ? ` / ${nf.format(projeto.meta_palavras)}` : ""} {E.unidade === "parte" || projeto.tipo === "conto" ? "no texto" : "no livro"}</span>
-        <span title="Palavras escritas hoje neste projeto (esforço)">hoje {nf.format(Math.max(0, hoje))}{projeto.meta_diaria > 0 ? ` / ${nf.format(projeto.meta_diaria)}` : ""}</span>
         <span className="ml-auto">{salvo === "salvo" ? "salvo" : salvo === "salvando" ? "salvando…" : "…"}</span>
         {foco && <button className="flex items-center gap-1 hover:text-ink" onClick={sairFoco}><Minimize2 size={12} /> sair do foco (Esc)</button>}
       </footer>
@@ -802,26 +809,35 @@ function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
   const ritmo = tempoTotal > 300 ? Math.round(sessoes.reduce((n, s) => n + Math.max(0, s.palavras), 0) / (tempoTotal / 3600)) : 0;
   const pct = projeto.meta_palavras ? Math.min(1, total / projeto.meta_palavras) : 0;
   const cenas = ms.flatMap((c) => c.cenas);
+  const serie = dias.map((d) => ({ label: parseDay(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), value: Math.max(0, porDia.get(d)?.palavras ?? 0), detail: fmtDuration(porDia.get(d)?.segundos ?? 0) }));
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Card l="Manuscrito" v={`${nf.format(total)}`} h={projeto.meta_palavras ? `${Math.round(pct * 100)}% de ${nf.format(projeto.meta_palavras)}` : "palavras"} />
-          <Card l="Hoje" v={`${hoje.palavras >= 0 ? "+" : ""}${nf.format(hoje.palavras)}`} h={projeto.meta_diaria ? `meta ${nf.format(projeto.meta_diaria)} · ${fmtDuration(hoje.segundos)}` : fmtDuration(hoje.segundos)} />
-          <Card l="Ritmo" v={ritmo ? `${nf.format(ritmo)}` : "—"} h="palavras por hora escrevendo" />
-          <Card l={E.Unidade === "Parte" ? "Partes" : "Cenas"} v={`${cenas.filter((c) => c.status === "pronto").length}/${cenas.length}`} h="prontas" />
-        </div>
-        {projeto.meta_palavras > 0 && (
-          <div className="h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--area-escrita)" }} /></div>
-        )}
+      <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-3 md:space-y-4">
+        {/* a faixa do sistema; a sala é de uma área só, então sem bolinha: a cor da Escrita fica na barra da meta e no gráfico */}
+        <Faixa colunas={4}>
+          <Indicador label="Manuscrito" value={nf.format(total)}
+            detalhe={projeto.meta_palavras ? `${Math.round(pct * 100)}% de ${nf.format(projeto.meta_palavras)}` : "palavras"}>
+            {projeto.meta_palavras > 0 && (
+              <span className="block mt-1.5 h-1 rounded-full bg-surface-2 overflow-hidden">
+                <span className="block h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--area-escrita)" }} />
+              </span>
+            )}
+          </Indicador>
+          <Indicador label="Hoje" value={`${hoje.palavras >= 0 ? "+" : ""}${nf.format(hoje.palavras)}`}
+            detalhe={projeto.meta_diaria ? `meta ${nf.format(projeto.meta_diaria)} · ${fmtDuration(hoje.segundos)}` : fmtDuration(hoje.segundos)} />
+          <Indicador label="Ritmo" value={ritmo ? nf.format(ritmo) : "—"} detalhe="palavras/hora" explica="Palavras por hora escrevendo (sem o tempo parado)" />
+          <Indicador label={E.Unidade === "Parte" ? "Partes" : "Cenas"} value={`${cenas.filter((c) => c.status === "pronto").length}/${cenas.length}`} detalhe="prontas" />
+        </Faixa>
         <div className="card p-4 md:p-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3 md:mb-4"><h3 className="card-title">Palavras por dia</h3><span className="text-xs text-muted">últimas 3 semanas</span></div>
-          <BarChart unit="palavras" height={140} cor="var(--area-escrita)"
-            data={dias.map((d) => ({ label: parseDay(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), value: Math.max(0, porDia.get(d)?.palavras ?? 0), detail: fmtDuration(porDia.get(d)?.segundos ?? 0) }))} />
+          <CardHead nivel="h3" titulo="Palavras por dia" meta="últimas 3 semanas" />
+          {serie.some((d) => d.value > 0)
+            ? <BarChart unit="palavras" height={140} cor="var(--area-escrita)" meta={projeto.meta_diaria || undefined} data={serie} />
+            : <p className="text-sm text-muted">Nenhuma palavra nas últimas 3 semanas.</p>}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* cada cartão com a sua altura: o Sessões não estica até o Metas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 items-start">
           <div className="card p-5">
-            <h3 className="card-title mb-3">Sessões</h3>
+            <CardHead nivel="h3" titulo="Sessões" meta={sessoes.length > 15 ? "as 15 últimas" : undefined} />
             {sessoes.length === 0 && <p className="text-sm text-muted">As sessões aparecem aqui quando você escreve.</p>}
             <table className="w-full text-sm tabular-nums">
               <tbody>
@@ -836,20 +852,22 @@ function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
               </tbody>
             </table>
           </div>
-          <div className="card p-5 space-y-3">
-            <h3 className="card-title">Metas</h3>
-            <label className="block"><span className="label">Meta do livro (palavras)</span>
-              <input className="input mt-1" inputMode="numeric" defaultValue={projeto.meta_palavras || ""} onBlur={(e) => onMeta({ meta_palavras: Number(e.target.value.replace(/\D/g, "")) || 0 })} /></label>
-            <label className="block"><span className="label">Meta por dia (palavras)</span>
-              <input className="input mt-1" inputMode="numeric" defaultValue={projeto.meta_diaria || ""} onBlur={(e) => onMeta({ meta_diaria: Number(e.target.value.replace(/\D/g, "")) || 0 })} /></label>
-            <label className="block"><span className="label">Autor</span>
-              <input className="input mt-1" defaultValue={projeto.autor} onBlur={(e) => onMeta({ autor: e.target.value.trim() })} /></label>
-            <label className="block"><span className="label">Título</span>
-              <input className="input mt-1" defaultValue={projeto.titulo} onBlur={(e) => e.target.value.trim() && onMeta({ titulo: e.target.value.trim() })} /></label>
+          <div className="card p-5">
+            <CardHead nivel="h3" titulo="Metas" />
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block min-w-0"><span className="label">Meta do livro</span>
+                <input className="input mt-1" inputMode="numeric" placeholder="palavras" defaultValue={projeto.meta_palavras || ""} onBlur={(e) => onMeta({ meta_palavras: Number(e.target.value.replace(/\D/g, "")) || 0 })} /></label>
+              <label className="block min-w-0"><span className="label">Meta por dia</span>
+                <input className="input mt-1" inputMode="numeric" placeholder="palavras" defaultValue={projeto.meta_diaria || ""} onBlur={(e) => onMeta({ meta_diaria: Number(e.target.value.replace(/\D/g, "")) || 0 })} /></label>
+              <label className="block min-w-0"><span className="label">Autor</span>
+                <input className="input mt-1" defaultValue={projeto.autor} onBlur={(e) => onMeta({ autor: e.target.value.trim() })} /></label>
+              <label className="block min-w-0"><span className="label">Título</span>
+                <input className="input mt-1" defaultValue={projeto.titulo} title={projeto.titulo} onBlur={(e) => e.target.value.trim() && onMeta({ titulo: e.target.value.trim() })} /></label>
+            </div>
           </div>
         </div>
         {E.comCap && <div className="card p-5">
-          <h3 className="card-title mb-3">Capítulos</h3>
+          <CardHead nivel="h3" titulo="Capítulos" />
           <table className="w-full text-sm tabular-nums">
             <tbody>
               {ms.map(({ cap, n, cenas: cs }) => {
@@ -867,16 +885,6 @@ function Estatisticas({ E, projeto, total, sessoes, ms, onMeta }: {
           </table>
         </div>}
       </div>
-    </div>
-  );
-}
-
-function Card({ l, v, h }: { l: string; v: string; h?: string }) {
-  return (
-    <div className="card p-4">
-      <div className="text-[13px] text-muted">{l}</div>
-      <div className="text-[1.6rem] tracking-tight tabular-nums mt-1 leading-none">{v}</div>
-      {h && <div className="text-xs text-faint mt-2">{h}</div>}
     </div>
   );
 }

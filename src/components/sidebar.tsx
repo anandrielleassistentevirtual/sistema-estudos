@@ -1,14 +1,17 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
-  BookHeart, Feather, GraduationCap, HardDrive, Languages, LayoutDashboard, Library,
-  LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, NotebookPen, Sun, Timer, X,
+  BookHeart, ChevronRight, Feather, GraduationCap, HardDrive, Languages, LayoutDashboard, Library,
+  LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, NotebookPen, Pause, Play, Sun, Timer, X,
  Sprout, HeartPulse } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useTimer } from "./timer-context";
+import { TimerControls } from "./timer-controls";
 import { fmtClock } from "@/lib/dates";
+import { corDaCategoria } from "@/lib/cores";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -49,11 +52,104 @@ function ThemeToggle() {
   );
 }
 
+/**
+ * O item Timer do menu. No computador, com o menu à vista, o Timer mora aqui (a pílula flutuante some):
+ * o relógio com a bolinha da categoria, ❚❚/▶ e o › que abre o painel rápido ao lado do item, sem cobrir o conteúdo.
+ * No celular (gaveta) os botões ficam escondidos: lá continua a pílula.
+ */
+function ItemTimer({ className }: { className: string }) {
+  const timer = useTimer();
+  const path = usePathname();
+  const [aberto, setAberto] = useState(false);
+  const [topo, setTopo] = useState(0);
+  const item = useRef<HTMLDivElement>(null);
+  const botao = useRef<HTMLButtonElement>(null);
+  const painel = useRef<HTMLDivElement>(null);
+  useEffect(() => setAberto(false), [path]);
+  // fecha com Esc (o foco volta ao ›) e com clique fora
+  useEffect(() => {
+    if (!aberto) return;
+    const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") { setAberto(false); botao.current?.focus(); } };
+    const fora = (e: PointerEvent) => {
+      const alvo = e.target as Node;
+      if (!botao.current?.contains(alvo) && !painel.current?.contains(alvo)) setAberto(false);
+    };
+    document.addEventListener("keydown", tecla);
+    document.addEventListener("pointerdown", fora);
+    return () => { document.removeEventListener("keydown", tecla); document.removeEventListener("pointerdown", fora); };
+  }, [aberto]);
+
+  const ativo = timer.running || timer.seconds > 0;
+  // na própria tela do Timer (e na sala de escrita, que tem o seu cronômetro) o painel rápido não faz sentido
+  const rapido = path !== "/timer" && !/^\/escrita\/[^/]+/.test(path);
+  const oQue = timer.phase === "pausa" ? "Pausa" : timer.what || timer.category;
+  const botaoCls = "p-1 rounded-md text-faint hover:text-ink hover:bg-surface-2";
+
+  return (
+    <div ref={item} className="relative">
+      <Link href="/timer" className={className} title={ativo ? `Timer · ${oQue}` : undefined}>
+        <Timer size={17} strokeWidth={1.8} className="text-icon shrink-0" />
+        Timer
+        {/* sessão em andamento: o relógio no próprio item, com a cor da categoria (pulsando enquanto corre) */}
+        {ativo && (
+          <span className={`ml-auto inline-flex items-center gap-1.5 text-[11px] font-mono tabular-nums text-muted ${rapido ? "md:mr-12" : "md:mr-6"}`}>
+            {timer.phase !== "pausa" && <span className={`dot !w-1.5 !h-1.5 ${timer.running ? "animate-pulse" : ""}`} style={{ background: corDaCategoria(timer.category) }} aria-hidden />}
+            {fmtClock(timer.mode === "pomodoro" ? timer.remaining : timer.seconds)}
+          </span>
+        )}
+      </Link>
+      {(ativo || rapido) && (
+        <div className="hidden md:flex absolute right-1.5 top-1/2 -translate-y-1/2 items-center gap-0.5">
+          {ativo && (
+            <button type="button" className={botaoCls} onClick={timer.running ? timer.pause : timer.start}
+              title={timer.running ? "Pausar" : "Continuar"} aria-label={timer.running ? "Pausar o timer" : "Continuar o timer"}>
+              {timer.running ? <Pause size={14} /> : <Play size={14} />}
+            </button>
+          )}
+          {rapido && (
+            <button ref={botao} type="button" className={botaoCls} title="Abrir o timer rápido" aria-label="Abrir o timer rápido" aria-expanded={aberto}
+              onClick={() => {
+                if (!aberto) setTopo(Math.max(8, item.current?.getBoundingClientRect().top ?? 8));
+                setAberto(!aberto);
+              }}>
+              <ChevronRight size={14} />
+            </button>
+          )}
+        </div>
+      )}
+      {/* o painel abre ao lado do item, por cima de tudo (portal: o menu tem o próprio empilhamento) */}
+      {aberto && createPortal(
+        <div ref={painel} role="dialog" aria-label="Timer rápido" className="popover fixed left-[15.5rem] z-[60] w-[340px] p-4 overflow-y-auto"
+          style={{ top: topo, maxHeight: `calc(100dvh - ${topo}px - 1rem)` }}>
+          <div className="flex justify-between items-center mb-2">
+            <span className="font-medium text-sm">Timer</span>
+            <button type="button" onClick={() => setAberto(false)} className="text-muted hover:text-ink" aria-label="Fechar"><X size={16} /></button>
+          </div>
+          <TimerControls compact />
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
 export function Sidebar() {
   const path = usePathname();
   const timer = useTimer();
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [path]);
+  // no celular, o nome da seção só aparece na barra do topo depois que o título da página sai da tela (não se repete)
+  const [nomeVisivel, setNomeVisivel] = useState(true);
+  useEffect(() => {
+    let io: IntersectionObserver | undefined;
+    const quadro = requestAnimationFrame(() => {
+      const h1 = document.querySelector("main h1");
+      if (!h1) { setNomeVisivel(true); return; }
+      io = new IntersectionObserver(([e]) => setNomeVisivel(!e.isIntersecting), { rootMargin: "-48px 0px 0px 0px" });
+      io.observe(h1);
+    });
+    return () => { cancelAnimationFrame(quadro); io?.disconnect(); };
+  }, [path]);
   // com o menu aberto no celular, a página de trás não rola junto
   useEffect(() => {
     if (!open) return;
@@ -74,10 +170,10 @@ export function Sidebar() {
     const k = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "\\") {
         e.preventDefault();
-        setHidden((h) => {
-          window.dispatchEvent(new CustomEvent("modo-foco", { detail: { oculto: !h } }));
-          return !h;
-        });
+        // o aviso sai fora do setState: dentro do updater (que o React pode rodar duas vezes) o 1º aperto se perdia;
+        // o próprio aviso muda o menu (ouvinte abaixo), e o estado atual vem do atributo que espelha `hidden`
+        const oculto = document.documentElement.dataset.menu !== "oculto";
+        window.dispatchEvent(new CustomEvent("modo-foco", { detail: { oculto } }));
       }
     };
     document.addEventListener("keydown", k);
@@ -116,29 +212,19 @@ export function Sidebar() {
           <PanelLeftClose size={16} />
         </button>
       </div>
-      {NAV.map((item, i) =>
-        "sep" in item ? (
-          <div key={`sep${i}`} className="my-2 mx-2 border-t border-line" />
-        ) : (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center gap-3 md:gap-2.5 rounded-lg px-3 md:px-2.5 py-2.5 md:py-[7px] text-[15px] md:text-sm border transition-colors ${
-              active(item.href) ? "bg-sel border-transparent text-ink font-medium" : "border-transparent text-ink/80 hover:bg-sel"
-            }`}
-          >
+      {NAV.map((item, i) => {
+        if ("sep" in item) return <div key={`sep${i}`} className="my-2 mx-2 border-t border-line" />;
+        const cls = `flex items-center gap-3 md:gap-2.5 rounded-lg px-3 md:px-2.5 py-2.5 md:py-[7px] text-[15px] md:text-sm border transition-colors ${
+          active(item.href) ? "bg-sel border-transparent text-ink font-medium" : "border-transparent text-ink/80 hover:bg-sel"
+        }`;
+        if (item.href === "/timer") return <ItemTimer key={item.href} className={cls} />;
+        return (
+          <Link key={item.href} href={item.href} className={cls}>
             <item.icon size={17} strokeWidth={1.8} className="text-icon shrink-0" />
             {item.label}
-            {/* sessão do Timer em andamento: o relógio aparece no próprio item (pulsando enquanto corre) */}
-            {item.href === "/timer" && showTimer && (
-              <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-mono tabular-nums text-muted">
-                <span className={`dot !w-1.5 !h-1.5 ${timer.running ? "bg-good animate-pulse" : "bg-faint"}`} aria-hidden />
-                {fmtClock(timer.mode === "pomodoro" ? timer.remaining : timer.seconds)}
-              </span>
-            )}
           </Link>
-        ),
-      )}
+        );
+      })}
       <div className="mt-auto pt-3 space-y-0.5">
         <Link href="/armazenamento" className={`${ITEM_RODAPE} ${active("/armazenamento") ? "bg-sel text-ink font-medium" : "text-muted hover:bg-sel hover:text-ink"}`}>
           <HardDrive size={17} strokeWidth={1.8} /> Armazenamento
@@ -165,7 +251,7 @@ export function Sidebar() {
           <Menu size={20} />
         </button>
         {/* no celular, o nome da seção em que você está (o nome do sistema fica no menu) */}
-        <span className="font-semibold text-[15px] text-center truncate">{secao}</span>
+        <span className={`font-semibold text-[15px] text-center truncate transition-opacity duration-200 ${nomeVisivel ? "" : "opacity-0"}`}>{secao}</span>
         <span className="justify-self-end pr-2 text-xs font-mono tabular-nums text-muted">
           {showTimer ? fmtClock(timer.mode === "pomodoro" ? timer.remaining : timer.seconds) : ""}
         </span>

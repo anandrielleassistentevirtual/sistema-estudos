@@ -5,6 +5,7 @@ import { Atom, ChevronDown, ChevronRight, Download, Folder, FolderOpen, Inbox, P
 import { Empty, Page } from "@/components/page";
 import { NotasTabs } from "@/components/notas-tabs";
 import { LiteraryModal, type BookLite } from "@/components/literary-modal";
+import { HL_COLORS } from "@/components/reader/types";
 import { supabase } from "@/lib/supabase/client";
 import { baixarArquivo } from "@/lib/baixar";
 import { todas } from "@/lib/supabase/todas";
@@ -21,6 +22,10 @@ function locKey(n: Note): number {
   return m ? Number(m[1]) : 1e9;
 }
 
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+/** "000 Generalidades": o código e o nome, sem o travessão (como na árvore). */
+const rotuloPasta = (f: F) => (f.code ? `${f.code} ${f.name}` : f.name);
+
 /**
  * Notas literárias por livro. As pastas são as MESMAS da Biblioteca (mesma tabela),
  * então toda pasta criada lá aparece aqui. Cada livro reúne todas as suas anotações concluídas.
@@ -34,6 +39,11 @@ export default function Literarias() {
   const [bookId, setBookId] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<Note | "nova" | null>(null);
+  const [pronto, setPronto] = useState(false);
+  // no celular a árvore fica recolhida atrás do seletor "Pasta:" (a lista aparece na primeira tela)
+  const [indiceNoCelular, setIndiceNoCelular] = useState(false);
+  // os livros ainda sem anotação ficam num grupo recolhido, abaixo dos anotados
+  const [verSemAnotacao, setVerSemAnotacao] = useState(false);
   // a lista vem sem o texto (campo pesado); o texto de cada livro é baixado quando o livro é aberto
   const [comConteudo, setComConteudo] = useState<Set<string>>(new Set());
 
@@ -50,6 +60,7 @@ export default function Literarias() {
     setNotes(n.map((x) => ({ ...x, content: "" })));
     setComConteudo(new Set());
     setAtomics(a);
+    setPronto(true);
   }, []);
   useEffect(() => {
     void load();
@@ -112,10 +123,24 @@ export default function Literarias() {
       : books.filter((b) => b.folder_id && descendants(sel).has(b.folder_id));
     return [...list].sort((a, b) => (doneByBook.get(b.id)?.length ?? 0) - (doneByBook.get(a.id)?.length ?? 0) || bookName(a).localeCompare(bookName(b), "pt-BR"));
   }, [books, sel, descendants, doneByBook]);
+  // primeiro os livros com anotações; os outros vão para o grupo recolhido
+  const anotados = shelf.filter((b) => doneByBook.has(b.id));
+  const semAnotacao = shelf.filter((b) => !doneByBook.has(b.id));
+  const pendentes = useMemo(() => [...pendingByBook.values()].reduce((a, b) => a + b, 0), [pendingByBook]);
 
   const book = bookId ? books.find((b) => b.id === bookId) : undefined;
   const bookNotes = bookId ? doneByBook.get(bookId) ?? [] : [];
   const folderOf = (fid: string | null) => (fid ? folders.find((f) => f.id === fid) : undefined);
+  const pastaSel = sel !== "todos" && sel !== "sem-pasta" ? folderOf(sel) : undefined;
+  // quantas anotações concluídas há onde se está (o mesmo número da árvore)
+  const contaSel = sel === "todos" ? done.length : pastaSel ? countIn(pastaSel.id) : 0;
+
+  // escolher uma pasta também recolhe a árvore no celular
+  function escolher(k: string) {
+    setSel(k);
+    setBookId(null);
+    setIndiceNoCelular(false);
+  }
 
   function exportMd() {
     if (!book) return;
@@ -140,19 +165,19 @@ export default function Literarias() {
           const n = countIn(f.id);
           return (
             <div key={f.id}>
-              <div onClick={() => { setSel(f.id); setBookId(null); if (kids) setOpen((o) => new Set(o).add(f.id)); }}
+              <div onClick={() => { escolher(f.id); if (kids) setOpen((o) => new Set(o).add(f.id)); }}
                 className={`flex items-center gap-1 rounded-md pr-1 text-sm cursor-pointer ${sel === f.id && !bookId ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}
                 style={{ paddingLeft: 4 + depth * 14 }}>
-                <button className={`p-0.5 text-faint ${kids ? "" : "invisible"}`}
+                <button className={`p-0.5 text-faint ${kids ? "" : "invisible"}`} aria-label={open.has(f.id) ? "Recolher" : "Expandir"}
                   onClick={(e) => { e.stopPropagation(); setOpen((o) => { const x = new Set(o); if (x.has(f.id)) x.delete(f.id); else x.add(f.id); return x; }); }}>
                   {open.has(f.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
                 {sel === f.id ? <FolderOpen size={15} className="text-icon" /> : <Folder size={15} className="text-muted" />}
-                <span className="truncate flex-1 py-1.5" title={folderLabel(f)}>
-                  {f.code && <span className={`font-mono text-xs mr-1 ${depth === 0 ? "font-medium text-ink" : "text-muted"}`}>{f.code} –</span>}
+                <span className="truncate flex-1 py-2.5 lg:py-1.5" title={folderLabel(f)}>
+                  {f.code && <span className={`font-mono text-xs mr-1.5 ${depth === 0 ? "font-medium text-ink" : "text-muted"}`}>{f.code}</span>}
                   <span className={depth === 0 ? "font-medium" : ""}>{f.name}</span>
                 </span>
-                {n > 0 && <span className="text-xs text-faint tabular-nums">{n}</span>}
+                {n > 0 && <span className="text-xs text-faint tabular-nums" title="anotações concluídas">{n}</span>}
               </div>
               {open.has(f.id) && <Tree parent={f.id} depth={depth + 1} />}
             </div>
@@ -162,49 +187,92 @@ export default function Literarias() {
     );
   }
 
+  /** A linha do livro: título em cima; autor e pasta embaixo (sempre duas linhas, na ordem da LivroLinha). */
+  function linha(b: BookLite) {
+    const n = doneByBook.get(b.id)?.length ?? 0;
+    const p = pendingByBook.get(b.id) ?? 0;
+    const f = folderOf(b.folder_id);
+    return (
+      <button key={b.id} onClick={() => setBookId(b.id)}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-sel/50 transition-colors ${n ? "" : "opacity-60"}`}>
+        <span className="min-w-0 flex-1">
+          <span className="font-medium leading-snug line-clamp-2 sm:line-clamp-1 break-words" title={b.title}>{b.title}</span>
+          <span className="mt-1 flex items-center gap-x-1.5 text-xs text-muted min-w-0">
+            {/* no PC o autor vai até 55% da linha e a pasta corta antes dele; no celular a pasta é só o código
+                (como na Biblioteca), para o autor caber inteiro */}
+            {b.author && <><span className="truncate min-w-0 sm:shrink-0 sm:max-w-[min(14rem,55%)]" title={b.author}>{b.author}</span><span className="text-faint shrink-0">·</span></>}
+            {f ? (
+              <span className={`truncate sm:shrink sm:min-w-0 ${f.code ? "shrink-0" : "min-w-0"}`} title={folderLabel(f)}>
+                {f.code && <span className="font-mono text-[11px] text-faint">{f.code}</span>}
+                <span className={f.code ? "hidden sm:inline" : ""}>{f.code ? " " : ""}{f.name}</span>
+              </span>
+            ) : <span className="truncate shrink-0">Sem pasta</span>}
+          </span>
+        </span>
+        {p > 0 && <span className="inline-flex items-center gap-1 text-[11px] text-muted tabular-nums shrink-0" title={`${p} na Inbox`}><Inbox size={12} /> {p}</span>}
+        {/* largura fixa no PC: os números e o selo da Inbox ficam na mesma coluna em todas as linhas
+            (no celular a largura vai para o título) */}
+        {n > 0 && <span className="text-xs text-muted shrink-0 sm:min-w-[5rem]"><b className="tabular-nums font-medium text-ink">{n}</b> {n === 1 ? "anotação" : "anotações"}</span>}
+      </button>
+    );
+  }
+
   return (
-    <Page wide tabs={<NotasTabs />} title="Notas literárias"
-      subtitle="Organizadas nas mesmas pastas da Biblioteca. Cada livro reúne todas as suas anotações concluídas.">
-      <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4">
-        <aside className="card p-2 h-fit md:sticky md:top-4">
+    <Page tabs={<NotasTabs />} title="Notas"
+      // sem nenhuma anotação o "0 em 0 de N" não diz nada: o <Empty> explica e a manchete fica só com a Inbox
+      subtitle={!pronto ? undefined : done.length
+        ? `${plural(done.length, "anotação", "anotações")} em ${doneByBook.size} de ${plural(books.length, "livro", "livros")}${pendentes ? ` · ${pendentes} na Inbox` : ""}`
+        : pendentes ? `${plural(pendentes, "nota", "notas")} na Inbox` : undefined}
+      ajuda="Notas literárias organizadas nas mesmas pastas da Biblioteca: cada livro reúne todas as suas anotações concluídas. Para criar pastas, use a Biblioteca; elas aparecem aqui sozinhas.">
+      {/* índice à esquerda a partir de lg; antes disso a árvore abre pelo seletor "Pasta:", como na Estante */}
+      <div className="grade-indice">
+        <button type="button" className="lg:hidden card flex items-center gap-2 px-3 py-2.5 text-sm text-left" aria-expanded={indiceNoCelular} onClick={() => setIndiceNoCelular((v) => !v)}>
+          <Folder size={16} className="text-muted shrink-0" />
+          <span className="text-muted shrink-0">Pasta:</span>
+          <span className="font-medium truncate flex-1">
+            {sel === "todos" ? "Todos os livros" : sel === "sem-pasta" ? "Sem pasta" : pastaSel ? <>{pastaSel.code && <span className="font-mono text-xs mr-1.5">{pastaSel.code}</span>}{pastaSel.name}</> : "—"}
+          </span>
+          {contaSel > 0 && <span className="text-xs text-faint tabular-nums shrink-0" title="anotações concluídas">{contaSel}</span>}
+          <ChevronDown size={16} className={`text-faint shrink-0 transition-transform ${indiceNoCelular ? "rotate-180" : ""}`} />
+        </button>
+        <aside className={`card p-2 h-fit lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto ${indiceNoCelular ? "" : "hidden lg:block"}`}>
           {(["todos", "sem-pasta"] as const).map((k) => (
-            <div key={k} onClick={() => { setSel(k); setBookId(null); }}
-              className={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm cursor-pointer ${sel === k && !bookId ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
+            <div key={k} onClick={() => escolher(k)}
+              className={`flex items-center justify-between rounded-md px-2 py-2.5 lg:py-1.5 text-sm cursor-pointer ${sel === k && !bookId ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
               <span>{k === "todos" ? "Todos os livros" : "Sem pasta"}</span>
-              <span className="text-xs text-faint">{k === "todos" ? done.length : ""}</span>
+              {/* a mesma regra das pastas: o contador só aparece quando há o que contar */}
+              {k === "todos" && done.length > 0 && <span className="text-xs text-faint tabular-nums" title="anotações concluídas">{done.length}</span>}
             </div>
           ))}
           <div className="border-t border-line my-2" />
           <Tree parent={null} depth={0} />
-          <p className="text-[11px] text-faint px-2 pt-2">Para criar pastas, use a Biblioteca — elas aparecem aqui automaticamente.</p>
+          {pronto && folders.length === 0 && <p className="text-xs text-muted px-2 py-2">Para criar pastas, use a Biblioteca: elas aparecem aqui sozinhas.</p>}
         </aside>
 
         <div className="min-w-0">
           {!book ? (
-            shelf.length === 0 ? (
+            !pronto ? null : shelf.length === 0 ? (
               <Empty>Nenhum livro nesta pasta.</Empty>
             ) : (
-              <div className="card divide-y divide-line">
-                {shelf.map((b) => {
-                  const n = doneByBook.get(b.id)?.length ?? 0;
-                  const p = pendingByBook.get(b.id) ?? 0;
-                  const f = folderOf(b.folder_id);
-                  return (
-                    <button key={b.id} onClick={() => setBookId(b.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2 ${n ? "" : "opacity-60"}`}>
-                      <span className="min-w-0 flex-1">
-                        <span className="line-clamp-2 sm:line-clamp-1 break-words leading-snug">
-                          {b.author && <><span className="font-medium">{b.author}</span><span className="text-faint"> — </span></>}
-                          <span className="font-medium">{b.title}</span>
-                        </span>
-                        {f && <span className="text-xs text-muted"><span className="font-mono">{f.code}</span> {f.name}</span>}
-                      </span>
-                      {p > 0 && <span className="inline-flex items-center gap-1 text-[11px] text-muted"><Inbox size={12} /> {p}</span>}
-                      <span className={`text-xs tabular-nums shrink-0 text-right ${n ? "font-medium text-accent" : "text-faint"}`}>{n ? `${n} ${n === 1 ? "anotação" : "anotações"}` : <>sem<br className="sm:hidden" /> anotações</>}</span>
+              <>
+                {anotados.length > 0 ? (
+                  <div className="card divide-y divide-line">{anotados.map(linha)}</div>
+                ) : (
+                  <Empty>
+                    {sel === "todos" ? "Nenhuma anotação concluída ainda." : "Nenhuma anotação concluída nesta pasta."} Conclua notas na Inbox e elas aparecem aqui, no livro.
+                  </Empty>
+                )}
+                {/* os livros sem anotação continuam a um toque: dali se abre o livro para usar + Anotação */}
+                {semAnotacao.length > 0 && (
+                  <div className="mt-3">
+                    <button type="button" className="btn btn-ghost text-sm text-muted" aria-expanded={verSemAnotacao} onClick={() => setVerSemAnotacao((v) => !v)}>
+                      <ChevronRight size={15} className={`transition-transform ${verSemAnotacao ? "rotate-90" : ""}`} />
+                      {plural(semAnotacao.length, "livro", "livros")} ainda sem anotações
                     </button>
-                  );
-                })}
-              </div>
+                    {verSemAnotacao && <div className="card divide-y divide-line mt-2">{semAnotacao.map(linha)}</div>}
+                  </div>
+                )}
+              </>
             )
           ) : (
             <div>
@@ -216,7 +284,7 @@ export default function Literarias() {
                     <span>{book.title}</span>
                   </h2>
                   <p className="text-sm text-muted">
-                    {folderOf(book.folder_id) ? folderLabel(folderOf(book.folder_id)!) : "Sem pasta"} · {bookNotes.length} {bookNotes.length === 1 ? "anotação" : "anotações"}
+                    {folderOf(book.folder_id) ? rotuloPasta(folderOf(book.folder_id)!) : "Sem pasta"} · {bookNotes.length} {bookNotes.length === 1 ? "anotação" : "anotações"}
                     {pendingByBook.get(book.id) ? ` · ${pendingByBook.get(book.id)} ainda na Inbox` : ""}
                   </p>
                 </div>
@@ -242,7 +310,7 @@ export default function Literarias() {
                             <Link className="btn btn-ghost px-1.5 py-1" title="Criar nota atômica a partir desta" href={`/notas/atomicas?de=${n.id}`}><Atom size={13} /></Link>
                           </span>
                         </div>
-                        {n.quote && <blockquote className="font-serif text-[1.02rem] leading-relaxed border-l-[3px] border-[#eda100] pl-3 my-2">“{n.quote}”</blockquote>}
+                        {n.quote && <blockquote className="font-serif text-[1.02rem] leading-relaxed border-l-[3px] pl-3 my-2" style={{ borderColor: HL_COLORS.amarelo }}>“{n.quote}”</blockquote>}
                         {n.content && <p className="text-sm leading-relaxed whitespace-pre-wrap">{n.content}</p>}
                         {derived.length > 0 && (
                           <div className="mt-3 flex flex-wrap gap-1.5">

@@ -21,17 +21,21 @@ export function perfilDe(b: Pick<Book, "motivo_leitura" | "nivel_leitura">): Per
   return null;
 }
 
-export const PERFIS: Record<Perfil, { nome: string; cor: string; mede: string; explica: string }> = {
+/**
+ * Tudo aqui é Leitura, então os três motivos têm a cor da área; o que os distingue é o nome e a forma
+ * da bolinha (cheia, meia, vazada), para a cor de outra área não aparecer com outro sentido.
+ */
+export const PERFIS: Record<Perfil, { nome: string; cor: string; marca: "cheia" | "meia" | "vazada"; mede: string; explica: string }> = {
   conhecimento: {
-    nome: "Conhecimento", cor: "var(--area-estudos)", mede: "domínio",
+    nome: "Conhecimento", cor: "var(--area-leitura)", marca: "cheia", mede: "domínio",
     explica: "Livros densos, lidos devagar: medidos pelo domínio (roteiro de Adler, destaques e notas, e o que você ainda lembra).",
   },
   informacao: {
-    nome: "Informação", cor: "var(--area-leitura)", mede: "ritmo",
+    nome: "Informação", cor: "var(--area-leitura)", marca: "meia", mede: "ritmo",
     explica: "Ler para saber: medidos pelo ritmo (palavras por minuto) e pelo quanto falta.",
   },
   entretenimento: {
-    nome: "Entretenimento", cor: "var(--area-escrita)", mede: "avanço",
+    nome: "Entretenimento", cor: "var(--area-leitura)", marca: "vazada", mede: "avanço",
     explica: "Ler por prazer: só o avanço conta.",
   },
 };

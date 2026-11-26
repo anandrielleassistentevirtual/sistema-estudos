@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { ChevronRight, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Page } from "@/components/page";
+import { CardHead, Faixa, Indicador, Page } from "@/components/page";
 import { CalendarPanel } from "@/components/calendar-panel";
 import { ConfissaoAviso } from "@/components/confissao-aviso";
 import { Cover } from "@/components/cover";
@@ -126,9 +126,16 @@ export default function Dashboard() {
   const ppmMedia = ppm.leitura && ppm.estudos ? Math.round((ppm.leitura + ppm.estudos) / 2) : ppm.leitura || ppm.estudos || s.ppm;
   const ppmLivros = ritmoLivros || ppm.leitura || ppmMedia;
 
+  // a referência da comparação, dita por extenso na manchete (é ela que dá sentido às setas ▲▼ da faixa)
+  const comparadoCom = periodo.vs === "anterior" ? "a semana anterior" : periodo.vs === "ontem" ? "ontem"
+    : periodo.vs.endsWith("antes") ? `os ${periodo.vs}` : `o ${periodo.vs}`;
+
   return (
-    // tudo numa tela: indicadores no topo; calendário e tempo lado a lado; escrita, leitura e biblioteca embaixo
-    <Page denso title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"} subtitle={<>{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}<span className="text-faint"> · ▲▼ comparado com {periodo.vs === "anterior" ? "a semana anterior" : periodo.vs === "ontem" ? "ontem" : `o ${periodo.vs}`}</span></>}
+    // a história de cima para baixo: onde estou (manchete), como estou (faixa), as metas, quando e no quê, escrita e leitura e, no fim, o horizonte.
+    // O título fica "Olá, {nome}" (exceção à regra título = nome da seção): é o lugar do nome, que o lápis troca.
+    <Page title={nome ? `Olá, ${nome.split(/\s+/)[0]}` : "Olá"}
+      // a manchete só enquadra (data, período e com o que se compara): os números ficam uma vez só, na faixa logo abaixo
+      subtitle={<>{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · <span className="text-ink">{periodo.nome}</span>, comparado com {comparadoCom}</>}
       titleExtra={
         <button className="text-faint hover:text-ink p-1 -m-1 rounded-md" title={nome ? "Trocar o nome" : "Como quer ser chamado?"} aria-label="Trocar o nome" onClick={async () => {
           const n = prompt("Seu nome:", nome)?.trim();
@@ -140,30 +147,28 @@ export default function Dashboard() {
       actions={<FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />}>
       {/* um só ritmo vertical entre os blocos (o mesmo vão das grades) */}
       <div className="flex flex-col gap-3 md:gap-4">
-      {/* contagens regressivas: dias, horas, minutos e segundos até as datas que importam */}
-      <Contagens />
       {/* aviso que pede uma ação (só aparece quando está na hora) */}
       <ConfissaoAviso />
-      {/* um bloco por assunto, cada um com o número principal, a comparação e um detalhe:
-          tempo (e a média por dia), constância (dias e sequência), leitura (e o ritmo), escrita e idiomas.
-          As setas comparam com o período anterior equivalente (o nome dele está no subtítulo). */}
-      <div className="card grid grid-cols-2 md:grid-cols-5 gap-px bg-line overflow-hidden [&>*:last-child]:col-span-2 md:[&>*:last-child]:col-span-1">
+      {/* "estou indo bem?", área por área: tempo (o herói, e a média por dia), constância (dias e sequência),
+          leitura (e o ritmo), escrita e idiomas. As setas comparam com o período anterior equivalente (dito na manchete). */}
+      {/* a unidade ao lado do número vai com leading-none: senão a linha cresce e a nota desce 2px em relação ao Tempo */}
+      <Faixa colunas={5}>
         <Indicador label="Tempo de estudo" value={fmtDuration(s.tempo)} delta={<Variacao atual={s.tempo} base={s.tempoAnt} />}
           detalhe={`${fmtDuration(s.media)} por dia`}
           explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(s.tempoAnt)} (${fmtDuration(s.mediaAnt)} por dia).`} />
-        <Indicador label="Constância" value={<>{s.diasAtivos}<span className="text-sm font-normal text-muted"> de {s.dias} dias</span></>}
+        <Indicador label="Constância" value={<>{s.diasAtivos}<span className="text-sm font-normal text-muted leading-none"> de {s.dias} dias</span></>}
           detalhe={`sequência de ${s.streak} ${s.streak === 1 ? "dia" : "dias"}`}
           explica="Dias do período com algum estudo, leitura, revisão ou escrita (contando a partir do seu primeiro registro). A sequência é de dias seguidos até hoje." />
-        <Indicador label="Leitura" cor={COR_AREA.leitura} value={<>{nf.format(s.lidas)}<span className="text-sm font-normal text-muted"> pal.</span></>}
+        <Indicador label="Leitura" cor={COR_AREA.leitura} value={<>{nf.format(s.lidas)}<span className="text-sm font-normal text-muted leading-none"> pal.</span></>}
           delta={<Variacao atual={s.lidas} base={s.lidasAnt} />} detalhe={s.ppm ? `${s.ppm} ppm` : "—"}
           explica={`Palavras lidas no leitor (livros e aulas) — ${periodo.nome.toLowerCase()}, a ${s.ppm || "—"} palavras por minuto. Período anterior: ${nf.format(s.lidasAnt)} palavras, ${s.ppmAnt || "—"} ppm.`} />
-        <Indicador label="Escrita" cor={COR_AREA.escrita} value={<>{nf.format(s.escritas)}<span className="text-sm font-normal text-muted"> pal.</span></>}
+        <Indicador label="Escrita" cor={COR_AREA.escrita} value={<>{nf.format(s.escritas)}<span className="text-sm font-normal text-muted leading-none"> pal.</span></>}
           delta={<Variacao atual={s.escritas} base={s.escritasAnt} />}
           explica={`Palavras escritas na sala de escrita — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.escritasAnt)}.`} />
-        <Indicador label="Idiomas" cor={COR_AREA.idiomas} value={<>{nf.format(s.anki)}<span className="text-sm font-normal text-muted"> revisões</span></>}
+        <Indicador label="Idiomas" cor={COR_AREA.idiomas} value={<>{nf.format(s.anki)}<span className="text-sm font-normal text-muted leading-none"> revisões</span></>}
           delta={<Variacao atual={s.anki} base={s.ankiAnt} />}
           explica={`Revisões no Anki, nos baralhos dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.ankiAnt)}.`} />
-      </div>
+      </Faixa>
 
       {/* a Season: a estação, as semanas e as metas (os mesmos números da página da Season) */}
       <SeasonPainel />
@@ -174,14 +179,12 @@ export default function Dashboard() {
         <TimeBreakdown compacto periodo={periodo} />
       </div>
 
-      {/* escrita e leitura lado a lado, da mesma altura (a leitura junta "continuar lendo" e a situação da biblioteca) */}
+      {/* escrita e leitura espelhadas, da mesma altura: cabeçalho, uma linha de resumo, os itens com barra e o rodapé */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
         <WritingPanel compacto periodo={periodo} />
         <div className="card p-4 min-w-0 flex flex-col">
-          <div className="flex items-center justify-between mb-2.5">
-            <h2 className="card-title flex items-center gap-2"><span className="dot" style={{ background: COR_AREA.leitura }} aria-hidden /> Leitura</h2>
-            <Link href="/biblioteca" className="text-sm text-accent flex items-center gap-0.5">Biblioteca <ChevronRight size={15} /></Link>
-          </div>
+          <CardHead titulo="Leitura" cor={COR_AREA.leitura}
+            acao={<Link className="link-ir" href="/biblioteca">Biblioteca <ChevronRight size={14} /></Link>} />
           {/* a situação da biblioteca numa linha */}
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted mb-2">
             {(["lendo", "aguardando", "pausado", "lido"] as const).map((st) => (
@@ -224,29 +227,10 @@ export default function Dashboard() {
           </p>
         </div>
       </section>
-
-      {/* para onde tudo isso leva */}
-      <QuadroSonhos />
       </div>
+
+      {/* o horizonte, para onde tudo isso leva: as contagens regressivas e o quadro dos sonhos */}
+      <QuadroSonhos antes={<Contagens />} />
     </Page>
-  );
-}
-
-/** Um bloco da faixa: o assunto (com a bolinha da área), o número e, embaixo, a comparação e um detalhe. */
-function Indicador({ label, value, delta, detalhe, cor, explica }: {
-  label: string; value: React.ReactNode; delta?: React.ReactNode; detalhe?: string; cor?: string; explica?: string;
-}) {
-  return (
-    <div className="bg-surface px-4 py-3 min-w-0" title={explica}>
-      <div className="text-xs text-muted truncate flex items-center gap-1.5">
-        {cor && <span className="dot !w-1.5 !h-1.5" style={{ background: cor }} aria-hidden />}<span className="truncate">{label}</span>
-      </div>
-      <div className="text-[1.35rem] font-medium tracking-[-0.02em] tabular-nums leading-none mt-1.5 whitespace-nowrap truncate">{value}</div>
-      {(delta || detalhe) && (
-        <div className="text-[11.5px] text-faint mt-1.5 truncate">
-          {delta}{delta && detalhe ? <span className="mx-1">·</span> : null}{detalhe}
-        </div>
-      )}
-    </div>
   );
 }

@@ -5,8 +5,9 @@
  */
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Clock, Languages, Layers, Play, Plus, Settings2, Trash2, X } from "lucide-react";
-import { Empty, Page, Stat } from "@/components/page";
+import { Clock, Languages, Play, Plus, Settings2, Trash2, X } from "lucide-react";
+import { CardHead, Empty, Faixa, Indicador, Page } from "@/components/page";
+import { TabNav } from "@/components/tab-nav";
 import { AnkiNoComputador, AnkiWebBarra, Conectar } from "@/components/anki-conta";
 import { ListeningPainel } from "@/components/listening-painel";
 import { ROTULO_LISTENING } from "@/lib/listening";
@@ -25,9 +26,7 @@ import { MarPainel, type PatchTempo } from "@/components/mar-painel";
 import { useTimerEstado } from "@/components/timer-context";
 import { COR_MAR } from "@/lib/mar";
 import { Variacao } from "@/components/variacao";
-import { semanasDoPeriodo, usePeriodo } from "@/lib/periodo";
-import { agrupar } from "@/components/mini-barras";
-import { COR_AREA } from "@/lib/cores";
+import { semanasDoPeriodo, usePeriodo, type Periodo } from "@/lib/periodo";
 
 interface Sess { id: string; day: string; started_at: string | null; seconds: number; language: string | null; label: string; mar_titulo_id: string | null }
 const COLUNAS_SESS = "id,day,started_at,seconds,language,label,mar_titulo_id";
@@ -43,8 +42,6 @@ export default function Idiomas() {
   const [noComputador, setNoComputador] = useState(false); // Anki aberto neste computador (AnkiConnect)
   useEffect(() => { void ankiOnline().then(setNoComputador); }, []);
   const [selId, setSelId] = useState<string | null>(null);
-  // revisões e cartões criados dividem o mesmo quadro (um calendário de cada vez)
-  const [verAnki, setVerAnki] = useState<"revisoes" | "criados">("revisoes");
   const [modal, setModal] = useState<null | "idioma" | "tempo" | { edit: Language }>(null);
   const [periodo, setPeriodo] = usePeriodo();
   const padraoDesde = dayKey(addDays(weekStart(new Date()), -52 * 7));
@@ -114,7 +111,7 @@ export default function Idiomas() {
   // MAR: as sessões ligadas a um título ou com o rótulo "MAR · …" (a fonte única do tempo do MAR)
   const sessoesMar = useMemo(() => minhasSessoes.filter((s) => ehMar(s.label, s.mar_titulo_id)), [minhasSessoes]);
 
-  // por dia: revisões (azul), criados (amarelo) e segundos no Anki
+  // por dia: revisões e cartões criados (os dois calendários do cartão Anki)
   const { revisoes, criados } = useMemo(() => {
     const revisoes = new Map<string, DayStats>(), criados = new Map<string, DayStats>();
     for (const d of meusDias) {
@@ -134,7 +131,10 @@ export default function Idiomas() {
   const criadosP = soma(noP(meusDias), (d) => d.criados), criadosA = soma(noP(meusDias, antDe, antAte), (d) => d.criados);
   const notasP = soma(noP(meusDias), (d) => d.notas_criadas);
   const tabela = (baralhos ?? []).filter((b) => decksDoIdioma.has(b.nome.split("::")[0]));
-  const paraHoje = soma(tabela.filter((b) => !b.nome.includes("::")), (b) => b.revisar + b.aprendendo);
+  // a fila de hoje: revisões + aprendendo dos baralhos de cima (os subbaralhos já estão dentro deles)
+  const maes = tabela.filter((b) => !b.nome.includes("::"));
+  const paraHoje = soma(maes, (b) => b.revisar + b.aprendendo);
+  const revisarHoje = soma(maes, (b) => b.revisar), aprendendoHoje = soma(maes, (b) => b.aprendendo);
   const meta = sel?.weekly_goal_min ? sel.weekly_goal_min * 60 : 0;
   // Listening (script do curso) e aulas em vídeo do curso
   const escuta = minhasSessoes.filter((s) => s.label === ROTULO_LISTENING);
@@ -145,15 +145,10 @@ export default function Idiomas() {
   const restoTimerP = timerP - escutaP - aulasP - marP;
   // meta semanal proporcional ao período (ex.: 5 h por semana → 10 h em duas semanas)
   const metaP = meta ? (meta * periodo.dias) / 7 : 0;
-  // a dinâmica de cada número no período (mini-gráfico nos indicadores)
-  const serie = <T extends { day: string }>(xs: T[], f: (x: T) => number) => {
-    const m = new Map<string, number>();
-    for (const x of xs) if (x.day >= de && x.day <= ate) m.set(x.day, (m.get(x.day) ?? 0) + f(x));
-    const out: number[] = [];
-    for (let d = parseDay(de); dayKey(d) <= ate; d = addDays(d, 1)) out.push(m.get(dayKey(d)) ?? 0);
-    return agrupar(out);
-  };
-  const serieTempo = (() => { const a = serie(minhasSessoes, (x) => x.seconds), b = serie(meusDias, (x) => x.segundos); return a.map((v, i) => v + (b[i] ?? 0)); })();
+  const pctMeta = metaP ? Math.round(Math.min(1, (timerP + ankiP) / metaP) * 100) : 0;
+  // a referência das setas ▲▼, por extenso na manchete (a mesma frase do Dashboard)
+  const comparadoCom = periodo.vs === "anterior" ? "a semana anterior" : periodo.vs === "ontem" ? "ontem"
+    : periodo.vs.endsWith("antes") ? `os ${periodo.vs}` : `o ${periodo.vs}`;
 
   // barras do período: por dia (até ~1 mês), por semana (até ~6 meses) ou por mês
   const barras = useMemo(() => {
@@ -192,9 +187,14 @@ export default function Idiomas() {
     const anki = soma(meusDias.filter((d) => d.day >= de && d.day <= ate), (d) => d.segundos);
     if (anki) m.set("Anki", (m.get("Anki") ?? 0) + anki);
     const tudo = [...m.entries()].sort((a, b) => b[1] - a[1]);
-    // no máximo 5 linhas (para a página caber na tela): o resto vira "Outros"
-    if (tudo.length <= 5) return tudo;
-    return [...tudo.slice(0, 4), ["Outros", tudo.slice(4).reduce((a, [, v]) => a + v, 0)] as [string, number]];
+    // no máximo 5 linhas (para a página caber na tela): o resto vira "Outros". Listening e MAR têm sempre a linha
+    // deles (não estão na faixa de números: o valor só aparece aqui), e o corte vale só para os outros rótulos.
+    const fixo = (k: string) => k === "Listening" || k === "MAR";
+    const outros = tudo.filter(([k]) => !fixo(k));
+    const vagas = 5 - (tudo.length - outros.length);
+    if (outros.length <= vagas) return tudo;
+    const ficam = new Set(outros.slice(0, vagas - 1).map(([k]) => k));
+    return [...tudo.filter(([k]) => fixo(k) || ficam.has(k)), ["Outros", outros.slice(vagas - 1).reduce((a, [, v]) => a + v, 0)] as [string, number]];
   }, [minhasSessoes, meusDias, de, ate]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
@@ -206,127 +206,99 @@ export default function Idiomas() {
 
   return (
     <Page
-      denso
       title="Idiomas"
-      subtitle="Cada idioma com o seu tempo, as suas revisões e os seus cartões do Anki."
-      // no topo, só o período; os botões de cada idioma ficam junto dos idiomas
+      // os idiomas são as abas da seção (o mesmo lugar das abas das outras seções); a última cadastra outro.
+      // Sempre presentes (carregando ou sem idiomas, só o "+ Idioma"): o título fica no mesmo pixel em todos os casos
+      tabs={
+        <TabNav rotulo="Idiomas" abas={[
+          ...(langs ?? []).map((l) => ({ id: l.id, label: l.name, icone: <Bandeira codigo={l.bandeira} tamanho={14} />, ativa: l.id === selId, onClick: () => setSelId(l.id) })),
+          { id: "novo", label: "Idioma", icone: <Plus size={14} />, fantasma: true, ativa: false, title: "Cadastrar idioma", onClick: () => setModal("idioma") },
+        ]} />
+      }
+      subtitle={sel && <>{sel.name} · <span className="text-ink">{periodo.nome}</span>, comparado com {comparadoCom}</>}
+      ajuda="Cada idioma com o seu tempo, as suas revisões e os seus cartões do Anki."
+      // os botões antes e o filtro por último: a borda direita do filtro fica no mesmo x do Dashboard e da Saúde
       actions={
         <>
-          <FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />
+          {sel && (
+            <>
+              {/* no celular, só o ícone (o texto fica no title) */}
+              <button className="btn btn-ghost max-sm:px-2.5" onClick={() => setModal("tempo")} title="Registrar tempo" aria-label="Registrar tempo">
+                <Clock size={15} /><span className="hidden sm:inline">Registrar tempo</span>
+              </button>
+              <button className="btn btn-ghost max-sm:px-2.5" onClick={() => setModal({ edit: sel })} title={`Configurar ${sel.name}`} aria-label={`Configurar ${sel.name}`}>
+                <Settings2 size={15} /><span className="hidden sm:inline">Configurar</span>
+              </button>
+            </>
+          )}
           {langs && langs.length === 0 && <button className="btn" onClick={() => setModal("idioma")}><Plus size={15} /> Cadastrar idioma</button>}
+          <FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />
         </>
       }
     >
       {langs && langs.length === 0 && <Empty icone={Languages}>Cadastre os idiomas que você estuda: cada um ganha a sua seção, com o tempo e os baralhos do Anki dele.</Empty>}
 
-      {/* com um idioma só, o "+ Idioma" vai para a linha do idioma (sobra altura para o resto caber na tela) */}
-      {langs && langs.length > 1 && (
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          {langs.length > 1 && langs.map((l) => (
-            <button key={l.id} onClick={() => setSelId(l.id)}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${l.id === selId ? "border-ink font-medium" : "border-line text-muted hover:text-ink"}`}>
-              <Bandeira codigo={l.bandeira} tamanho={14} /> {l.name}
-            </button>
-          ))}
-          <button onClick={() => setModal("idioma")} title="Cadastrar idioma"
-            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-line px-3 py-1.5 text-sm text-muted hover:text-ink hover:border-ink">
-            <Plus size={14} /> Idioma
-          </button>
-        </div>
-      )}
-
       {sel && (
-        // um só ritmo vertical entre os blocos (o mesmo vão das grades)
+        // a história de cima para baixo: como foi o período (faixa), o tempo (dia a dia | em quê) e as práticas (MAR | Anki)
         <div className="flex flex-col gap-3 md:gap-4">
-          {/* o idioma, as ações dele e a linha do AnkiWeb */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 -mb-1">
-            <Bandeira codigo={sel.bandeira} tamanho={22} />
-            <h2 className="text-lg font-medium">{sel.name}</h2>
-            <div className="flex items-center gap-1">
-              <button className="btn btn-ghost text-xs py-1 px-2" onClick={() => setModal("tempo")}><Clock size={14} /> Registrar tempo</button>
-              <button className="btn btn-ghost text-xs py-1 px-2" onClick={() => setModal({ edit: sel })}><Settings2 size={14} /> Configurar</button>
-              {langs?.length === 1 && (
-                <button className="btn btn-ghost text-xs py-1 px-2" onClick={() => setModal("idioma")} title="Cadastrar outro idioma"><Plus size={14} /> Idioma</button>
-              )}
-            </div>
-            {conta && <div className="w-full sm:w-auto sm:ml-auto"><AnkiWebBarra conta={conta} onMudou={load} /></div>}
-          </div>
-
-          {/* celular: 2 por linha; tablet: 3; computador: os 6 numa linha */}
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
-            <Stat compacto label="Tempo" cor={COR_AREA.idiomas} serie={serieTempo} value={fmtDuration(timerP + ankiP)} hint={<Variacao atual={timerP + ankiP} base={timerA + ankiA} vs={periodo.vs} />}
+          {/* na ordem: quanto estudei, quantas revisões fiz, quantos cartões criei e quanto o Anki pede hoje */}
+          <Faixa colunas={4}>
+            <Indicador label="Tempo" value={fmtDuration(timerP + ankiP)} delta={<Variacao atual={timerP + ankiP} base={timerA + ankiA} />}
+              detalhe={metaP ? `${pctMeta}% da meta` : undefined}
               explica={`${periodo.nome}: ${[
                 escutaP ? `Listening ${fmtDuration(escutaP)}` : null, aulasP ? `Aulas ${fmtDuration(aulasP)}` : null,
                 ankiP ? `Anki ${fmtDuration(ankiP)}` : null, marP ? `MAR ${fmtDuration(marP)}` : null,
                 restoTimerP > 0 ? `Timer ${fmtDuration(restoTimerP)}` : null,
-                metaP ? `meta ${fmtDuration(metaP)} (${Math.round(Math.min(1, (timerP + ankiP) / metaP) * 100)}%)` : null,
+                metaP ? `meta ${fmtDuration(metaP)} (${pctMeta}%)` : null,
                 `período anterior ${fmtDuration(timerA + ankiA)}`].filter(Boolean).join(" · ")}`} />
-            <Stat compacto label="Revisões" cor={COR_AREA.idiomas} serie={serie(meusDias, (x) => x.reviews)} value={nf.format(revP)} hint={<Variacao atual={revP} base={revA} vs={periodo.vs} />}
+            <Indicador label="Revisões" value={nf.format(revP)} delta={<Variacao atual={revP} base={revA} />}
               explica={`Revisões no Anki nos baralhos deste idioma — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(revA)}.`} />
-            <Stat compacto label="Para revisar hoje" value={baralhos ? nf.format(paraHoje) : "—"} hint={baralhos ? "fila de hoje no Anki" : "conecte o AnkiWeb (no fim da página)"}
-              explica="O que o Anki mostra para revisar hoje nos baralhos deste idioma (não depende do período)." />
-            <Stat compacto label="Cartões criados" cor="var(--ama-4)" serie={serie(meusDias, (x) => x.criados)} value={nf.format(criadosP)} hint={<Variacao atual={criadosP} base={criadosA} vs={periodo.vs} />}
+            <Indicador label="Cartões criados" value={nf.format(criadosP)} delta={<Variacao atual={criadosP} base={criadosA} />}
               explica={`Cartões criados — ${periodo.nome.toLowerCase()}${notasP && notasP !== criadosP ? `, em ${nf.format(notasP)} notas` : ""}. Período anterior: ${nf.format(criadosA)}.`} />
-            <Stat compacto label="Listening" cor={COR_AREA.idiomas} serie={serie(escuta, (x) => x.seconds)} value={fmtDuration(escutaP)} hint={<Variacao atual={escutaP} base={escutaA} vs={periodo.vs} />}
-              explica={`Áudios do curso (script) — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(escutaA)}.`} />
-            <Stat compacto label="MAR" cor={COR_AREA.idiomas} serie={serie(sessoesMar, (x) => x.seconds)} value={fmtDuration(marP)} hint={<Variacao atual={marP} base={marA} vs={periodo.vs} />}
-              explica={`Séries, filmes, vídeos e podcasts em ${sel.name.toLowerCase()} — ${periodo.nome.toLowerCase()}${sel.mar_meta_min ? ` (meta ${fmtDuration(sel.mar_meta_min * 60)} por dia)` : ""}. Período anterior: ${fmtDuration(marA)}.`} />
-          </div>
+            {/* a conta da fila à vista: as revisões (a coluna "revisões" dos baralhos) mais os cartões em aprendizado.
+                Por extenso a partir do xl; na célula estreita (celular, tablet), sem a palavra "revisões". O detalhe do
+                Indicador é só texto, então a versão que muda com a largura vai no lugar do delta (a fila não se compara) */}
+            <Indicador label="Fila de hoje" value={baralhos ? nf.format(paraHoje) : "—"}
+              delta={baralhos && temAnki && aprendendoHoje > 0 && (
+                <>
+                  <span className="xl:hidden">{nf.format(revisarHoje)} + {nf.format(aprendendoHoje)} aprendendo</span>
+                  <span className="max-xl:hidden">{nf.format(revisarHoje)} revisões + {nf.format(aprendendoHoje)} aprendendo</span>
+                </>
+              )}
+              detalhe={!baralhos ? "conecte o AnkiWeb" : !temAnki ? "nenhum baralho ligado" : aprendendoHoje ? undefined : `${nf.format(revisarHoje)} revisões`}
+              explica={`O que o Anki pede hoje nos baralhos deste idioma${temAnki && baralhos ? `: ${nf.format(revisarHoje)} revisões + ${nf.format(aprendendoHoje)} aprendendo` : ""} (não depende do período).`} />
+          </Faixa>
 
-          {!temAnki && (
-            <p className="text-sm text-muted -mt-1">
-              Nenhum baralho do Anki ligado a {sel.name}. <button className="underline underline-offset-2 hover:text-ink" onClick={() => setModal({ edit: sel })}>Escolher os baralhos</button>
-              {conta === null && <> · antes, conecte o AnkiWeb (abaixo)</>}.
-            </p>
-          )}
-
-          {/* linha do tempo: minutos, Anki e onde foi o tempo — os cartões da linha têm a mesma altura */}
-          <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 ${temAnki ? "xl:grid-cols-3" : ""}`}>
-            <section className={`card p-4 min-w-0 flex flex-col ${temAnki ? "md:col-span-2 xl:col-span-1" : ""}`}>
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-2">
-                <h3 className="card-title">Minutos por {porQue}</h3>
-                <span className="text-xs text-muted">
-                  {periodo.nome.toLowerCase()} · Timer + Anki · <span className="whitespace-nowrap" title="A parte de cada barra que foi MAR (séries, filmes, vídeos)"><span style={{ color: COR_MAR }}>■</span> MAR</span>
-                </span>
-              </div>
+          {/* o tempo: dia a dia | em quê. As duas linhas usam o mesmo molde de colunas, e os vãos se alinham */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-3 md:gap-4">
+            <section className="card p-4 min-w-0 flex flex-col">
+              <CardHead nivel="h3" titulo={<span title="Timer, registros de tempo e Anki, somados">Minutos por {porQue}</span>}
+                acao={marP > 0 && (
+                  <span className="text-xs text-muted whitespace-nowrap" title="A parte de cada barra que foi MAR (séries, filmes, vídeos)">
+                    <span style={{ color: COR_MAR }}>■</span> MAR
+                  </span>
+                )} />
               <GraficoQueOcupa>{(h) => <BarChart data={barras} unit="min" height={h} alturaExata cor="color-mix(in srgb, var(--area-idiomas) 40%, transparent)" corParte="var(--area-idiomas)" />}</GraficoQueOcupa>
             </section>
-            {temAnki && (
-              <section className="card p-4 min-w-0 flex flex-col">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <h3 className="card-title">Anki</h3>
-                  <div className="seg">
-                    {([["revisoes", "Revisões"], ["criados", "Cartões criados"]] as const).map(([k, l]) => (
-                      <button key={k} onClick={() => setVerAnki(k)} aria-pressed={verAnki === k}>{l}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex-1 flex flex-col justify-center min-w-0">
-                  {verAnki === "revisoes"
-                    ? <Heatmap data={revisoes} metric="anki" weeks={semanasDoPeriodo(periodo)} end={parseDay(ate)} inicio={de} fim={ate} ladoMaximo={26} />
-                    : <Heatmap data={criados} metric="anki" unidade="cartões criados" paleta="ama" weeks={semanasDoPeriodo(periodo)} end={parseDay(ate)} inicio={de} fim={ate} ladoMaximo={26} />}
-                </div>
-              </section>
-            )}
             <section className="card p-4 min-w-0">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3">
-                <h3 className="card-title">Onde foi o tempo</h3>
-                <span className="text-xs text-muted">{periodo.nome.toLowerCase()}</span>
-              </div>
+              <CardHead nivel="h3" titulo="Onde foi o tempo" />
               {ondeFoi.length === 0 ? (
                 <p className="text-sm text-muted">Nada ainda. Use o Timer (categoria Idiomas → {sel.name}) ou “Registrar tempo”.</p>
               ) : (
-                // o mesmo desenho do "Onde está indo seu tempo" do Dashboard: nome e valor numa linha, barra embaixo
-                <ul className="space-y-1.5 text-sm">
+                // o mesmo desenho do "Onde está indo seu tempo" do Dashboard: nome · barra · valor numa linha. Só a partir
+                // do xl, quando o cartão tem largura para a barra; antes (coluna estreita ou celular), a barra vai para baixo
+                <ul className="space-y-2.5">
                   {ondeFoi.map(([k, v]) => (
-                    <li key={k} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5">
-                      <span className="truncate" title={k}>{k}</span>
+                    // Listening e MAR saíram da faixa: a comparação com o período anterior fica aqui
+                    <li key={k} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-sm xl:grid-cols-[minmax(110px,180px)_minmax(0,1fr)_6.75rem]"
+                      title={k === "Listening" ? `Listening — período anterior: ${fmtDuration(escutaA)}` : k === "MAR" ? `MAR — período anterior: ${fmtDuration(marA)}` : k}>
+                      <span className="truncate min-w-0">{k}</span>
+                      <span className="order-last col-span-2 h-1.5 rounded-full xl:order-none xl:col-span-1 xl:h-2.5 bg-surface-2 overflow-hidden">
+                        <span className="block h-full rounded-full" style={{ width: `${(v / maxOnde) * 100}%`, background: k === "MAR" ? "var(--area-idiomas)" : "color-mix(in srgb, var(--area-idiomas) 45%, transparent)" }} />
+                      </span>
                       <span className="tabular-nums text-right whitespace-nowrap flex items-baseline justify-end">
                         <span className="font-medium">{fmtDuration(v)}</span>
                         <span className="text-xs text-muted ml-1.5 w-8 inline-block">{Math.round((v / totalOnde) * 100)}%</span>
-                      </span>
-                      <span className="col-span-2 h-1 rounded-full bg-surface-2 overflow-hidden">
-                        <span className="block h-full rounded-full" style={{ width: `${(v / maxOnde) * 100}%`, background: k === "MAR" ? "var(--area-idiomas)" : "color-mix(in srgb, var(--area-idiomas) 45%, transparent)" }} />
                       </span>
                     </li>
                   ))}
@@ -335,73 +307,31 @@ export default function Idiomas() {
             </section>
           </div>
 
-          {/* MAR (o mais rico, na coluna larga) e os baralhos, lado a lado e da mesma altura */}
-          {/* altura fixa só no computador grande: a lista do MAR e a dos baralhos rolam por dentro, e a página cabe na tela */}
-          <div ref={linhaMar} className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-3 md:gap-4 xl:h-[23rem]"
-            style={alturaMar ? { height: alturaMar } : undefined}>
-            {/* MAR: inglês de verdade (filmes, séries, canais, podcasts) */}
-            <MarPainel idioma={sel.name} periodo={periodo} compacto className={tabela.length ? "" : "xl:col-span-2"}
-              sessoesMar={sessoesMar} sessoesIdioma={minhasSessoes} meta={sel.mar_meta_min} inicio={sel.mar_inicio}
-              onTempo={onTempo} onConfigurar={() => setModal({ edit: sel })} />
-
-            {tabela.length > 0 && (
-              <section className="card p-4 min-w-0 flex flex-col min-h-0">
-                <div className="flex items-baseline justify-between gap-3 mb-1">
-                  <h3 className="card-title flex items-center gap-1.5"><Layers size={15} className="text-icon" /> Baralhos</h3>
-                  <span className="text-xs text-muted tabular-nums">{nf.format(paraHoje)} para revisar hoje</span>
-                </div>
-                {/* cada baralho: o nome inteiro, o que há para revisar hoje e, embaixo, novos e total */}
-                <ul className="divide-y divide-line -mx-1 xl:flex-1 xl:min-h-0 xl:overflow-y-auto">
-                  {tabela.map((d) => {
-                    const nivel = d.nome.split("::").length - 1;
-                    const nome = d.nome.split("::").pop()!;
-                    return (
-                      <li key={d.nome} className="px-1 py-2 flex items-start gap-3" title={`${d.nome}: ${nf.format(d.aprendendo)} aprendendo`}
-                        style={{ paddingLeft: 4 + nivel * 12 }}>
-                        <div className="min-w-0 flex-1">
-                          <div className={`text-sm leading-snug ${nivel ? "text-muted" : "font-medium"}`}>{nivel ? "↳ " : ""}{nome}</div>
-                          <div className="text-[11px] text-faint tabular-nums mt-0.5">{nf.format(d.novos)} novos · {nf.format(d.total)} cartões</div>
-                        </div>
-                        <div className="text-right shrink-0 w-14">
-                          <div className={`tabular-nums leading-none ${d.revisar ? "text-lg" : "text-lg text-faint"}`} style={d.revisar ? { color: "var(--accent)" } : undefined}>{nf.format(d.revisar)}</div>
-                          <div className="text-[10px] text-muted mt-0.5">revisar</div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-                {noComputador && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {tabela.filter((d) => !d.nome.includes("::")).map((d) => (
-                      <Link key={d.nome} className="btn btn-primary text-xs py-1" href={`/idiomas/anki/revisar?deck=${encodeURIComponent(d.nome)}`}><Play size={12} /> Revisar {d.nome}</Link>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
+          {/* as práticas: o MAR (o mais rico, na coluna larga) e o Anki. No computador a linha fica com a altura que sobra
+              na tela e as listas rolam por dentro; o calendário do mês ou do ano pode pedir mais, e aí a linha cresce */}
+          <div ref={linhaMar} className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-3 md:gap-4 xl:min-h-[23rem]"
+            style={alturaMar ? { minHeight: alturaMar } : undefined}>
+            {/* no computador o MAR não empurra a altura da linha: ocupa a que houver */}
+            <div className="min-w-0 xl:relative">
+              <MarPainel idioma={sel.name} periodo={periodo} compacto className="xl:absolute xl:inset-0"
+                sessoesMar={sessoesMar} sessoesIdioma={minhasSessoes} meta={sel.mar_meta_min} inicio={sel.mar_inicio}
+                onTempo={onTempo} onConfigurar={() => setModal({ edit: sel })} />
+            </div>
+            <CartaoAnki idioma={sel.name} temAnki={temAnki} conta={conta} tabela={tabela} periodo={periodo}
+              revisoes={revisoes} criados={criados} noComputador={noComputador} onMudou={load} onEscolher={() => setModal({ edit: sel })} />
           </div>
         </div>
       )}
 
-      {conta === null && (
-        <div className="mt-4"><Conectar onConectado={async () => { await load(); }} /></div>
+      {/* sem idioma aberto, o AnkiWeb fica aqui; com um idioma, ele mora no cartão Anki */}
+      {!sel && conta === null && (
+        <div className="mt-4"><Conectar onConectado={load} /></div>
       )}
       {/* configurações: etiquetas pequenas numa linha só (abrem em largura total) */}
       <div className="flex flex-wrap items-center gap-2 mt-3 md:mt-4">
         {sel && <ListeningPainel idioma={sel.name} pequeno className="!rounded-full open:!rounded-xl open:basis-full" />}
         <AnkiNoComputador conectado={noComputador} setConectado={setNoComputador} pequeno className="!rounded-full open:!rounded-xl open:basis-full" />
-        {/* sm:mr-24: o botão flutuante do Timer fica no canto e cobriria o texto */}
-        {conta && (
-          <span className="text-xs text-faint ml-auto sm:mr-24">
-            AnkiWeb: {conta.usuario} ·{" "}
-            <button className="underline underline-offset-2 hover:text-ink" onClick={async () => {
-              if (!confirm("Desligar o AnkiWeb deste sistema? O histórico que já está aqui continua.")) return;
-              const { ankiWeb } = await import("@/lib/anki");
-              await ankiWeb("sair").catch(() => {});
-              await load();
-            }}>desligar</button>
-          </span>
-        )}
+        {!sel && conta && <div className="ml-auto"><AnkiWebBarra conta={conta} onMudou={load} /></div>}
       </div>
 
       {(modal === "idioma" || (modal && typeof modal === "object")) && (
@@ -420,9 +350,109 @@ export default function Idiomas() {
 }
 
 /**
- * Computador (xl): a linha MAR | Baralhos fica com a altura que sobra na tela, para a página caber sem rolar
- * (o filtro Mês ou Ano deixa o calendário do Anki mais alto e empurraria o resto). Mínimo de 18rem; as listas
- * rolam por dentro. Abaixo do xl, nada fixo (a página rola). Antes de medir, vale o xl:h-[23rem] da classe.
+ * O Anki num cartão só: a constância (o calendário), a fila de cada baralho e, no rodapé, de quando são os números.
+ * Sem baralhos ligados, o lugar fica com o vazio (Escolher os baralhos); sem o AnkiWeb, com o Conectar
+ * (o calendário continua, porque vem do histórico guardado).
+ */
+function CartaoAnki({ idioma, temAnki, conta, tabela, periodo, revisoes, criados, noComputador, onMudou, onEscolher }: {
+  idioma: string; temAnki: boolean; conta: ContaAnki | null | undefined; tabela: BaralhoAnki[]; periodo: Periodo;
+  revisoes: Map<string, DayStats>; criados: Map<string, DayStats>; noComputador: boolean;
+  onMudou: () => Promise<void>; onEscolher: () => void;
+}) {
+  // revisões e cartões criados dividem o mesmo calendário (um de cada vez)
+  const [ver, setVer] = useState<"revisoes" | "criados">("revisoes");
+  // a conta, Atualizar e desligar: sempre que houver AnkiWeb, mesmo sem baralhos ligados
+  const rodape = conta && (
+    <div className="mt-2 pt-2 border-t border-line"><AnkiWebBarra conta={conta} onMudou={onMudou} /></div>
+  );
+
+  if (!temAnki) {
+    return (
+      <section className="card p-4 min-w-0 flex flex-col">
+        <CardHead nivel="h3" titulo="Anki" />
+        {conta === null ? (
+          <div className="grow">
+            <Conectar embutido onConectado={onMudou} />
+            <p className="text-xs text-muted mt-3">Depois, <button className="underline underline-offset-2 hover:text-ink" onClick={onEscolher}>escolha os baralhos</button> de {idioma}.</p>
+          </div>
+        ) : (
+          <div className="grow flex flex-col justify-center">
+            <Empty>Nenhum baralho do Anki ligado a {idioma}. <button className="underline underline-offset-2 hover:text-ink" onClick={onEscolher}>Escolher os baralhos</button></Empty>
+          </div>
+        )}
+        {rodape}
+      </section>
+    );
+  }
+
+  const comLista = conta !== null && tabela.length > 0;
+  // na semana, a linha tem a altura que sobra na tela e a lista rola por dentro. Com mais de uma semana, o calendário
+  // já faz a linha crescer (a página rola de qualquer jeito): aí a lista mostra os baralhos todos
+  const listaRola = semanasDoPeriodo(periodo) <= 1;
+  return (
+    <section className="card p-4 min-w-0 flex flex-col">
+      {/* seg-md: a mesma altura do botão "Adicionar" do MAR, ao lado (os dois títulos da linha ficam na mesma altura) */}
+      <CardHead nivel="h3" titulo="Anki" acao={
+        <div className="seg seg-md">
+          {([["revisoes", "Revisões"], ["criados", "Cartões criados"]] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setVer(k)} aria-pressed={ver === k}>{l}</button>
+          ))}
+        </div>
+      } />
+      {/* o calendário encosta no topo (sem vazio em volta); a cor é a da área nos dois */}
+      <div className={`min-w-0 ${comLista || conta === null ? "" : "grow"}`}>
+        <Heatmap data={ver === "revisoes" ? revisoes : criados} metric="anki" unidade={ver === "criados" ? "cartões criados" : undefined}
+          weeks={semanasDoPeriodo(periodo)} end={parseDay(periodo.ate)} inicio={periodo.de} fim={periodo.ate} ladoMaximo={26} />
+      </div>
+      {conta === null && (
+        // sem o AnkiWeb não há fila de baralhos: o Conectar fica no lugar dela
+        <div className="mt-3 pt-3 border-t border-line grow"><Conectar embutido onConectado={onMudou} /></div>
+      )}
+      {comLista && (
+        // no computador, na semana, a lista rola por dentro (não empurra a altura da linha); com o calendário maior,
+        // fica inteira, com um teto para uma coleção de muitos subbaralhos
+        <div className="mt-3 pt-3 border-t border-line flex flex-col xl:grow xl:min-h-[6.5rem]">
+          <div className="flex justify-between gap-3 px-1 mb-0.5 text-[11px] text-faint"><span>Baralho</span><span>revisões</span></div>
+          <div className={`xl:grow ${listaRola ? "xl:relative" : ""}`}>
+            <ul className={`divide-y divide-line -mx-1 xl:overflow-y-auto ${listaRola ? "xl:absolute xl:inset-0" : "xl:max-h-[20rem]"}`}>
+              {tabela.map((d) => {
+                const nivel = d.nome.split("::").length - 1;
+                const nome = d.nome.split("::").pop()!;
+                return (
+                  // o subbaralho é parte do de cima: o número dele vem menor e em cinza, e a soma fica à vista
+                  <li key={d.nome} className="px-1 py-1.5 flex items-start gap-3" title={`${d.nome}: ${nf.format(d.aprendendo)} aprendendo`}
+                    style={{ paddingLeft: 4 + nivel * 12 }}>
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-sm leading-snug truncate ${nivel ? "text-muted" : "font-medium"}`}>{nivel ? "↳ " : ""}{nome}</div>
+                      <div className="text-[11px] text-faint tabular-nums mt-0.5 truncate">
+                        {nf.format(d.novos)} novos{nivel ? "" : ` · ${nf.format(d.aprendendo)} aprendendo`} · {nf.format(d.total)} cartões
+                      </div>
+                    </div>
+                    <div className={`shrink-0 text-right tabular-nums leading-none ${nivel ? "text-sm text-muted pt-0.5" : `text-lg font-medium ${d.revisar ? "" : "text-faint"}`}`}
+                      style={!nivel && d.revisar ? { color: "var(--accent)" } : undefined}>{nf.format(d.revisar)}</div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
+      {noComputador && comLista && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {tabela.filter((d) => !d.nome.includes("::")).map((d) => (
+            <Link key={d.nome} className="btn btn-primary text-xs py-1" href={`/idiomas/anki/revisar?deck=${encodeURIComponent(d.nome)}`}><Play size={12} /> Revisar {d.nome}</Link>
+          ))}
+        </div>
+      )}
+      {rodape}
+    </section>
+  );
+}
+
+/**
+ * Computador (xl): a linha MAR | Anki ganha no mínimo a altura que sobra na tela, para a página caber sem rolar.
+ * Mínimo de 18rem; a lista do MAR e a dos baralhos rolam por dentro. Se o Anki pedir mais (o calendário do mês ou
+ * do ano), a linha cresce e a página rola. Abaixo do xl, nada fixo. Antes de medir, vale o xl:min-h-[23rem] da classe.
  */
 function useAlturaQueSobra(ref: React.RefObject<HTMLDivElement | null>, ativo: boolean): number | null {
   const [h, setH] = useState<number | null>(null);
@@ -447,7 +477,7 @@ function useAlturaQueSobra(ref: React.RefObject<HTMLDivElement | null>, ativo: b
 }
 
 /**
- * O gráfico ocupa a altura que sobra no cartão (a linha tem a altura do vizinho mais alto, como o calendário do mês).
+ * O gráfico ocupa a altura que sobra no cartão (a linha tem a altura do vizinho, o "Onde foi o tempo").
  * O gráfico fica por cima (absoluto), então não empurra a altura da linha: sem crescer em laço.
  */
 function GraficoQueOcupa({ children, minimo = 96 }: { children: (altura: number) => React.ReactNode; minimo?: number }) {

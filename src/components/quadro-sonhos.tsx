@@ -1,6 +1,6 @@
 "use client";
 /**
- * Quadro dos sonhos, no fim do Dashboard: as fotos coladas umas nas outras, sem palavras, para olhar e imaginar.
+ * Quadro dos sonhos, no fim do Dashboard (no bloco Horizonte): as fotos coladas umas nas outras, sem palavras, para olhar e imaginar.
  * Cada foto no seu formato (quase nada é cortado): o destaque, grande, à esquerda, e as outras em fileiras ao lado
  * que enchem a largura exata — sem buraco e sem nada por cima. Cada imagem aparece uma vez só.
  * O sonho realizado ganha cor. Montar é rápido: várias imagens de uma vez, arrastar, colar (Ctrl+V) ou o link.
@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, Crosshair, ImagePlus, Link2, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import { RowMenu } from "@/components/row-menu";
+import { Secao } from "@/components/page";
 import { supabase } from "@/lib/supabase/client";
 import { dayKey } from "@/lib/dates";
 import { apagarImagem, carregarSonhos, guardarImagem, imagemDoLink, imagensDosSonhos, type Sonho } from "@/lib/sonhos";
@@ -90,7 +91,8 @@ function arranjar(lista: Sonho[], prop: (s: Sonho) => number, W: number, celular
   return { pecas: [{ s: hero.s, x: 0, y: 0, w: hw, h: H }, ...out], altura: H };
 }
 
-export function QuadroSonhos() {
+/** `antes`: o que vem entre o cabeçalho do Horizonte e o mosaico (no Dashboard, as contagens regressivas). */
+export function QuadroSonhos({ antes }: { antes?: React.ReactNode } = {}) {
   const [sonhos, setSonhos] = useState<Sonho[] | null>(null);
   const [imagens, setImagens] = useState<Record<string, string>>({});
   const [editando, setEditando] = useState<Sonho | null>(null);
@@ -209,25 +211,24 @@ export function QuadroSonhos() {
     : forte ? "grayscale(0.25) contrast(1.08)" : "grayscale(0.4) contrast(1.06) brightness(0.9)");
 
   return (
-    <section className="pt-2">
-      <div className="flex items-center justify-between gap-3 mb-2.5 px-0.5">
-        <h2 className="eyebrow">Quadro dos sonhos</h2>
-        <div className="flex items-center gap-1">
-          {enviando && <span className="text-xs text-muted mr-2" aria-live="polite">{enviando}</span>}
-          {comImagem.length > 0 && (
-            <button className={`btn px-2.5 py-1 text-xs ${editar ? "btn-primary" : "btn-ghost"}`} onClick={() => setEditar((v) => !v)}
-              title="Mostrar a lixeira em cada imagem">{editar ? <><Check size={14} /> Pronto</> : <><Pencil size={14} /> Editar</>}</button>
-          )}
-          <button className="btn btn-ghost px-2 py-1" title="O link de uma imagem" aria-label="Adicionar pelo link" onClick={() => setPorLink(true)}><Link2 size={16} /></button>
-          <button className="btn btn-ghost px-2 py-1" title="Adicionar imagens (ou arraste, ou cole com Ctrl+V)" aria-label="Adicionar imagens" onClick={() => arquivo.current?.click()}><ImagePlus size={16} /></button>
-        </div>
-        <input ref={arquivo} type="file" accept="image/*" multiple hidden onChange={(e) => { if (e.target.files?.length) void adicionar([...e.target.files]); e.target.value = ""; }} />
-      </div>
+    // o Horizonte: as datas e os sonhos, para onde tudo leva; os controles do quadro ficam à direita do título
+    <Secao titulo="Horizonte" hint="as datas e os sonhos para onde tudo isso leva" acoes={<>
+      {enviando && <span className="text-xs text-muted mr-1" aria-live="polite">{enviando}</span>}
+      {comImagem.length > 0 && (
+        <button className={`btn px-2.5 py-1 text-xs ${editar ? "btn-primary" : "btn-ghost"}`} onClick={() => setEditar((v) => !v)}
+          title="Mostrar a lixeira em cada imagem do quadro dos sonhos">{editar ? <><Check size={14} /> Pronto</> : <><Pencil size={14} /> Editar</>}</button>
+      )}
+      <button className="btn btn-ghost px-2 py-1" title="Adicionar ao quadro dos sonhos pelo link de uma imagem" aria-label="Adicionar ao quadro dos sonhos pelo link" onClick={() => setPorLink(true)}><Link2 size={16} /></button>
+      <button className="btn btn-ghost px-2 py-1" title="Adicionar imagens ao quadro dos sonhos (ou arraste, ou cole com Ctrl+V)" aria-label="Adicionar imagens ao quadro dos sonhos" onClick={() => arquivo.current?.click()}><ImagePlus size={16} /></button>
+    </>}>
+      <input ref={arquivo} type="file" accept="image/*" multiple hidden onChange={(e) => { if (e.target.files?.length) void adicionar([...e.target.files]); e.target.value = ""; }} />
+      {/* empty: some quando não há nada (enquanto as contagens carregam), para não sobrar o vão */}
+      {antes && <div className="mb-3 empty:hidden">{antes}</div>}
 
       <div ref={tela}
         onDragOver={(e) => { e.preventDefault(); setArrastando(true); }} onDragLeave={() => setArrastando(false)}
         onDrop={(e) => { e.preventDefault(); setArrastando(false); const fs = [...e.dataTransfer.files].filter((f) => f.type.startsWith("image/")); if (fs.length) void adicionar(fs); }}
-        className={`relative isolate overflow-hidden rounded-2xl bg-[#070708] ${arrastando ? "ring-2 ring-[var(--focus)]" : ""}`}
+        className={`relative isolate overflow-hidden rounded-2xl bg-[var(--sonhos-fundo)] ${arrastando ? "ring-2 ring-[var(--focus)]" : ""}`}
         style={{ height: comImagem.length && !editar ? altura || 420 : undefined }}>
         {comImagem.length === 0 ? (
           <button onClick={() => arquivo.current?.click()} className="relative w-full h-[360px] grid place-items-center group" aria-label="Adicionar imagens">
@@ -248,7 +249,7 @@ export function QuadroSonhos() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={imagens[s.id]} alt={s.titulo || "Sonho"} className="w-full h-full object-cover block" />
                 {destaque?.id === s.id && <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 text-white text-[10px] px-1.5 py-0.5 inline-flex items-center gap-1"><Crosshair size={10} /> destaque</span>}
-                {s.realizado_em && <span className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "#d6b25e" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
+                {s.realizado_em && <span className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "var(--sonhos-selo)" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
                 {controles(s)}
               </figure>
             ))}
@@ -266,7 +267,7 @@ export function QuadroSonhos() {
                     // object-position um pouco acima do meio: se algo precisar ser cortado, o rosto fica
                     className="w-full h-full object-cover [object-position:50%_30%] block transition-[filter,transform] duration-500 group-hover:[filter:none] group-hover:scale-[1.02]"
                     style={{ filter: tom(s, ehDestaque) }} />
-                  {s.realizado_em && <span className="absolute bottom-2 left-2 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "#d6b25e" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
+                  {s.realizado_em && <span className="absolute bottom-2 left-2 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "var(--sonhos-selo)" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
                   {controles(s)}
                 </figure>
               );
@@ -282,7 +283,7 @@ export function QuadroSonhos() {
 
       {editando && <NomeDoSonho sonho={editando} onClose={() => setEditando(null)} onSalvo={(t) => { void mudar(editando, { titulo: t }); setEditando(null); }} />}
       {porLink && <PeloLink onClose={() => setPorLink(false)} onUsar={(l) => { setPorLink(false); void adicionar([l]); }} />}
-    </section>
+    </Secao>
   );
 }
 

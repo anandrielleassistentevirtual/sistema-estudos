@@ -8,7 +8,10 @@ import { fmtClock } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import { corDaCategoria } from "@/lib/cores";
 
-/** Timer sempre à mão: botão flutuante em todas as telas (inclusive no leitor). */
+/**
+ * Timer sempre à mão: a pílula flutuante. No computador com o menu à vista ela some (o Timer mora no item do menu,
+ * regra .timer-pilula no globals.css); fica no celular, no modo foco e nos leitores.
+ */
 export function FloatingTimer() {
   const t = useTimer();
   const path = usePathname();
@@ -36,18 +39,17 @@ export function FloatingTimer() {
               <TimerControls compact />
             </div>
           )}
-          <div className={`flex items-center rounded-full shadow-lg border border-line ${active ? "bg-accent text-accent-ink border-accent" : "bg-surface"}`}>
-            <button className={`flex items-center gap-2 py-2 text-sm ${active ? "pl-3.5 pr-2" : "p-3 sm:pl-3.5 sm:pr-2 sm:py-2"}`} onClick={() => setOpen(!open)} title="Abrir o timer" aria-label="Abrir o timer">
+          <div data-leitor={reader || undefined} className={`timer-pilula flex items-center rounded-full shadow-lg border border-line ${active ? "bg-accent text-accent-ink border-accent" : "bg-surface"}`}>
+            {/* parado: só o ícone, num círculo de 40px */}
+            <button className={`flex items-center gap-2 text-sm ${active ? "py-2 pl-3.5 pr-2" : "w-[38px] h-[38px] justify-center"}`} onClick={() => setOpen(!open)} title="Abrir o timer" aria-label="Abrir o timer">
               <Timer size={16} />
-              {active ? (
+              {active && (
                 <>
                   {/* a cor da categoria cronometrada (a mesma do anel do Timer e do Dashboard) */}
                   {t.phase !== "pausa" && <span className="dot !w-1.5 !h-1.5" style={{ background: corDaCategoria(t.category) }} aria-hidden />}
                   <span className="font-mono tabular-nums font-medium">{clock}</span>
                   <span className="hidden sm:inline max-w-[160px] truncate opacity-90">{t.phase === "pausa" ? "Pausa" : t.what || t.category}</span>
                 </>
-              ) : (
-                <span className="hidden sm:inline">Timer</span>
               )}
             </button>
             {active && (
@@ -55,7 +57,6 @@ export function FloatingTimer() {
                 {t.running ? <Pause size={15} /> : <Play size={15} />}
               </button>
             )}
-            {!active && <span className="hidden sm:inline pr-1.5" />}
           </div>
         </div>
       )}

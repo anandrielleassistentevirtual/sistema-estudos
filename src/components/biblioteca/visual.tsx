@@ -1,7 +1,7 @@
 "use client";
-/** As peças de desenho da Biblioteca: anel de progresso, barra com marcos, selos e a etiqueta do motivo. */
+/** As peças de desenho da Biblioteca: anel de progresso, barra com marcos, selos e a bolinha e a etiqueta do motivo. */
 import { Award, Check } from "lucide-react";
-import { PERFIS, perfilDe, selosDe } from "@/lib/leitura";
+import { PERFIS, perfilDe, selosDe, type Perfil } from "@/lib/leitura";
 import { NIVEIS_LEITURA } from "@/lib/adler";
 import type { Book } from "@/lib/types";
 
@@ -26,40 +26,57 @@ export function Anel({ valor, cor = "var(--area-leitura)", tamanho = 44, espessu
   );
 }
 
-/** Barra com os marcos de 25, 50 e 75% (o marco alcançado acende). */
+/**
+ * Barra com os marcos de 25, 50 e 75%: quatro segmentos, cada um um quarto do caminho.
+ * O vão entre eles é o marco (sem traço por cima, que some no tema claro); um segmento cheio é um marco alcançado.
+ */
 export function BarraMarcos({ valor, cor = "var(--area-leitura)", alta = false }: { valor: number; cor?: string; alta?: boolean }) {
   return (
-    <div className={`relative ${alta ? "h-2.5" : "h-1.5"} rounded-full bg-surface-2`}>
-      <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(1, valor) * 100}%`, background: cor, transition: "width 0.4s ease" }} />
-      {[0.25, 0.5, 0.75].map((m) => (
-        <span key={m} className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[3px] rounded-full"
-          style={{ left: `${m * 100}%`, height: alta ? 14 : 10, background: valor >= m ? cor : "var(--border)", outline: "2px solid var(--surface)" }} />
+    <div className="grid grid-cols-4 gap-[3px]" role="img" aria-label={`${Math.round(Math.min(1, Math.max(0, valor)) * 100)}%`}>
+      {[0, 1, 2, 3].map((i) => (
+        <span key={i} className={`${alta ? "h-2.5" : "h-1.5"} rounded-full bg-surface-2 overflow-hidden`}>
+          <span className="block h-full rounded-full"
+            style={{ width: `${Math.min(1, Math.max(0, (valor - i * 0.25) / 0.25)) * 100}%`, background: cor, transition: "width 0.4s ease" }} />
+        </span>
       ))}
     </div>
   );
 }
 
-/** Etiqueta do motivo (a cor diz como o livro é medido) e, se houver, o nível. */
+/** A bolinha do motivo: a cor é a da Leitura; a forma (cheia, meia, vazada) diz qual motivo é. */
+export function MarcaMotivo({ perfil, className = "" }: { perfil: Perfil; className?: string }) {
+  const { cor, marca } = PERFIS[perfil];
+  return (
+    <span aria-hidden className={`dot ${marca === "meia" ? "dot-meia" : marca === "vazada" ? "dot-vazada" : ""} ${className}`}
+      style={{ color: cor, background: marca === "cheia" ? cor : undefined }} />
+  );
+}
+
+/** Etiqueta do motivo (o nome e a forma da bolinha dizem como o livro é medido) e, se houver, o nível. */
 export function EtiquetaPerfil({ livro, curta = false }: { livro: Pick<Book, "motivo_leitura" | "nivel_leitura">; curta?: boolean }) {
   const p = perfilDe(livro);
-  if (!p) return <span className="chip border border-dashed border-line bg-transparent">sem motivo</span>;
+  // nas linhas (curta) o "sem motivo" não se repete: ele já é contado no painel, no filtro da Estante e na ficha
+  if (!p) return curta ? null : <span className="chip border border-dashed border-line bg-transparent">sem motivo</span>;
   const cor = PERFIS[p].cor;
   return (
     <span className="chip font-medium" style={{ color: cor, background: `color-mix(in srgb, ${cor} 13%, transparent)` }}
       title={`${PERFIS[p].nome}${livro.nivel_leitura ? ` · leitura ${NIVEIS_LEITURA[livro.nivel_leitura].nome.toLowerCase()}` : ""} — ${PERFIS[p].explica}`}>
-      <span className="dot !w-1.5 !h-1.5" style={{ background: cor }} />
+      <MarcaMotivo perfil={p} className="!w-[7px] !h-[7px]" />
       {PERFIS[p].nome}{!curta && livro.nivel_leitura ? <span className="font-normal opacity-80">· {NIVEIS_LEITURA[livro.nivel_leitura].nome.toLowerCase()}</span> : null}
     </span>
   );
 }
 
 /** Os selos do livro: bolinhas que se enchem a cada estágio do roteiro de Adler (e a da memória). */
-export function Selos({ livro, grande = false }: { livro: Pick<Book, "nivel_leitura" | "roteiro" | "motivo_leitura">; grande?: boolean }) {
+export function Selos({ livro, grande = false }: { livro: Pick<Book, "nivel_leitura" | "roteiro">; grande?: boolean }) {
   const selos = selosDe(livro);
   if (!selos.length) return null;
-  const cor = PERFIS[perfilDe(livro) ?? "conhecimento"].cor;
+  // a forma das bolinhas aqui é o progresso de cada selo (cheia, parcial, vazia), não o motivo: só a cor é a da Leitura
+  const cor = "var(--area-leitura)";
   const ganhos = selos.filter((s) => s.ganho).length;
   if (!grande) {
+    // nas linhas e cartões, selos ainda sem nenhuma etapa feita são só ruído: aparecem quando houver progresso
+    if (!selos.some((s) => s.feitas > 0)) return null;
     return (
       <span className="inline-flex items-center gap-[3px]" title={`Selos: ${ganhos} de ${selos.length} — ${selos.map((s) => `${s.nome} ${s.feitas}/${s.total}`).join(" · ")}`}>
         {selos.map((s) => (
