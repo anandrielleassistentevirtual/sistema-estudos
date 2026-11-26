@@ -1,11 +1,12 @@
 "use client";
 /**
  * Saúde: passos e sono do app Saúde do iPhone, que um atalho (app Atalhos) manda sozinho todo dia.
- * Cabe numa tela: os números do período, passos e sono por dia, sono × estudo e o estado do envio do iPhone.
+ * Cabe numa tela: Movimento | Descanso espelhados (os números em cima do gráfico de cada um) e, embaixo, as consequências
+ * (sono × estudo e a última noite contra a média). O estado do envio do iPhone fica no subtítulo.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Footprints, HeartPulse, KeyRound, Moon, Settings2, Smartphone, X } from "lucide-react";
-import { Empty, Page, Stat } from "@/components/page";
+import { Check, Copy, HeartPulse, KeyRound, Settings2, X } from "lucide-react";
+import { CardHead, Empty, Faixa, Indicador, Page } from "@/components/page";
 import { BarChart } from "@/components/bar-chart";
 import { FiltroPeriodo } from "@/components/filtro-periodo";
 import { Variacao } from "@/components/variacao";
@@ -107,18 +108,27 @@ export default function SaudePage() {
   const maxFaixa = Math.max(1, ...faixas.map((f) => f.media));
   const noitesComEstudo = faixas.reduce((a, f) => a + f.dias, 0);
 
+  // a conclusão (e a barra em destaque) só quando uma faixa ganha sozinha, pelo que se lê na tela (minutos inteiros)
+  const topoFaixa = Math.max(0, ...faixas.filter((f) => f.dias > 0).map((f) => Math.round(f.media)));
+  const lideres = faixas.filter((f) => f.dias > 0 && Math.round(f.media) === topoFaixa);
+  const campea = topoFaixa > 0 && lideres.length === 1 ? lideres[0] : null;
+
   const semDados = dias !== null && dias.length === 0;
 
   return (
     <Page
-      denso
       title="Saúde"
-      subtitle="Passos e sono do app Saúde do iPhone — o atalho manda sozinho todo dia."
+      ajuda="Passos e sono do app Saúde do iPhone — o atalho manda sozinho todo dia."
+      // a manchete é a origem dos dados: quando o iPhone mandou pela última vez (o resto está nos números);
+      // enquanto carrega, um espaço segura a linha para a página não pular
+      subtitle={chave === undefined ? "\u00a0" : <LinhaDoEnvio chave={chave} onAbrir={() => setModal("conectar")} />}
       actions={
         <>
+          {/* botões antes, filtro por último: a borda direita do filtro fica no mesmo x do Dashboard e de Idiomas */}
+          <button className="btn btn-ghost max-sm:px-2.5" onClick={() => setModal("metas")} title="Metas" aria-label="Metas">
+            <Settings2 size={15} /><span className="hidden sm:inline">Metas</span>
+          </button>
           <FiltroPeriodo periodo={periodo} onMudar={setPeriodo} />
-          <button className="btn btn-ghost" onClick={() => setModal("metas")}><Settings2 size={15} /> Metas</button>
-          <button className="btn" onClick={() => setModal("conectar")}><Smartphone size={15} /> {chave ? "Envio do iPhone" : "Conectar o iPhone"}</button>
         </>
       }
     >
@@ -136,75 +146,114 @@ export default function SaudePage() {
       )}
 
       {dias && dias.length > 0 && (
+        // dois blocos espelhados (Movimento | Descanso), cada par de números em cima do seu gráfico; embaixo, as consequências
+        // a partir de lg: entre 768 e 1023px, com o menu aberto, cada coluna ficaria com ~240px e as linhas de baixo não caberiam
         <div className="flex flex-col gap-3 md:gap-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
-            <Stat compacto label="Passos por dia" cor={COR_PASSOS} serie={barrasPassos.map((b) => b.value)} value={pAtual.length ? nf.format(mediaPassos) : "—"}
-              hint={<Variacao atual={mediaPassos} base={mediaPassosAnt} vs={periodo.vs} />}
-              explica={`Média de passos por dia — ${periodo.nome.toLowerCase()} (dias completos). Período anterior: ${nf.format(mediaPassosAnt)}.`} />
-            <Stat compacto label="Dias na meta de passos" cor={COR_PASSOS} value={pAtual.length ? `${naMetaPassos} de ${pAtual.length}` : "—"}
-              hint={`meta ${nf.format(metas.passos)} passos`} explica="Dias do período com a meta de passos cumprida." />
-            <Stat compacto label="Sono por noite" cor={COR_SONO} serie={barrasSono.map((b) => b.value)} value={fmtSono(sAtual.length ? mediaSono : null)}
-              hint={<Variacao atual={mediaSono} base={mediaSonoAnt} vs={periodo.vs} />}
-              explica={`Tempo dormindo por noite, em média — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtSono(mediaSonoAnt || null)}.${temFases ? ` Sono profundo + REM: ${fundoRem}% do sono.` : ""}`} />
-            <Stat compacto label="Noites na meta de sono" cor={COR_SONO} value={sAtual.length ? `${naMetaSono} de ${sAtual.length}` : "—"}
-              hint={`meta ${fmtSono(metas.sonoMin)}`} explica="Noites do período com a meta de sono cumprida." />
-            <Stat compacto label="Última noite" cor={COR_SONO} value={fmtSono(ultima ? sonoDe(ultima) : null)}
-              hint={ultima?.deitou && ultima.acordou ? `${fmtHora(minutoLocal(ultima.deitou))} → ${fmtHora(minutoLocal(ultima.acordou))}${ultima.sono_min == null ? " · na cama" : ""}` : "—"}
-              explica={ultima ? `Noite que terminou em ${fmtDiaCurto(ultima.dia)}${ultima.profundo_min != null ? ` · profundo ${fmtSono(ultima.profundo_min)} · REM ${fmtSono(ultima.rem_min)} · essencial ${fmtSono(ultima.essencial_min)}` : ""}${ultima.acordado_min ? ` · acordado ${fmtSono(ultima.acordado_min)}` : ""}.` : undefined} />
-            <Stat compacto label="Dormir e acordar" cor={COR_SONO} value={deitar == null ? "—" : fmtHora(deitar)}
-              hint={acordar == null ? "—" : `acordar às ${fmtHora(acordar)}`} explica={`Horário médio de deitar e de acordar — ${periodo.nome.toLowerCase()}.`} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
+            <div className="flex flex-col gap-3 md:gap-4 min-w-0">
+              <Faixa colunas={2}>
+                <Indicador label="Passos por dia" cor={COR_PASSOS} value={pAtual.length ? nf.format(mediaPassos) : "—"}
+                  delta={<Variacao atual={mediaPassos} base={mediaPassosAnt} vs={periodo.vs} />}
+                  explica={`Média de passos por dia — ${periodo.nome.toLowerCase()} (dias completos). Período anterior: ${nf.format(mediaPassosAnt)}.`} />
+                <Indicador label="Dias na meta" cor={COR_PASSOS}
+                  value={pAtual.length ? <>{naMetaPassos}<span className="text-sm font-normal text-muted"> de {pAtual.length}</span></> : "—"}
+                  detalhe={`meta ${nf.format(metas.passos)}`} explica="Dias completos do período (hoje ainda está contando) com a meta de passos cumprida." />
+              </Faixa>
+              <section className="card p-4 min-w-0 flex flex-col flex-1">
+                {/* "média por dia" só quando cada barra junta vários dias (por semana, por mês) */}
+                <CardHead nivel="h3" titulo={`Passos por ${porQue}`}
+                  acao={porQue !== "dia" && <span className="text-xs text-faint">média por dia</span>} />
+                <div className="mt-auto">
+                  <GraficoQueOcupa>{(h) => <BarChart data={barrasPassos} unit="passos" height={h} alturaExata meta={metas.passos} cor={COR_PASSOS} />}</GraficoQueOcupa>
+                </div>
+              </section>
+            </div>
+            <div className="flex flex-col gap-3 md:gap-4 min-w-0">
+              <Faixa colunas={2}>
+                <Indicador label="Sono por noite" cor={COR_SONO} value={fmtSono(sAtual.length ? mediaSono : null)}
+                  delta={<Variacao atual={mediaSono} base={mediaSonoAnt} vs={periodo.vs} />}
+                  explica={`Tempo dormindo por noite, em média — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtSono(mediaSonoAnt || null)}.${temFases ? ` Sono profundo + REM: ${fundoRem}% do sono.` : ""}`} />
+                <Indicador label="Noites na meta" cor={COR_SONO}
+                  value={sAtual.length ? <>{naMetaSono}<span className="text-sm font-normal text-muted"> de {sAtual.length}</span></> : "—"}
+                  detalhe={`meta ${fmtSono(metas.sonoMin)}`} explica="Noites do período com a meta de sono cumprida." />
+              </Faixa>
+              <section className="card p-4 min-w-0 flex flex-col flex-1">
+                <CardHead nivel="h3" titulo={`Sono por ${porQue === "dia" ? "noite" : porQue}`}
+                  acao={temFases && <span className="text-xs text-faint"><span style={{ color: COR_SONO }}>■</span> profundo + REM</span>} />
+                <div className="mt-auto">
+                  <GraficoQueOcupa>{(h) => <BarChart data={barrasSono} unit="h" height={h} alturaExata meta={metas.sonoMin / 60} fmtValor={(v) => fmtSono(v * 60)}
+                    cor={COR_SONO} corParte={COR_SONO} rotuloParte="profundo + REM" />}</GraficoQueOcupa>
+                </div>
+              </section>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-            <section className="card p-4 min-w-0 flex flex-col">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-2">
-                <h3 className="card-title flex items-center gap-1.5"><Footprints size={15} className="text-faint" /> Passos por {porQue}</h3>
-                <span className="text-xs text-muted">{periodo.nome.toLowerCase()} · tracejado: meta</span>
-              </div>
-              <GraficoQueOcupa>{(h) => <BarChart data={barrasPassos} unit="passos" height={h} alturaExata meta={metas.passos} cor={`color-mix(in srgb, ${COR_PASSOS} 70%, transparent)`} />}</GraficoQueOcupa>
-            </section>
-            <section className="card p-4 min-w-0 flex flex-col">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-2">
-                <h3 className="card-title flex items-center gap-1.5"><Moon size={15} className="text-faint" /> Sono por {porQue === "dia" ? "noite" : porQue}</h3>
-                <span className="text-xs text-muted">
-                  horas{temFases && <> · <span style={{ color: COR_SONO }}>■</span> profundo + REM</>} · tracejado: meta
-                </span>
-              </div>
-              <GraficoQueOcupa>{(h) => <BarChart data={barrasSono} unit="h" height={h} alturaExata meta={metas.sonoMin / 60} fmtValor={(v) => fmtSono(v * 60)}
-                cor={`color-mix(in srgb, ${COR_SONO} 38%, transparent)`} corParte={COR_SONO} rotuloParte="profundo + REM" />}</GraficoQueOcupa>
-            </section>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-3 md:gap-4">
+          {/* as consequências, no mesmo molde de colunas: o sono no estudo do dia seguinte | a última noite contra a média */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
             <section className="card p-4 min-w-0">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-3">
-                <h3 className="card-title">Sono × estudo</h3>
-                <span className="text-xs text-muted">tempo de estudo no dia, pela noite anterior · {noitesComEstudo} {noitesComEstudo === 1 ? "noite" : "noites"} registradas</span>
-              </div>
+              <CardHead nivel="h3" titulo="Sono × estudo" meta={`${noitesComEstudo} ${noitesComEstudo === 1 ? "noite registrada" : "noites registradas"}`} />
               {noitesComEstudo < 5 ? (
                 <p className="text-sm text-muted">Com mais algumas noites registradas, aparece aqui quanto você estuda depois de dormir pouco e depois de dormir bem.</p>
               ) : (
-                <ul className="space-y-2">
-                  {faixas.map((f) => (
-                    <li key={f.nome} className="grid grid-cols-[6.5rem_minmax(0,1fr)_5.5rem] items-center gap-3 text-sm">
-                      <span className="text-muted">{f.nome}</span>
-                      <span className="h-2.5 rounded-full bg-sel overflow-hidden">
-                        <span className="block h-full rounded-full" style={{ width: `${(f.media / maxFaixa) * 100}%`, background: "var(--chart)" }} />
-                      </span>
-                      <span className="tabular-nums text-right" title={`${f.dias} ${f.dias === 1 ? "dia" : "dias"}`}>
-                        {f.dias ? fmtMin(f.media) : "—"} <span className="text-faint text-xs">· {f.dias}d</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <p className="text-xs text-faint mb-2.5" title="Tempo médio de estudo no dia seguinte a cada noite, pelas horas dormidas (todo o histórico)">
+                    {campea ? <>Você estuda mais depois de noites de <span className="text-ink font-medium">{campea.nome}</span>.</> : "estudo no dia seguinte, por horas dormidas"}
+                  </p>
+                  <ul className="space-y-2">
+                    {faixas.map((f) => (
+                      <li key={f.nome} className="grid grid-cols-[6.5rem_minmax(0,1fr)_7.5rem] items-center gap-3 text-sm">
+                        <span className="text-muted">{f.nome}</span>
+                        {/* sem noites, nada de trilha: uma trilha vazia parece um dado */}
+                        {f.dias > 0 ? (
+                          <span className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
+                            <span className="block h-full rounded-full" style={{
+                              width: `${(f.media / maxFaixa) * 100}%`,
+                              background: f === campea ? "var(--area-estudos)" : "color-mix(in srgb, var(--chart) 55%, transparent)",
+                            }} />
+                          </span>
+                        ) : <span className="text-xs text-faint">sem noites</span>}
+                        <span className="tabular-nums text-right whitespace-nowrap">
+                          {f.dias > 0 && <>{fmtMin(f.media)}<span className="text-faint text-xs"> · {f.dias} {f.dias === 1 ? "noite" : "noites"}</span></>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </section>
-            <section className="card p-4 min-w-0">
-              <div className="flex items-baseline justify-between gap-3 mb-2">
-                <h3 className="card-title flex items-center gap-1.5"><Smartphone size={15} className="text-faint" /> Envio do iPhone</h3>
-                <button className="text-xs text-muted underline underline-offset-2 hover:text-ink" onClick={() => setModal("conectar")}>passo a passo</button>
-              </div>
-              <EstadoDoEnvio chave={chave} />
+            <section className="card p-4 min-w-0 @container">
+              <CardHead nivel="h3" titulo="Última noite" meta={ultima ? `noite que terminou em ${fmtDiaCurto(ultima.dia)}` : undefined} />
+              {!ultima ? (
+                <p className="text-sm text-muted">Nenhuma noite registrada ainda.</p>
+              ) : (
+                <>
+                  {/* a última noite ao lado da média do período: melhor ou pior que o normal */}
+                  <div className="grid grid-cols-[6.5rem_minmax(0,1fr)_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm tabular-nums items-baseline">
+                    <span />
+                    <span className="text-xs text-faint">última noite</span>
+                    <span className="text-xs text-faint">média<span className="hidden @[22rem]:inline"> do período</span></span>
+                    <span className="text-muted">Dormiu</span>
+                    <span className="font-medium" title={ultima.sono_min == null ? "Sem relógio: o tempo na cama" : undefined}>
+                      {fmtSono(sonoDe(ultima))}{ultima.sono_min == null && <span className="text-xs text-faint font-normal"> · na cama</span>}
+                    </span>
+                    <span>{fmtSono(sAtual.length ? mediaSono : null)}</span>
+                    <span className="text-muted">Deitou</span>
+                    <span className="font-medium">{ultima.deitou ? fmtHora(minutoLocal(ultima.deitou)) : "—"}</span>
+                    <span>{fmtHora(deitar)}</span>
+                    <span className="text-muted">Acordou</span>
+                    <span className="font-medium">{ultima.acordou ? fmtHora(minutoLocal(ultima.acordou)) : "—"}</span>
+                    <span>{fmtHora(acordar)}</span>
+                  </div>
+                  {ultima.profundo_min != null && (
+                    // cada fase inteira numa linha: no celular a quebra cai nos pontos, não no meio de "acordado 0h20"
+                    <p className="text-xs text-faint mt-3 tabular-nums flex flex-wrap gap-x-1">
+                      {([["profundo", ultima.profundo_min], ["REM", ultima.rem_min], ["essencial", ultima.essencial_min],
+                        ...(ultima.acordado_min ? [["acordado", ultima.acordado_min]] : [])] as [string, number | null][])
+                        .map(([nome, v], i) => <span key={nome} className="whitespace-nowrap">{i > 0 && "· "}{nome} {fmtSono(v)}</span>)}
+                    </p>
+                  )}
+                </>
+              )}
             </section>
           </div>
         </div>
@@ -226,10 +275,27 @@ function quando(iso: string) {
   return `${dia} às ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-function EstadoDoEnvio({ chave }: { chave: ChaveSaude | null | undefined }) {
-  if (chave === undefined) return <p className="text-sm text-muted">…</p>;
+// mais de um dia e meio sem envio (ou nenhum ainda): o ponto fica âmbar
+const envioAtrasado = (c: ChaveSaude) => !c.ultimo_uso || Date.now() - new Date(c.ultimo_uso).getTime() > 36 * 3600000;
+const AVISO_ATRASO = "Mais de um dia sem envio: o iPhone só lê o Saúde desbloqueado. O próximo envio cobre os dias que faltaram (manda sempre os últimos 7 dias).";
+
+/** A manchete da tela: de onde vêm os dados e quando chegaram pela última vez, com a saída para o passo a passo. */
+function LinhaDoEnvio({ chave, onAbrir }: { chave: ChaveSaude | null; onAbrir: () => void }) {
+  const atrasado = !!chave && envioAtrasado(chave);
+  return (
+    <span title={atrasado && chave?.ultimo_uso ? AVISO_ATRASO : undefined}>
+      <span className="dot mr-1.5 align-[0.05em]" style={{ background: !chave ? "var(--faint)" : atrasado ? "var(--warn)" : "var(--good)" }} aria-hidden />
+      {!chave ? "iPhone não conectado" : chave.ultimo_uso ? `último envio do iPhone: ${quando(chave.ultimo_uso)}` : "chave criada; o atalho ainda não mandou nada"}
+      {" · "}
+      <button className="underline underline-offset-2 hover:text-ink" onClick={onAbrir}>{chave ? "passo a passo" : "Conectar o iPhone"}</button>
+    </span>
+  );
+}
+
+/** O estado do envio por extenso (o resumo do último envio e o aviso de atraso), no topo da janela do passo a passo. */
+function EstadoDoEnvio({ chave }: { chave: ChaveSaude | null }) {
   if (!chave) return <p className="text-sm text-muted">iPhone não conectado.</p>;
-  const atrasado = !chave.ultimo_uso || Date.now() - new Date(chave.ultimo_uso).getTime() > 36 * 3600000;
+  const atrasado = envioAtrasado(chave);
   return (
     <div className="text-sm space-y-1">
       <p>
@@ -237,7 +303,7 @@ function EstadoDoEnvio({ chave }: { chave: ChaveSaude | null | undefined }) {
         {chave.ultimo_uso ? <>Último envio: <b className="font-medium">{quando(chave.ultimo_uso)}</b></> : "Chave criada; o atalho ainda não mandou nada."}
       </p>
       {chave.ultimo_resumo && <p className="text-muted">{chave.ultimo_resumo}</p>}
-      {atrasado && chave.ultimo_uso && <p className="text-xs text-faint">Mais de um dia sem envio: o iPhone só lê o Saúde desbloqueado. O próximo envio cobre os dias que faltaram (manda sempre os últimos 7 dias).</p>}
+      {atrasado && chave.ultimo_uso && <p className="text-xs text-faint">{AVISO_ATRASO}</p>}
     </div>
   );
 }
@@ -266,6 +332,7 @@ function Conectar({ chave, onFechar }: { chave: ChaveSaude | null; onFechar: () 
   };
   return (
     <Modal title="Conectar o iPhone" onClose={onFechar} largo>
+      <div className="rounded-lg bg-surface-2 px-3 py-2.5"><EstadoDoEnvio chave={chave} /></div>
       <ol className="space-y-4 text-sm leading-relaxed">
         <li>
           <h3 className="font-medium mb-1">1. A chave</h3>
@@ -307,7 +374,7 @@ function Conectar({ chave, onFechar }: { chave: ChaveSaude | null; onFechar: () 
             </li>
             <li><b>Mostrar Resultado</b> (opcional): ao rodar à mão, aparece “Recebido: passos de 6 dias e 6 noites de sono…”.</li>
           </ol>
-          <p className="text-muted mt-1.5">Rode o atalho uma vez (▶︎): o iPhone pede para ler <b className="text-ink">Passos</b> e <b className="text-ink">Sono</b> — permita. Esta página mostra o envio em “Envio do iPhone”.</p>
+          <p className="text-muted mt-1.5">Rode o atalho uma vez (▶︎): o iPhone pede para ler <b className="text-ink">Passos</b> e <b className="text-ink">Sono</b> — permita. O último envio aparece embaixo do título desta página (e no topo desta janela).</p>
         </li>
         <li>
           <h3 className="font-medium mb-1">3. Todo dia, sozinho</h3>
@@ -364,7 +431,7 @@ function GraficoQueOcupa({ children, minimo = 96 }: { children: (altura: number)
   const altura = Math.max(minimo, h - 32);
   return (
     // a altura que sobra na tela (sem rolar) entre os números e a linha de baixo
-    <div ref={ref} className="relative min-w-0" style={{ height: `clamp(${minimo + 32}px, calc(100vh - 38rem), 24rem)` }}>
+    <div ref={ref} className="relative min-w-0" style={{ height: `clamp(${minimo + 32}px, calc(100vh - 36.5rem), 24rem)` }}>
       <div className="absolute inset-x-0 bottom-0">{children(altura)}</div>
     </div>
   );

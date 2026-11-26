@@ -170,10 +170,10 @@ export function Sidebar() {
     const k = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "\\") {
         e.preventDefault();
-        setHidden((h) => {
-          window.dispatchEvent(new CustomEvent("modo-foco", { detail: { oculto: !h } }));
-          return !h;
-        });
+        // o aviso sai fora do setState: dentro do updater (que o React pode rodar duas vezes) o 1º aperto se perdia;
+        // o próprio aviso muda o menu (ouvinte abaixo), e o estado atual vem do atributo que espelha `hidden`
+        const oculto = document.documentElement.dataset.menu !== "oculto";
+        window.dispatchEvent(new CustomEvent("modo-foco", { detail: { oculto } }));
       }
     };
     document.addEventListener("keydown", k);

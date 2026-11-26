@@ -8,7 +8,7 @@ import { AntesDoExame, Contricao, Quantidade, UltimaConfissao } from "@/componen
 import { ListaParaSacerdote } from "@/components/exame/lista-sacerdote";
 import { FizAConfissao } from "@/components/exame/fiz-a-confissao";
 import { useCofre } from "@/lib/exame-cofre";
-import { MANDAMENTOS, PRAZO_CONFISSAO, diasDesde, semQuantidade } from "@/lib/exame";
+import { MANDAMENTOS, PRAZO_CONFISSAO, diasDesde, semQuantidade, tempoDesde } from "@/lib/exame";
 import { corrigirUltimaConfissao, dataBr, ultimaConfissao } from "@/lib/confissao";
 
 const TRANCAR_PARADO = 10 * 60_000;    // 10 min sem mexer
@@ -88,11 +88,11 @@ export default function ExameDeConsciencia() {
     setTimeout(() => document.getElementById(`m-${prox?.id ?? "contricao"}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
 
-  const abas = <OracaoTabs className="mb-6 -mt-2" />;
-  if (cofre === undefined) return <Page tabs={abas} title="Exame de consciência">{null}</Page>;
+  // a mesma moldura da Lectio: as abas e o título "Oração" ficam no mesmo lugar nas duas
+  if (cofre === undefined) return <Page largura="texto" tabs={<OracaoTabs />} title="Oração">{null}</Page>;
   if (!chave) {
     return (
-      <Page tabs={abas} title="Exame de consciência">
+      <Page largura="texto" tabs={<OracaoTabs />} title="Oração">
         {cofre === null ? <CriarSenha onCriar={criar} /> : <Destrancar onAbrir={abrir} onApagarTudo={apagarTudo} />}
       </Page>
     );
@@ -100,10 +100,12 @@ export default function ExameDeConsciencia() {
 
   const dias = ultima ? diasDesde(ultima) : null;
   return (
-    <Page tabs={abas} title="Exame de consciência"
-      subtitle="Sem ansiedade nem escrúpulo: a espécie e o número dos pecados."
+    <Page largura="texto" tabs={<OracaoTabs />} title="Oração"
+      subtitle={`${revisados.size} de ${MANDAMENTOS.length} examinados${dias !== null ? ` · última confissão ${tempoDesde(dias)}` : ""}`}
+      ajuda="Sem ansiedade nem escrúpulo: a espécie e o número dos pecados."
       actions={
-        <>
+        // o estado da gravação à esquerda e o Trancar à direita, no tamanho natural
+        <div className="flex items-center gap-3">
           {gravacao === "sem-conexao" ? (
             <span className="text-xs flex items-center gap-1" style={{ color: "var(--warn)" }} title="As mudanças estão guardadas, cifradas, neste aparelho; o envio é tentado de novo sozinho">
               <CloudOff size={13} /> Sem conexão: guardado neste aparelho
@@ -114,9 +116,10 @@ export default function ExameDeConsciencia() {
             </span>
           )}
           <button className="btn" onClick={() => void fechar()}><Lock size={15} /> Trancar</button>
-        </>
+        </div>
       }>
-      <div className={`max-w-3xl space-y-6 pb-24 md:pb-8 transition-[filter] ${oculto ? "blur-xl" : ""}`}>
+      {/* o espaço do rodapé (e da barra de ações no fim) já vem do Page */}
+      <div className={`space-y-6 transition-[filter] ${oculto ? "blur-xl" : ""}`}>
         {aviso && (
           <div className="rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm flex items-start gap-3">
             <span className="flex-1">{aviso}</span>
@@ -142,15 +145,18 @@ export default function ExameDeConsciencia() {
             <span className="label">Caminho do exame</span>
             <span className="text-xs text-muted tabular-nums">{revisados.size} de {MANDAMENTOS.length} examinados</span>
           </div>
+          <div className="h-1 rounded-full bg-surface-2 overflow-hidden mb-3">
+            <div className="h-full rounded-full transition-[width]" style={{ width: `${(revisados.size / MANDAMENTOS.length) * 100}%`, background: "var(--area-oracao)" }} />
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {MANDAMENTOS.map((m) => {
               const n = m.itens.filter((i) => dados.marcas[i.id]).length + dados.outros.filter((o) => o.mand === m.id && o.texto.trim()).length;
               const feito = revisados.has(m.id);
               return (
                 <button key={m.id} onClick={() => irPara(m.id)} title={m.titulo}
-                  className={`text-sm rounded-full px-3 py-1 border flex items-center gap-1.5 transition-colors ${feito ? "bg-surface-2 border-line text-muted" : "border-line hover:border-faint"}`}>
+                  className={`text-sm rounded-full px-3 py-1 border flex items-center gap-1.5 transition-colors ${feito ? "border-transparent text-muted hover:text-ink" : "border-line hover:border-faint"}`}>
                   {feito && <Check size={12} strokeWidth={3} />}{ROTULO[m.id]}
-                  {n > 0 && <span className="text-xs tabular-nums rounded-full bg-chart text-bg px-1.5 leading-4">{n}</span>}
+                  {n > 0 && <span className="text-xs tabular-nums rounded-full bg-surface-2 px-1.5 leading-4">{n}</span>}
                 </button>
               );
             })}

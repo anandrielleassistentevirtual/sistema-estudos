@@ -1,8 +1,8 @@
 "use client";
 /**
- * Contagens regressivas do Dashboard, numa linha fina: o nome, a meta ("10 kg a menos") e o relógio — dias e hh:mm:ss
- * até a data (0h do dia, horário de Brasília) —, com uma barrinha embaixo do caminho já percorrido desde o início.
- * Clique numa contagem para editar ou apagar; "+ nova" cria outra.
+ * Contagens regressivas do Dashboard (no Horizonte, junto do quadro dos sonhos): o nome, a meta ("10 kg a menos") e o relógio —
+ * os dias em destaque e o hh:mm:ss discreto, até a data (0h do dia, horário de Brasília) —, com uma barrinha embaixo do caminho
+ * já percorrido desde o início. Clique numa contagem para editar ou apagar; "+" cria outra.
  */
 import { useEffect, useState } from "react";
 import { Hourglass, Plus, Trash2, X } from "lucide-react";
@@ -38,9 +38,9 @@ export function Contagens() {
   if (!itens) return null;
   const editar = editando && <Editar contagem={editando === "nova" ? null : editando} ordem={itens.length} onFechar={(mudou) => { setEditando(null); if (mudou) carregar(); }} />;
 
-  // uma linha fina de "pílulas": nome, meta e o relógio (dias e hh:mm:ss); a barrinha embaixo é o caminho já percorrido
+  // pílulas calmas: nome e meta à esquerda, os dias à direita; no celular, uma por linha, na largura toda (bordas alinhadas)
   return (
-    <section className="flex flex-wrap items-center gap-2" aria-label="Contagens regressivas">
+    <section className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center" aria-label="Contagens regressivas">
       {itens.map((c) => {
         const fim = zeroHora(c.data), ini = zeroHora(c.inicio);
         const resta = Math.max(0, fim - agora);
@@ -51,25 +51,30 @@ export function Contagens() {
         const perto = resta > 0 && resta < 7 * 86400000;
         return (
           <button key={c.id} onClick={() => setEditando(c)} title={`${c.titulo}${c.meta ? ` — ${c.meta}` : ""} · até ${dataCurta(c.data)} · ${Math.round(feito * 100)}% do caminho (clique para editar)`}
-            className="relative overflow-hidden inline-flex items-center gap-3 rounded-xl border border-line bg-surface pl-3 pr-3.5 py-1.5 min-w-0 max-w-full text-left hover:border-[color-mix(in_srgb,var(--text)_25%,var(--border))] transition-colors">
+            className="relative overflow-hidden flex items-center gap-3 rounded-xl border border-line bg-surface pl-3 pr-3.5 pt-1.5 pb-2.5 w-full sm:w-auto min-w-0 max-w-full text-left hover:border-[color-mix(in_srgb,var(--text)_25%,var(--border))] transition-colors">
             <Hourglass size={14} className="shrink-0 text-faint" />
-            <span className="min-w-0">
+            <span className="min-w-0 flex-1">
               <span className="block text-[13px] font-medium leading-tight truncate">{c.titulo}</span>
               <span className="block text-[11px] text-muted leading-tight truncate">{c.meta ? `${c.meta} · ` : ""}até {dataCurta(c.data)}</span>
             </span>
             {resta === 0 ? (
               <span className="text-xs text-muted shrink-0">chegou o dia ✓</span>
             ) : (
-              <span className="shrink-0 font-mono tabular-nums text-[15px] leading-none tracking-tight" style={{ color: perto ? "var(--warn)" : undefined }}
+              // os dias são o número; o hh:mm:ss fica discreto e só cresce (na cor de aviso) quando faltam menos de 7 dias
+              <span className="shrink-0 flex items-baseline gap-1.5 leading-none" style={{ color: perto ? "var(--warn)" : undefined }}
                 aria-label={`Faltam ${dias} dias e ${relogio}`}>
-                {dias}<span className="text-[11px] text-muted font-sans ml-px mr-1.5">d</span>{relogio}
+                <span className="text-[15px] font-medium tabular-nums">{dias}<span className={`text-[11px] font-normal ml-px ${perto ? "" : "text-muted"}`}>d</span></span>
+                <span className={`font-mono tabular-nums tracking-tight ${perto ? "text-[15px]" : "text-[11px] text-faint"}`}>{relogio}</span>
               </span>
             )}
-            <span className="absolute left-0 bottom-0 h-[2px]" style={{ width: `${feito * 100}%`, background: perto ? "var(--warn)" : "var(--chart)", opacity: 0.55 }} aria-hidden />
+            {/* o caminho já percorrido, num trilho dentro da pílula */}
+            <span className="absolute inset-x-3 bottom-1 h-[2px] rounded-full bg-surface-2 overflow-hidden" aria-hidden>
+              <span className="block h-full rounded-full" style={{ width: `${feito * 100}%`, background: perto ? "var(--warn)" : "var(--chart)" }} />
+            </span>
           </button>
         );
       })}
-      <button className="btn btn-ghost px-2.5 py-1.5 text-xs" onClick={() => setEditando("nova")} title="Nova contagem regressiva">
+      <button className="btn btn-ghost px-2.5 py-1.5 text-xs justify-self-start" onClick={() => setEditando("nova")} title="Nova contagem regressiva" aria-label="Nova contagem regressiva">
         <Plus size={13} /> {itens.length ? "" : "Contagem regressiva"}
       </button>
       {editar}

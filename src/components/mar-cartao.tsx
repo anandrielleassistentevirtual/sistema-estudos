@@ -495,8 +495,10 @@ export function MarCartao(props: PropsCartao) {
         <Check size={14} style={{ color: COR_MAR }} /> Terminei · mover para Vistos
       </button>
     ) : (
-      <button type="button" className={`btn py-1.5 sm:py-1 min-h-9 sm:min-h-0 px-2.5 text-[13px] ${celular ? "flex-1 justify-center" : ""}`} onClick={() => acoes.editar(t)}>
-        <ListPlus size={14} style={{ color: COR_MAR }} /> episódios por temporada
+      // sem episódios: a explicação fica no title (a frase não se repete em cada cartão)
+      <button type="button" className={`btn py-1.5 sm:py-1 min-h-9 sm:min-h-0 px-2.5 text-[13px] ${celular ? "flex-1 justify-center" : ""}`} onClick={() => acoes.editar(t)}
+        title="Diga quantos episódios tem cada temporada para marcar episódio por episódio.">
+        <ListPlus size={14} className="text-icon" /> Cadastrar episódios
       </button>
     );
     const menu = (
@@ -531,7 +533,7 @@ export function MarCartao(props: PropsCartao) {
             </span>
             <Chips t={t} noTimer={noTimer} sobraSeg={sobraSeg} acoes={acoes} />
           </div>
-        ) : <div className="mt-1 text-[11px] text-faint sm:pl-[30px]">Diga quantos episódios tem cada temporada para marcar episódio por episódio.</div>)}
+        ) : null)}
         <div className="sm:hidden mt-2 flex items-center gap-1.5">{botoes(true)}</div>
         {pop === "mais" && prox && (
           <MenuSerie t={t} idioma={idioma} ancora={ancora} onFechar={fechar} acoes={acoes} />

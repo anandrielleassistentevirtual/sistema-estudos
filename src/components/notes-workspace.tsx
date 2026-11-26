@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { ChevronDown, ChevronLeft, ChevronRight, Download, Eye, FileText, Folder, Link as LinkIcon, Pencil, Plus, Search, Trash2, Upload, X, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Atom, ChevronLeft, Download, Eye, FileText, Link as LinkIcon, Pencil, Plus, Search, Trash2, Upload, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { baixarArquivo } from "@/lib/baixar";
 import { todas } from "@/lib/supabase/todas";
@@ -11,6 +11,7 @@ import type { Note } from "@/lib/types";
 import { atomicTemplate, locationLabel, newZid } from "@/lib/zettel";
 import { bookName } from "@/lib/folders";
 import { syncHeading, caminhoRelativo } from "@/lib/estudos";
+import { CONTEINER, Empty } from "@/components/page";
 
 // a pré-visualização em Markdown (react-markdown + GFM) só é baixada quando aparece na tela
 const Markdown = dynamic(() => import("@/components/markdown"), { ssr: false, loading: () => <p className="text-sm text-faint">…</p> });
@@ -24,13 +25,14 @@ type View = "editar" | "ler" | "dividir";
  */
 export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactNode }) {
   const [notes, setNotes] = useState<Note[]>([]);
+  // só depois da 1ª leitura: sem isso, o convite de "lista vazia" pisca antes das notas chegarem
+  const [pronto, setPronto] = useState(false);
   const [current, setCurrent] = useState<Note | null>(null);
   // celular: uma tela de cada vez — a lista ou a nota aberta (com botão de voltar)
   const [naNota, setNaNota] = useState(false);
   const [q, setQ] = useState("");
   const [view, setView] = useState<View>("dividir");
   const [saving, setSaving] = useState<"salvo" | "salvando" | "pendente">("salvo");
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [source, setSource] = useState<{ id: string; label: string; bookId: string | null } | null>(null);
@@ -60,6 +62,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     const data = await todas<Note>((de, ate) => supabase().from("notes").select("*").eq("kind", kind).order("title").order("id").range(de, ate));
     const list = data.sort((a, b) => (b.zid ?? "").localeCompare(a.zid ?? ""));
     setNotes(list);
+    setPronto(true);
     const want = new URLSearchParams(window.location.search).get("id");
     if (want) setNaNota(true);
     setCurrent((c) => list.find((n) => n.id === (c?.id ?? want)) ?? c ?? list[0] ?? null);
@@ -105,10 +108,9 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
 
   const byTitle = useMemo(() => new Map(notes.map((n) => [n.title.toLowerCase(), n])), [notes]);
 
-  const groups = useMemo(() => {
+  const visiveis = useMemo(() => {
     const t = q.trim().toLowerCase();
-    const list = t ? notes.filter((n) => n.title.toLowerCase().includes(t) || n.content.toLowerCase().includes(t)) : notes;
-    return [["", list] as [string, Note[]]];
+    return t ? notes.filter((n) => n.title.toLowerCase().includes(t) || n.content.toLowerCase().includes(t)) : notes;
   }, [notes, q]);
 
   const backlinks = useMemo(() => {
@@ -214,20 +216,33 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     [current?.content],
   );
 
+  // a lista vazia: a ideia explicada e o botão para a primeira nota (no centro do painel; no celular, no lugar da lista)
+  const convite = (
+    <Empty icone={Atom}>
+      Uma ideia por nota, com as suas palavras. Ligue cada nota a outras com [[título]] e diga por que a ligação importa. Crie a partir de uma nota literária (botão ⚛) ou do zero (+).
+      <div className="mt-4">
+        <button className="btn btn-primary" onClick={() => create()}><Plus size={15} /> Nova nota atômica</button>
+      </div>
+    </Empty>
+  );
+
   return (
     <div className="flex flex-col h-[calc(100dvh-3rem-env(safe-area-inset-top))] md:h-screen">
-    {tabs && <div className="px-4 md:px-6 pt-3 shrink-0">{tabs}</div>}
-    <div className={`grid grid-cols-1 flex-1 min-h-0 ${listHidden ? "" : "md:grid-cols-[280px_1fr]"}`}>
+    {/* a moldura das outras telas: as abas ficam no mesmo pixel nas cinco abas de Notas */}
+    {tabs && <div className={`${CONTEINER} pt-5 md:pt-6 shrink-0`}>{tabs}</div>}
+    {/* a lista começa na mesma borda das abas (o recuo é o da moldura: 16px no celular, 32px no computador) */}
+    <div className={`grid grid-cols-1 flex-1 min-h-0 ${listHidden ? "" : "md:grid-cols-[320px_1fr]"}`}>
       <aside className={`md:border-r border-line flex-col min-h-0 bg-bg ${naNota ? "hidden" : "flex"} ${listHidden ? "md:hidden" : "md:flex"}`}>
-        <div className="p-3 space-y-2 border-b border-line">
-          <div className="flex items-center justify-between">
-            <h1 className="font-medium flex items-center gap-1">
+        <div className="py-3 pr-3 pl-4 md:pl-8 space-y-2 border-b border-line">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="font-medium flex items-center gap-1 min-w-0 whitespace-nowrap">
               <button className="hidden md:block p-1 -ml-1 text-faint hover:text-ink rounded-md hover:bg-surface-2" title="Recolher a lista (Ctrl + \)" onClick={() => setListHidden(true)}>
                 <PanelLeftClose size={16} />
               </button>
               Notas atômicas
+              {pronto && <span className="ml-1 text-xs text-faint tabular-nums">{notes.length}</span>}
             </h1>
-            <div className="flex gap-0.5">
+            <div className="flex gap-0.5 shrink-0">
               <button className="btn btn-ghost px-2" title="Importar arquivos .md" onClick={() => fileRef.current?.click()}><Upload size={15} /></button>
               <button className="btn btn-ghost px-2" title="Exportar como vault (.zip)" onClick={exportVault}><Download size={15} /></button>
               <button className="btn btn-primary px-2" title="Nova nota" onClick={() => create()}><Plus size={15} /></button>
@@ -239,47 +254,49 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
             <input className="input pl-8 py-1.5 text-sm" placeholder="Buscar em títulos e textos" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
         </div>
-        <div className="overflow-y-auto flex-1 p-2">
+        <div className="overflow-y-auto flex-1 py-2 pr-2 pl-2 md:pl-6">
           {importing && <p className="text-xs text-accent px-2 py-1">{importing}</p>}
-          {notes.length === 0 && (
-            <p className="text-sm text-muted p-2">
-              Uma ideia por nota, com as suas palavras. Ligue cada nota a outras com [[título]] e diga por que a ligação importa. Crie a partir de uma nota literária (botão ⚛) ou do zero (+).
-            </p>
+          {/* no celular o painel da nota fica escondido até abrir uma: o convite aparece aqui */}
+          {pronto && notes.length === 0 && <div className="md:hidden px-2 py-1">{convite}</div>}
+          {visiveis.map((n) =>
+            renaming?.id === n.id ? (
+              <form key={n.id} className="flex items-center gap-1 px-1 py-0.5"
+                onSubmit={(e) => { e.preventDefault(); void rename(n, renaming.value); }}>
+                <input className="input py-1 text-sm" autoFocus value={renaming.value}
+                  onChange={(e) => setRenaming({ id: n.id, value: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === "Escape") setRenaming(null); }}
+                  onBlur={() => void rename(n, renaming.value)} />
+              </form>
+            ) : (
+              <div key={n.id} className={`group/item flex items-center rounded-md ${current?.id === n.id ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
+                <button onClick={() => { setCurrent(n); setNaNota(true); }} onDoubleClick={() => setRenaming({ id: n.id, value: n.title })}
+                  className="flex items-center gap-2 flex-1 min-w-0 text-left px-2 py-2.5 md:py-1.5 text-[15px] md:text-sm" title="Dois cliques para renomear">
+                  <FileText size={14} className="text-faint shrink-0" />
+                  <span className="truncate">{n.title}</span>
+                </button>
+                <button className="p-1.5 mr-1 text-faint hover:text-accent opacity-60 group-hover/item:opacity-100" title="Renomear"
+                  onClick={() => setRenaming({ id: n.id, value: n.title })}>
+                  <Pencil size={13} />
+                </button>
+              </div>
+            ),
           )}
-          {groups.map(([g, list]) => (
-            <div key={g || "_"} className="mb-1">
-              {!collapsed.has(g) &&
-                list.map((n) =>
-                  renaming?.id === n.id ? (
-                    <form key={n.id} className="flex items-center gap-1 px-1 py-0.5"
-                      onSubmit={(e) => { e.preventDefault(); void rename(n, renaming.value); }}>
-                      <input className="input py-1 text-sm" autoFocus value={renaming.value}
-                        onChange={(e) => setRenaming({ id: n.id, value: e.target.value })}
-                        onKeyDown={(e) => { if (e.key === "Escape") setRenaming(null); }}
-                        onBlur={() => void rename(n, renaming.value)} />
-                    </form>
-                  ) : (
-                    <div key={n.id} className={`group/item flex items-center rounded-md ${current?.id === n.id ? "bg-accent-soft font-medium" : "hover:bg-surface-2"}`}>
-                      <button onClick={() => { setCurrent(n); setNaNota(true); }} onDoubleClick={() => setRenaming({ id: n.id, value: n.title })}
-                        className="flex items-center gap-2 flex-1 min-w-0 text-left px-2 py-2.5 md:py-1.5 text-[15px] md:text-sm" title="Dois cliques para renomear">
-                        <FileText size={14} className="text-faint shrink-0" />
-                        <span className="truncate">{n.title}</span>
-                      </button>
-                      <button className="p-1.5 mr-1 text-faint hover:text-accent opacity-60 group-hover/item:opacity-100" title="Renomear"
-                        onClick={() => setRenaming({ id: n.id, value: n.title })}>
-                        <Pencil size={13} />
-                      </button>
-                    </div>
-                  ),
-                )}
-            </div>
-          ))}
         </div>
       </aside>
 
       <section className={`${naNota ? "flex" : "hidden"} md:flex flex-col min-h-0 min-w-0`}>
         {!current ? (
-          <div className="p-10 text-sm text-muted">Nada selecionado.</div>
+          pronto && (
+            <div className="relative flex-1 grid place-items-center p-6">
+              {/* com a lista recolhida, o botão de mostrá-la continua à mão */}
+              {listHidden && (
+                <button className="absolute top-3 left-3 hidden md:inline-flex btn btn-ghost px-2" title="Mostrar a lista (Ctrl + \)" onClick={() => setListHidden(false)}>
+                  <PanelLeftOpen size={16} />
+                </button>
+              )}
+              {notes.length === 0 ? convite : <Empty>Escolha uma nota na lista.</Empty>}
+            </div>
+          )
         ) : (
           <>
             <div className="border-b border-line px-4 md:px-6 py-3 space-y-2">

@@ -46,7 +46,8 @@ export function LivroLinha({ livro: b, numero, menu = [], mostrarMesa = true, mo
             {mostrarPasta && pasta?.code && <span className="font-mono text-[11px] text-faint" title={pasta.name}>{pasta.code}</span>}
             <EtiquetaPerfil livro={b} curta />
             <Selos livro={b} />
-            {mostrarMesa && onde && <span className="chip hidden sm:inline-flex" title={`Mesa ${onde.mesaN}: ${onde.mesa.titulo}`}>{onde.mesa.titulo} · {onde.n}</span>}
+            {/* mesa e posição em texto simples (a caixinha em cada linha era ruído); o nome da mesa fica no title */}
+            {mostrarMesa && onde && <span className="hidden sm:inline text-faint tabular-nums" title={`Mesa ${onde.mesaN}: ${onde.mesa.titulo}`}>Mesa {onde.mesaN} · nº {onde.n}</span>}
             {b.format === "fisico" && <span className="chip">físico</span>}
           </span>
         </span>
@@ -65,7 +66,7 @@ export function LivroLinha({ livro: b, numero, menu = [], mostrarMesa = true, mo
           </>
         )}
       </span>
-      <span className="hidden md:block"><StatusPill label="Status do livro" value={b.status} options={OPCOES_LIVRO} onChange={(st) => void atualizar(b, { status: st })} /></span>
+      <span className="hidden md:block"><StatusPill discreto label="Status do livro" value={b.status} options={OPCOES_LIVRO} onChange={(st) => void atualizar(b, { status: st })} /></span>
       <button onClick={() => ler(b)} className="btn btn-ghost px-2 py-1.5 shrink-0" title={b.format === "fisico" ? "Ler (liga o Timer)" : b.status === "lendo" ? "Continuar no leitor" : "Abrir no leitor"} aria-label="Ler">
         {b.status === "lendo" ? <Play size={15} /> : <BookOpen size={15} />}
       </button>

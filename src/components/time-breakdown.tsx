@@ -6,6 +6,7 @@ import { todas } from "@/lib/supabase/todas";
 import { ankiPorIdioma, contaComoEstudo, type AnkiIdiomaDia } from "@/lib/tempo";
 import type { Periodo } from "@/lib/periodo";
 import { COR_AREA, corDaCategoria } from "@/lib/cores";
+import { CardHead } from "@/components/page";
 
 type Period = "semana" | "30d" | "ano";
 const PERIODS: { id: Period; label: string }[] = [
@@ -92,46 +93,70 @@ export function TimeBreakdown({ compacto = false, periodo }: { compacto?: boolea
     : rows;
   const max = Math.max(1, ...visiveis.map((r) => r.seconds));
 
+  const meta = total ? `${fmtDuration(total)} de estudo${periodo ? ` · ${periodo.nome.toLowerCase()}` : ""}` : "Nenhum tempo registrado no período";
+  const abas = !periodo && (
+    <div className={`seg flex ${compacto ? "" : "w-full sm:w-auto sm:inline-flex"}`}>
+      {PERIODS.map((p) => (
+        <button key={p.id} onClick={() => setPeriod(p.id)} aria-pressed={period === p.id} className={compacto ? "" : "flex-auto sm:flex-none"}>{p.label}</button>
+      ))}
+    </div>
+  );
+  const pctDe = (r: { seconds: number }) => Math.round((r.seconds / total) * 100);
+
   return (
     <section className={compacto ? "card p-4 min-w-0" : "card p-5 mt-4"}>
-      <div className={`flex flex-wrap items-center justify-between gap-2 ${compacto ? "mb-3" : "mb-4"}`}>
-        <div>
-          <h2 className="card-title">Onde está indo seu tempo</h2>
-          <p className="text-xs text-muted mt-0.5">{total ? `${fmtDuration(total)} de estudo${periodo ? ` · ${periodo.nome.toLowerCase()}` : ""}` : "Nenhum tempo registrado no período"}</p>
+      {compacto ? <CardHead titulo="Onde está indo seu tempo" meta={meta} acao={abas} /> : (
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h2 className="card-title">Onde está indo seu tempo</h2>
+            <p className="text-xs text-muted mt-0.5">{meta}</p>
+          </div>
+          {abas}
         </div>
-        {!periodo && <div className="seg flex w-full sm:w-auto sm:inline-flex">
-          {PERIODS.map((p) => (
-            <button key={p.id} onClick={() => setPeriod(p.id)} aria-pressed={period === p.id} className="flex-auto sm:flex-none">{p.label}</button>
-          ))}
-        </div>}
-      </div>
+      )}
       {rows.length === 0 ? (
         <p className="text-sm text-muted py-6 text-center">Use o Timer (ou leia no leitor, faça lições e revisões) para ver aqui como seu tempo se divide.</p>
       ) : (
         <>
-        {/* a composição do tempo numa faixa só, nas cores das áreas */}
+        {/* a composição do tempo numa faixa só, nas cores das áreas (no compacto, é o único gráfico) */}
         {visiveis.length > 1 && (
-          <div className="flex h-2 gap-[2px] rounded-full overflow-hidden mb-3.5" aria-hidden>
+          <div className={`flex gap-[2px] rounded-full overflow-hidden ${compacto ? "h-2.5 mb-4" : "h-2 mb-3.5"}`} aria-hidden>
             {visiveis.map((r) => (
-              <span key={r.key} className="h-full transition-opacity first:rounded-l-full last:rounded-r-full" title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round((r.seconds / total) * 100)}%)`}
+              <span key={r.key} className="h-full transition-opacity first:rounded-l-full last:rounded-r-full" title={`${r.label}: ${fmtDuration(r.seconds)} (${pctDe(r)}%)`}
                 style={{ flexGrow: r.seconds, flexBasis: 0, minWidth: 3, background: r.cor, opacity: hover && hover !== r.key ? 0.35 : 1 }}
                 onMouseEnter={() => setHover(r.key)} onMouseLeave={() => setHover(null)} />
             ))}
           </div>
         )}
+        {compacto ? (
+          // a legenda da faixa: bolinha · nome · tipo à esquerda, o tempo e a % à direita (passar o mouse acende o segmento)
+          <ul className="divide-y divide-line -mb-2">
+            {visiveis.map((r) => (
+              <li key={r.key} className="flex items-baseline justify-between gap-3 py-2 text-sm"
+                onMouseEnter={() => setHover(r.key)} onMouseLeave={() => setHover(null)}>
+                <span className="truncate min-w-0" title={`${r.label}: ${fmtDuration(r.seconds)} (${pctDe(r)}%)`}>
+                  <span className="dot mr-2 align-[0.05em]" style={{ background: r.cor }} />{r.label}
+                  {r.kind !== r.label && <span className="text-[11px] text-faint ml-1.5">{r.kind}</span>}
+                </span>
+                <span className="tabular-nums text-right whitespace-nowrap shrink-0">
+                  <span className="font-medium">{fmtDuration(r.seconds)}</span>
+                  <span className="text-xs text-muted ml-1.5 w-8 inline-block">{pctDe(r)}%</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
         <ul className="space-y-2.5">
           {visiveis.map((r) => {
             const pct = r.seconds / total;
             return (
-              // compacto (painel ao lado do calendário): nome e valor numa linha, barra embaixo na largura toda;
-              // assim toda barra começa e termina no mesmo ponto, em qualquer largura
-              <li key={r.key} className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-sm ${compacto ? "" : "sm:grid-cols-[minmax(110px,180px)_minmax(0,1fr)_6.75rem]"}`}
+              <li key={r.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-sm sm:grid-cols-[minmax(110px,180px)_minmax(0,1fr)_6.75rem]"
                 onMouseEnter={() => setHover(r.key)} onMouseLeave={() => setHover(null)}>
                 <span className="truncate min-w-0" title={r.label}>
                   <span className="dot mr-2 align-[0.05em]" style={{ background: r.cor }} />{r.label}
-                  {r.kind !== r.label && <span className={compacto ? "text-[11px] text-faint ml-1.5" : "text-[11px] text-faint ml-1.5 sm:ml-0 sm:block"}>{r.kind}</span>}
+                  {r.kind !== r.label && <span className="text-[11px] text-faint ml-1.5 sm:ml-0 sm:block">{r.kind}</span>}
                 </span>
-                <span className={`order-last col-span-2 h-1.5 rounded-full ${compacto ? "" : "sm:order-none sm:col-span-1 sm:h-2.5"} bg-surface-2 overflow-hidden`} title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round(pct * 100)}%)`}>
+                <span className="order-last col-span-2 h-1.5 rounded-full sm:order-none sm:col-span-1 sm:h-2.5 bg-surface-2 overflow-hidden" title={`${r.label}: ${fmtDuration(r.seconds)} (${Math.round(pct * 100)}%)`}>
                   <span className="block h-full rounded-full transition-opacity"
                     style={{ width: `${(r.seconds / max) * 100}%`, background: r.cor, opacity: hover && hover !== r.key ? 0.45 : 1 }} />
                 </span>
@@ -143,6 +168,7 @@ export function TimeBreakdown({ compacto = false, periodo }: { compacto?: boolea
             );
           })}
         </ul>
+        )}
         </>
       )}
     </section>

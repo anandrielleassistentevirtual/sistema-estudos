@@ -12,11 +12,14 @@ import { TIPOS, tipoDe, type Projeto, type TipoProjeto } from "@/lib/escrita";
 interface Resumo { palavras: number; hoje: number; dias: Map<string, number> }
 /** os últimos 14 dias (do mais antigo a hoje), para o mini-gráfico de cada projeto */
 const QUINZENA = () => Array.from({ length: 14 }, (_, i) => dayKey(addDays(new Date(), i - 13)));
-/** "hoje", "ontem", "há 5 dias", "12/10" */
+/** "hoje", "ontem", "há 5 dias", "em 12/10"; sem data válida, null (o cartão omite o "editado") */
 function quando(iso: string) {
-  const d = Math.round((parseDay(dayKey()).getTime() - parseDay(dayKey(new Date(iso))).getTime()) / 864e5);
-  return d <= 0 ? "hoje" : d === 1 ? "ontem" : d < 30 ? `há ${d} dias` : new Date(iso).toLocaleDateString("pt-BR", { day: "numeric", month: "numeric" });
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return null;
+  const d = Math.round((parseDay(dayKey()).getTime() - parseDay(dayKey(t)).getTime()) / 864e5);
+  return d <= 0 ? "hoje" : d === 1 ? "ontem" : d < 30 ? `há ${d} dias` : `em ${t.toLocaleDateString("pt-BR", { day: "numeric", month: "numeric" })}`;
 }
+const SOBRE = "Contos, novelas, romances e ensaios em produção.";
 
 const ICONE: Record<TipoProjeto, typeof BookOpen> = { conto: Feather, novela: BookText, romance: BookOpen, ensaio: PenTool };
 
@@ -58,52 +61,72 @@ export default function Escrita() {
   }
 
   const quinzena = QUINZENA();
+  const vazio = { palavras: 0, hoje: 0, dias: new Map<string, number>() };
+  // a manchete soma o que os cartões mostram: as palavras de cada dia (sem negativos) e o hoje de cada projeto
+  const escritas = (projetos ?? []).reduce((n, p) => n + quinzena.reduce((m, k) => m + Math.max(0, (resumo[p.id] ?? vazio).dias.get(k) ?? 0), 0), 0);
+  const hojeTodos = (projetos ?? []).reduce((n, p) => n + Math.max(0, (resumo[p.id] ?? vazio).hoje), 0);
+  const manchete = !projetos ? "\u00a0" : !projetos.length ? SOBRE
+    : `${projetos.length} ${projetos.length === 1 ? "projeto" : "projetos"} · ${nf.format(escritas)} palavras nas últimas 2 semanas · hoje +${nf.format(hojeTodos)}`;
   return (
-    <Page title="Escrita" subtitle="Contos, novelas, romances e ensaios em produção."
+    <Page title="Escrita" subtitle={manchete} ajuda={projetos?.length ? SOBRE : undefined}
       actions={<button className="btn btn-primary" onClick={() => setNovo(true)}><Plus size={15} /> Novo projeto</button>}>
       {projetos && projetos.length === 0 && (
         <Empty icone={Feather}>Nenhum projeto ainda. Crie um conto, novela, romance ou ensaio para começar a escrever.</Empty>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* 3 colunas só com 3 projetos ou mais: com 2, eles ocupam a largura em vez de deixar um terço vazio */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${(projetos?.length ?? 0) >= 3 ? "xl:grid-cols-3" : ""}`}>
         {projetos?.map((p) => {
-          const r = resumo[p.id] ?? { palavras: 0, hoje: 0, dias: new Map<string, number>() };
+          const r = resumo[p.id] ?? vazio;
           const serie = quinzena.map((k) => Math.max(0, r.dias.get(k) ?? 0));
           const pct = p.meta_palavras ? Math.min(1, r.palavras / p.meta_palavras) : 0;
           const tipo = tipoDe(p.tipo);
           const Icone = ICONE[p.tipo] ?? BookOpen;
+          const editado = quando(p.updated_at);
+          const hoje = Math.max(0, r.hoje);
           return (
-            <div key={p.id} className="card p-5 group relative hover:border-faint transition-colors">
-              <Link href={`/escrita/${p.id}`} className="absolute inset-0" aria-label={`Abrir ${p.titulo}`} />
+            // todo cartão tem as mesmas linhas, e os dados ficam no pé (mt-auto): os números se alinham entre cartões
+            <div key={p.id} className="card card-hover p-5 group relative flex flex-col">
+              {/* o link cobre o cartão: é ele que mostra o título inteiro ao passar o mouse (o h2 corta em 2 linhas) */}
+              <Link href={`/escrita/${p.id}`} className="absolute inset-0" aria-label={`Abrir ${p.titulo}`} title={p.titulo} />
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 text-faint text-xs"><Icone size={16} strokeWidth={1.6} /> {tipo.label}</div>
-                <span className="relative z-10 flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-                  <button className="p-1 text-faint hover:text-ink" title="Editar nome, autor e tipo" onClick={() => setEditando(p)}><Pencil size={14} /></button>
-                  <button className="p-1 text-faint hover:text-critical" title="Apagar projeto" onClick={() => apagar(p)}><Trash2 size={14} /></button>
+                {/* com mouse, as ações aparecem ao passar por cima; no toque (sem hover), ficam sempre à vista */}
+                <span className="relative z-10 -my-1 -mr-1.5 flex gap-0.5 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100">
+                  <button className="p-1.5 text-faint hover:text-ink" title="Editar nome, autor e tipo" onClick={() => setEditando(p)}><Pencil size={14} /></button>
+                  <button className="p-1.5 text-faint hover:text-critical" title="Apagar projeto" onClick={() => apagar(p)}><Trash2 size={14} /></button>
                 </span>
               </div>
               {/* o título da obra em serifa, como nas capas da Biblioteca */}
-              <h2 className="mt-4 text-[1.2rem] leading-snug font-serif">{p.titulo}</h2>
-              <p className="text-sm text-muted">{p.autor || " "}</p>
-              {/* o total (e a meta), com as palavras de cada dia das últimas duas semanas ao lado */}
-              <div className="mt-5 flex items-end justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-[1.35rem] font-medium tracking-[-0.02em] tabular-nums leading-none">{nf.format(r.palavras)}</div>
-                  <div className="text-xs text-muted mt-1 truncate">
-                    {p.meta_palavras > 0 ? <>de {nf.format(p.meta_palavras)} palavras · <span className="tabular-nums">{Math.round(pct * 100)}%</span></> : "palavras"}
+              <h2 className="mt-4 text-[1.2rem] leading-snug font-serif line-clamp-2">{p.titulo}</h2>
+              {p.autor && <p className="text-sm text-muted truncate">{p.autor}</p>}
+              <div className="mt-auto pt-5">
+                {/* o total no texto, com as palavras de cada dia das últimas duas semanas ao lado */}
+                <div className="flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[1.35rem] font-medium tracking-[-0.02em] tabular-nums leading-none">{nf.format(r.palavras)}</div>
+                    <div className="text-xs text-muted mt-1 truncate">palavras no texto</div>
                   </div>
-                </div>
-                {serie.some((v) => v > 0) && (
                   <MiniBarras valores={serie} cor="var(--area-escrita)" largura={84} altura={26} titulo="Palavras escritas por dia nas últimas duas semanas" />
-                )}
-              </div>
-              {p.meta_palavras > 0 && (
-                <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden" title={`Meta: ${nf.format(p.meta_palavras)} palavras`}>
-                  <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--area-escrita)" }} />
                 </div>
-              )}
-              <div className="mt-2 flex items-baseline justify-between gap-2 text-[11px] text-faint">
-                <span>editado {quando(p.updated_at)}</span>
-                {r.hoje > 0 && <span className="text-muted tabular-nums">hoje +{nf.format(r.hoje)}</span>}
+                {/* a meta do texto: com ou sem meta, a linha tem a mesma altura */}
+                <div className="mt-3 h-4 flex items-center gap-3 text-[11px] text-faint tabular-nums">
+                  {p.meta_palavras > 0 ? (
+                    <>
+                      <span className="flex-1 h-1 rounded-full bg-surface-2 overflow-hidden">
+                        <span className="block h-full rounded-full" style={{ width: `${pct * 100}%`, background: "var(--area-escrita)" }} />
+                      </span>
+                      <span className="shrink-0">{Math.round(pct * 100)}% de {nf.format(p.meta_palavras)}</span>
+                    </>
+                  ) : "sem meta de palavras"}
+                </div>
+                <div className="mt-1.5 min-h-4 flex items-baseline justify-between gap-2 text-[11px] text-faint tabular-nums">
+                  <span>{editado && `editado ${editado}`}</span>
+                  {(p.meta_diaria > 0 || hoje > 0) && (
+                    <span className={p.meta_diaria > 0 && hoje >= p.meta_diaria ? "text-good" : "text-muted"}>
+                      hoje +{nf.format(hoje)}{p.meta_diaria > 0 && ` / ${nf.format(p.meta_diaria)}`}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           );

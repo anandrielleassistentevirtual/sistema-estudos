@@ -4,11 +4,13 @@
  * O total de cada dia vem das sessões (a fonte única do tempo); as linhas dizem o que foi cada pedaço:
  * episódios e minutos marcados (do mar_log), o Timer ligado e os ajustes (em cinza, sem tempo).
  * Desfazer só na última ação de cada título (o banco desfaz da mais nova para a mais antiga).
+ * No topo, quantos títulos da lista há em cada plataforma (saiu da linha das abas do painel).
  */
 import { useMemo } from "react";
 import { Timer as Relogio, X } from "lucide-react";
 import { addDays, dayKey, parseDay } from "@/lib/dates";
 import { COR_MAR, duracao, segundosDaAcao, ultimaAcao, type Registro, type SessaoIdioma, type Titulo } from "@/lib/mar";
+import { PLATAFORMAS, PlataformaIcone, plataformaDe } from "./plataforma";
 
 interface Linha { chave: string; quando: string; texto: string; seg: number; cinza?: boolean; timer?: boolean; doTimer?: boolean; registro?: Registro; titulo?: Titulo }
 
@@ -75,6 +77,19 @@ export function MarRegistros({ lista, log, sessoesMar, metaMin, ocupados, onDesf
     return { lista: [...m.entries()].sort((a, b) => b[0].localeCompare(a[0])), ultimas };
   }, [lista, log, sessoesMar, desde]);
 
+  // títulos da lista por plataforma (as que o texto "onde" reconhece), da que tem mais para a que tem menos
+  const porPlataforma = useMemo(() => {
+    const m = new Map<string, { nome: string; n: number }>();
+    for (const t of lista) {
+      const p = plataformaDe(t.onde);
+      if (!p) continue;
+      const x = m.get(p) ?? { nome: PLATAFORMAS.find((y) => y.id === p)?.nome ?? t.onde, n: 0 };
+      x.n++;
+      m.set(p, x);
+    }
+    return [...m.values()].sort((a, b) => b.n - a.n);
+  }, [lista]);
+
   const nomeDia = (d: string) => d === hoje ? "Hoje" : d === ontem ? "Ontem"
     : parseDay(d).toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" }).replace(".", "");
 
@@ -85,6 +100,16 @@ export function MarRegistros({ lista, log, sessoesMar, metaMin, ocupados, onDesf
           <h2 className="font-medium">Registros do MAR <span className="text-muted font-normal text-sm">· últimos 30 dias</span></h2>
           <button type="button" onClick={onFechar} className="btn btn-ghost p-1.5" aria-label="Fechar"><X size={18} /></button>
         </div>
+        {porPlataforma.length > 0 && (
+          <div className="text-xs text-muted flex flex-wrap items-center gap-x-2.5 gap-y-1.5 -mt-1 mb-3">
+            <span>Na lista:</span>
+            {porPlataforma.map((p) => (
+              <span key={p.nome} className="inline-flex items-center gap-1" title={`${p.nome}: ${p.n} ${p.n === 1 ? "título" : "títulos"}`}>
+                <PlataformaIcone onde={p.nome} tamanho={16} /><span className="tabular-nums">{p.n}</span>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 space-y-4">
           {dias.lista.length === 0 && <p className="text-sm text-muted">Nada nos últimos 30 dias. Marque um episódio ou use o Timer.</p>}
           {dias.lista.map(([d, x]) => (

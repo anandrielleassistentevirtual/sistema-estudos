@@ -18,8 +18,11 @@ export function haQuanto(iso: string | null) {
 }
 
 
-/** Linha do AnkiWeb: de quando são os números, Atualizar e desligar. */
-export function AnkiWebBarra({ conta, onMudou }: { conta: ContaAnki; onMudou: () => Promise<void> | void }) {
+/**
+ * Linha do AnkiWeb: de quando são os números e Atualizar. A `compacta` (rodapé do cartão Anki) junta tudo do AnkiWeb
+ * num lugar só: "atualizado há…", o botão de atualizar, as mensagens, a conta e desligar.
+ */
+export function AnkiWebBarra({ conta, onMudou, compacta }: { conta: ContaAnki; onMudou: () => Promise<void> | void; compacta?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ texto: string; erro?: boolean } | null>(null);
   async function atualizar() {
@@ -31,30 +34,57 @@ export function AnkiWebBarra({ conta, onMudou }: { conta: ContaAnki; onMudou: ()
     } catch (e) { setMsg({ texto: (e as Error).message, erro: true }); }
     setBusy(false);
   }
+  async function desligar() {
+    if (!confirm("Desligar o AnkiWeb deste sistema? O histórico que já está aqui continua.")) return;
+    await ankiWeb("sair").catch(() => {});
+    await onMudou();
+  }
+  const aviso = msg ? <span className={msg.erro ? "text-critical" : ""}>{msg.texto}</span>
+    : conta.erro ? <span className="text-critical">Última tentativa: {conta.erro}</span> : null;
+  if (compacta) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-faint">
+        <span className="inline-flex items-center gap-1.5" title="Os números do Anki vêm do AnkiWeb">
+          <Cloud size={12} className="shrink-0" /> atualizado {haQuanto(conta.sincronizado_em)}
+        </span>
+        <button type="button" className="p-1 -m-0.5 rounded-md text-muted hover:text-ink hover:bg-sel disabled:opacity-60"
+          onClick={() => void atualizar()} disabled={busy} title="Atualizar com o AnkiWeb" aria-label="Atualizar com o AnkiWeb">
+          <RefreshCw size={12} className={busy ? "animate-spin" : ""} />
+        </button>
+        {aviso}
+        {/* a conta à direita; um e-mail comprido é cortado (inteiro no title) */}
+        <span className="ml-auto inline-flex items-center gap-1 min-w-0 max-w-full">
+          <span className="truncate" title={conta.usuario}>{conta.usuario}</span> ·
+          <button type="button" className="underline underline-offset-2 hover:text-ink" onClick={() => void desligar()}>desligar</button>
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
       <span className="inline-flex items-center gap-1.5"><Cloud size={13} /> Anki: números do AnkiWeb, atualizados {haQuanto(conta.sincronizado_em)}</span>
       <button className="btn text-xs py-0.5" onClick={() => void atualizar()} disabled={busy}>
         <RefreshCw size={12} className={busy ? "animate-spin" : ""} /> {busy ? "Atualizando…" : "Atualizar"}
       </button>
-      {msg ? <span className={msg.erro ? "text-critical" : ""}>{msg.texto}</span>
-        : conta.erro ? <span className="text-critical">Última tentativa: {conta.erro}</span> : null}
+      {aviso}
     </div>
   );
 }
 
-export function Conectar({ onConectado }: { onConectado: () => Promise<void> }) {
+/** Conectar ao AnkiWeb. `embutido`: dentro do cartão Anki, sem moldura própria (o cartão já é a moldura). */
+export function Conectar({ onConectado, embutido }: { onConectado: () => Promise<void>; embutido?: boolean }) {
   const [usuario, setUsuario] = useState("");
   const [senha, setSenha] = useState("");
   const [indo, setIndo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const Titulo = embutido ? "h3" : "h2";
   return (
-    <section className="card p-5 mb-4 max-w-xl">
-      <h2 className="card-title flex items-center gap-2"><Cloud size={17} className="text-icon" /> Conectar ao AnkiWeb</h2>
+    <section className={embutido ? "min-w-0" : "card p-5 mb-4 max-w-xl"}>
+      <Titulo className={`flex items-center gap-2 ${embutido ? "text-sm font-medium" : "card-title"}`}><Cloud size={embutido ? 14 : 17} className="text-icon" /> Conectar ao AnkiWeb</Titulo>
       <p className="text-sm text-muted mt-1">
         Use o mesmo e-mail e senha com que o seu Anki sincroniza. Depois disso é só tocar em <b className="text-ink">Atualizar</b>, no celular ou no computador — sem precisar do Anki aberto.
       </p>
-      <form className="mt-4 space-y-3" onSubmit={async (e) => {
+      <form className={`${embutido ? "mt-3" : "mt-4"} space-y-3`} onSubmit={async (e) => {
         e.preventDefault();
         if (!usuario.trim() || !senha || indo) return;
         setIndo(true); setErro(null);
@@ -73,7 +103,7 @@ export function Conectar({ onConectado }: { onConectado: () => Promise<void> }) 
         {erro && <p className="text-sm text-critical">{erro}</p>}
         <button className="btn btn-primary" disabled={!usuario.trim() || !senha || indo}>{indo ? "Conectando e baixando seus números…" : "Conectar"}</button>
       </form>
-      <ul className="text-xs text-faint mt-4 space-y-1 list-disc pl-4">
+      <ul className={`text-xs text-faint ${embutido ? "mt-3" : "mt-4"} space-y-1 list-disc pl-4`}>
         <li>A senha não fica guardada: o AnkiWeb devolve uma chave de acesso (como faz com o próprio Anki), e só ela fica salva, protegida na sua conta.</li>
         <li>O sistema só lê: baixa uma cópia da coleção para contar revisões e cartões, e nunca altera os seus baralhos.</li>
       </ul>

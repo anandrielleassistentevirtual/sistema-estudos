@@ -31,7 +31,7 @@ export function BarChart({
   meta?: number;
   /** usa a altura pedida em qualquer largura (quando quem chama já calculou o espaço disponível) */
   alturaExata?: boolean;
-  /** cor da parte de cada barra (padrão: a cor de Idiomas) */
+  /** cor da parte de cada barra (padrão: a cor de Idiomas); com meta, é também a cor da série (a base fica nela, clara) */
   corParte?: string;
   /** nome da parte na tabela para leitores de tela: "(MAR 22)" */
   rotuloParte?: string;
@@ -81,6 +81,12 @@ export function BarChart({
   const alinhamento = frac < 0.2 ? "translate-x-0" : frac > 0.8 ? "-translate-x-full" : "-translate-x-1/2";
   const xDica = sel === null ? "0" : frac < 0.2 ? `calc((100% - 2.25rem) * ${sel / n})` : frac > 0.8 ? `calc((100% - 2.25rem) * ${(sel + 1) / n})` : `calc((100% - 2.25rem) * ${frac})`;
   const total = data.reduce((a, d) => a + d.value, 0);
+  // a barra fica sempre na cor da série (cor de área e cor de situação não se misturam na mesma série).
+  // Com meta, quem chega nela fica sólida e ganha uma tampa na cor do texto. Com meta e uma parte sólida no pé
+  // (ex.: profundo + REM), a série é a cor da parte: a base fica nela, clara, com a borda de cima na cor cheia
+  // (o topo continua legível qualquer que seja o tom passado em `cor`)
+  const alvo = meta !== undefined && meta > 0 ? meta : null;
+  const baseClara = alvo !== null && data.some((d) => (d.parte ?? 0) > 0);
 
   return (
     <div ref={raiz} className="relative select-none" style={{ height: height + 22 }}>
@@ -124,20 +130,16 @@ export function BarChart({
             <span className="absolute -top-4 left-0 text-[10px] text-muted bg-surface pr-1">média {fmtValor ? fmtValor(average) : nf.format(Math.round(average))}</span>
           </div>
         )}
-        {meta !== undefined && meta > 0 && (
-          <div className="absolute inset-x-0 border-t border-dashed border-faint pointer-events-none" style={{ bottom: (meta / nice) * height }}>
-            <span className="absolute -top-4 right-0 text-[10px] text-faint bg-surface pl-1">meta {fmtValor ? fmtValor(meta) : nf.format(Math.round(meta))}</span>
+        {alvo !== null && (
+          <div className="absolute inset-x-0 border-t border-dashed border-faint pointer-events-none" style={{ bottom: (alvo / nice) * height }}>
+            <span className="absolute -top-4 right-0 text-[10px] text-faint bg-surface pl-1">meta {fmtValor ? fmtValor(alvo) : nf.format(Math.round(alvo))}</span>
           </div>
         )}
         {data.map((d, i) => {
-          // a barra fica sempre na cor da série (cor de área e cor de situação não se misturam na mesma série).
-          // Com meta: quem chega nela fica sólida e ganha uma tampa na cor do texto; com uma parte sólida no pé
-          // (ex.: profundo + REM), a base fica numa mistura clara, com a borda de cima na cor cheia (o topo continua legível)
-          const comMeta = meta !== undefined && meta > 0;
-          const bateu = comMeta && d.value >= meta;
+          const bateu = alvo !== null && d.value >= alvo;
           const temParte = !!d.parte && d.parte > 0;
-          const fundo = comMeta && temParte
-            ? `color-mix(in srgb, ${cor} 38%, transparent)`
+          const fundo = baseClara
+            ? `color-mix(in srgb, ${corParte} 38%, transparent)`
             : bateu ? cor : `linear-gradient(to top, color-mix(in srgb, ${cor} 45%, transparent), ${cor})`;
           return (
             <div key={i} className="absolute bottom-0 flex justify-center pointer-events-none" style={{ left: `${i * W}%`, width: `${W}%`, height }}>
@@ -157,7 +159,7 @@ export function BarChart({
                 {temParte && d.value > 0 && (
                   <div className="absolute inset-x-0 bottom-0" style={{ height: `${Math.min(100, (d.parte! / d.value) * 100)}%`, background: corParte }} />
                 )}
-                {comMeta && temParte && !bateu && d.value > 0 && <div className="absolute inset-x-0 top-0 h-[1.5px]" style={{ background: cor }} />}
+                {baseClara && !bateu && d.value > 0 && <div className="absolute inset-x-0 top-0 h-[1.5px]" style={{ background: corParte }} />}
                 {bateu && <div className="absolute inset-x-0 top-0 h-[2px] bg-ink" />}
               </div>
             </div>
