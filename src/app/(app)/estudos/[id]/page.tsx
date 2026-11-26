@@ -160,6 +160,8 @@ export default function AulaAberta() {
   const feita = aula?.situacao === "concluida";
   async function alternarConcluida() {
     if (!aula) return;
+    // a página aberta (em geral a última) conta antes de a aula deixar de estar "Lendo"
+    if (!feita) tracker.current?.creditarPaginaAtual();
     const campos = camposDaSituacao(feita ? "lendo" : "concluida", aula);
     setAula({ ...aula, ...campos });
     await supabase().from("notes").update(campos).eq("id", id);
@@ -167,16 +169,26 @@ export default function AulaAberta() {
   }
 
   /** Folheando → lendo: só a partir daqui o estudo conta (tempo, palavras, posição e porcentagem). */
-  async function comecarAEstudar() {
-    if (!aula) return;
-    const campos = camposDaSituacao("lendo", aula);
-    const nova = { ...aula, ...campos };
+  async function comecarAEstudar(peloTimer = false) {
+    const atual = aulaRef.current ?? aula;
+    if (!atual || atual.situacao === "lendo") return;
+    const campos = camposDaSituacao("lendo", atual);
+    const nova = { ...atual, ...campos };
     aulaRef.current = nova;
     setAula(nova);
+    // as páginas que você já leu nesta visita, antes de começar, contam também
+    const jaLidas = tracker.current?.assumirSombra() ?? 0;
     await supabase().from("notes").update(campos).eq("id", id);
     if (local) { posPendente.current = { loc: local, p: progresso }; salvarPos(); }
-    setAviso("Estudo iniciado: a partir de agora conta nos indicadores.");
+    setAviso(`${peloTimer ? "O Timer está nesta aula: estudo iniciado" : "Estudo iniciado"}${jaLidas ? ` (as ${nf.format(jaLidas)} palavras já lidas contam)` : ""}.`);
   }
+
+  // Timer ligado nesta aula (Estudos, esta transcrição) com ela ainda pendente: é estudo — começa a contar sozinho
+  useEffect(() => {
+    if (!aula || aula.situacao !== "pendente" || !timer.running || timer.phase !== "foco") return;
+    const t = timer.ver();
+    if (t.category === "Estudos" && t.noteId === id) void comecarAEstudar(true);
+  }, [aula?.situacao, timer.running, timer.phase, timer.lastSaved, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Leva o trecho selecionado para as anotações, como citação. */
   function citar() {

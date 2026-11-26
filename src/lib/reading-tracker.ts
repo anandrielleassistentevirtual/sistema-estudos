@@ -8,7 +8,9 @@ import { dayKey } from "./dates";
  * (mais rápido que 900 ppm) e o excesso acima de um teto por página (quando você
  * deixa o livro aberto e sai). A última página conta ao sair, se houve tempo de lê-la.
  * Só conta quando o livro/aula está como "Lendo" (`ativo`): folhear um livro que você ainda não começou
- * (ou já terminou) não entra nos indicadores.
+ * (ou já terminou) não entra nos indicadores. As páginas lidas assim ficam guardadas à parte (`sombra`):
+ * se nesta mesma visita você começa a estudar (ou liga o Timer na aula), elas passam a contar — quem leu
+ * metade da aula antes de clicar em "Começar a estudar" não perde essa metade.
  */
 const MAX_PPM = 900;
 export class ReadingTracker {
@@ -24,6 +26,8 @@ export class ReadingTracker {
   public session = { seconds: 0, words: 0 };
   /** página que está na tela agora (para creditar a última página ao sair) */
   private view = { words: 0, last: false };
+  /** páginas lidas enquanto não estava "Lendo", nesta visita */
+  private sombra = { seconds: 0, words: 0 };
   public onChange?: () => void;
 
   /** bookId para livros; para aulas (Estudos), bookId = null e noteId = id da aula. */
@@ -52,18 +56,38 @@ export class ReadingTracker {
     const dwell = (now - this.pageStart - this.hiddenTotal) / 1000;
     this.pageStart = now;
     this.hiddenTotal = 0;
-    if (!this.ativo()) return; // folheando: não conta
     if (!forward || dwell < 2 || words <= 0) return;
     // folheada: rápido demais para ter sido lida
     if (dwell < (words / MAX_PPM) * 60) return;
     // teto: o tempo de ler a página a 40 ppm, entre 1 e 6 minutos
     const cap = Math.min(360, Math.max(60, (words / 40) * 60));
     const secs = Math.min(dwell, cap);
+    // ainda não está "Lendo": guarda à parte (conta se o estudo começar nesta visita)
+    if (!this.ativo()) { this.sombra.seconds += secs; this.sombra.words += words; return; }
     this.pending.seconds += secs;
     this.pending.words += words;
     this.session.seconds += secs;
     this.session.words += words;
     this.onChange?.();
+  }
+
+  /** O estudo começou agora: as páginas já lidas nesta visita (enquanto não estava "Lendo") passam a contar. */
+  assumirSombra() {
+    if (!this.sombra.words) return 0;
+    const { seconds, words } = this.sombra;
+    this.sombra = { seconds: 0, words: 0 };
+    this.pending.seconds += seconds;
+    this.pending.words += words;
+    this.session.seconds += seconds;
+    this.session.words += words;
+    this.onChange?.();
+    void this.flush();
+    return words;
+  }
+
+  /** Conta a página que está aberta (ex.: ao concluir a aula nela, antes de deixar de estar "Lendo"). */
+  creditarPaginaAtual() {
+    if (this.view.words > 0) this.turn(this.view.words, true);
   }
 
   /** Chamar sempre que uma página aparece na tela. */
