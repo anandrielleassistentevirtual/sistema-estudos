@@ -71,7 +71,7 @@ export function Conectar({ onConectado, embutido }: { onConectado: () => Promise
     <section className={embutido ? "min-w-0" : "card p-5 mb-4 max-w-xl"}>
       <Titulo className={`flex items-center gap-2 ${embutido ? "text-sm font-medium" : "card-title"}`}><Cloud size={embutido ? 14 : 17} className="text-icon" /> Conectar ao AnkiWeb</Titulo>
       <p className="text-sm text-muted mt-1">
-        Use o mesmo e-mail e senha com que o seu Anki sincroniza. Depois disso é só tocar em <b className="text-ink">Atualizar</b>, no celular ou no computador — sem precisar do Anki aberto.
+        Use o mesmo e-mail e senha com que o seu Anki sincroniza. Depois disso é só tocar em <RefreshCw size={12} className="inline align-[-2px] text-ink" aria-hidden /> (atualizar), ao lado de “atualizado há…”, no celular ou no computador — sem precisar do Anki aberto.
       </p>
       <form className={`${embutido ? "mt-3" : "mt-4"} space-y-3`} onSubmit={async (e) => {
         e.preventDefault();

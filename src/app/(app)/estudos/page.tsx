@@ -149,11 +149,14 @@ export default function Estudos() {
     }
     const resumo = new Map<string, { total: number; feitas: number; faltam: number }>();
     const posicao = new Map<string, number>();
+    // pastas com aulas numeradas no título: nelas a aula sem número fica com o ícone, para a posição não repetir o número de outra
+    const comNumero = new Set<string>();
     for (const [k, l] of listas) {
       l.sort(porOrdem).forEach((a, i) => posicao.set(a.id, i + 1));
+      if (l.some((a) => numeroDaAula(a.title))) comNumero.add(k);
       resumo.set(k, { total: l.length, feitas: l.filter((a) => a.situacao === "concluida").length, faltam: l.reduce((n, a) => n + faltam(a), 0) });
     }
-    return { resumo, posicao };
+    return { resumo, posicao, comNumero };
   }, [aulas, porId]);
 
   // aulas em leitura (as mais adiantadas primeiro)
@@ -526,7 +529,7 @@ export default function Estudos() {
                       ].filter(Boolean).join(" · ");
                       return (
                         <div key={a.id} className="flex items-center gap-3 pl-4 pr-2 hover:bg-sel/60 transition-colors">
-                          <StatusAnel aula={a} numero={numeroDaAula(a.title) ?? String(porPasta.posicao.get(a.id) ?? k + 1).padStart(2, "0")}
+                          <StatusAnel aula={a} numero={numeroDaAula(a.title) ?? (porPasta.comNumero.has(chave) ? null : String(porPasta.posicao.get(a.id) ?? k + 1).padStart(2, "0"))}
                             onChange={(v) => mudarSituacao(a, v)} />
                           <button onClick={() => abrir(a)} className="flex-1 min-w-0 flex items-center gap-3 py-2.5 text-left" title="Abrir a aula">
                             <span className="flex-1 min-w-0">
@@ -743,7 +746,7 @@ function SeletorDePasta({ ordem, valor, vazio, onMudar }: {
  * O status da aula num anel: o traço é o quanto foi lido (cinza a fazer, violeta em leitura, verde concluída)
  * e no meio vai o número da aula. Por cima, o mesmo <select> invisível do StatusPill troca o status.
  */
-function StatusAnel({ aula, numero, onChange }: { aula: Aula; numero: string; onChange: (s: SituacaoAula) => void }) {
+function StatusAnel({ aula, numero, onChange }: { aula: Aula; numero: string | null; onChange: (s: SituacaoAula) => void }) {
   const s = aula.situacao ?? "pendente";
   const feita = s === "concluida";
   const rotulo = SITUACOES_AULA.find((o) => o.value === s)?.label ?? s;
@@ -754,7 +757,7 @@ function StatusAnel({ aula, numero, onChange }: { aula: Aula; numero: string; on
       <Anel valor={feita ? 1 : s === "lendo" ? aula.progresso ?? 0 : 0} cor={feita ? "var(--good)" : "var(--area-estudos)"} tamanho={30} espessura={2.5}>
         {/* em leitura o número também fica violeta: com 0% o traço ainda não aparece */}
         {feita ? <Check size={14} strokeWidth={2.5} className="text-good" />
-          : <span className={`text-[11px] tabular-nums ${s === "lendo" ? "text-area-estudos font-medium" : "text-muted"}`}>{numero}</span>}
+          : <span className={`text-[11px] tabular-nums ${s === "lendo" ? "text-area-estudos font-medium" : "text-muted"}`}>{numero ?? <FileText size={12} className="text-icon" />}</span>}
       </Anel>
       {/* a área de toque é maior que o anel; letra de 16px para o iPhone não dar zoom */}
       <select aria-label={`Status da aula: ${rotulo}`} title={titulo} value={s} onChange={(e) => onChange(e.target.value as SituacaoAula)}

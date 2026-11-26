@@ -282,7 +282,7 @@ export default function Temporadas() {
       <div className="space-y-3 md:space-y-4">
         {/* onde estou: a estação (anterior · esta · seguinte), a semana, as barras de execução e a média.
             No celular: ‹ nome › / semana e dias / barras / média e começou */}
-        <section className="card overflow-hidden px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-3">
+        <section className="card px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="flex items-center gap-2.5 min-w-0 flex-1 sm:flex-none">
             <button className="btn btn-ghost px-1.5 -ml-1.5" title="Season anterior" aria-label="Season anterior" onClick={() => setSel(vizinha(sel.estacao, sel.ano, -1))}><ChevronLeft size={16} /></button>
             <span className="w-8 h-8 rounded-full grid place-items-center bg-surface-2 shrink-0"><EstacaoIcone estacao={sel.estacao} size={16} /></span>
@@ -552,18 +552,19 @@ function InicioDaSeason({ valor, min, max, onMudar, lado, className = "" }: {
 }) {
   const [aberto, setAberto] = useState(false);
   const caixa = useRef<HTMLSpanElement>(null);
+  const botao = useRef<HTMLButtonElement>(null);
   // fecha com Esc e com clique fora
   useEffect(() => {
     if (!aberto) return;
     const fora = (e: PointerEvent) => { if (!caixa.current?.contains(e.target as Node)) setAberto(false); };
-    const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") setAberto(false); };
+    const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") { setAberto(false); botao.current?.focus(); } };
     document.addEventListener("pointerdown", fora);
     document.addEventListener("keydown", tecla);
     return () => { document.removeEventListener("pointerdown", fora); document.removeEventListener("keydown", tecla); };
   }, [aberto]);
   return (
     <span ref={caixa} className={`relative items-center ${className}`}>
-      <button type="button" className="inline-flex items-center gap-1 hover:text-ink" aria-expanded={aberto} title="Mudar o dia em que a season começou"
+      <button ref={botao} type="button" className="inline-flex items-center gap-1 hover:text-ink" aria-expanded={aberto} title="Mudar o dia em que a season começou"
         onClick={() => setAberto((a) => !a)}>
         começou {fmtData(valor)} <Pencil size={12} />
       </button>

@@ -43,7 +43,7 @@ export function LivroLinha({ livro: b, numero, menu = [], mostrarMesa = true, mo
           </span>
           <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
             <span className="truncate max-w-[14rem]">{b.author ?? "Autor desconhecido"}</span>
-            {mostrarPasta && pasta?.code && <span className="font-mono text-[11px] text-faint" title={pasta.name}>{pasta.code}</span>}
+            {mostrarPasta && pasta && <span className={`text-[11px] text-faint ${pasta.code ? "font-mono" : "truncate max-w-[10rem]"}`} title={pasta.name}>{pasta.code || pasta.name}</span>}
             <EtiquetaPerfil livro={b} curta />
             <Selos livro={b} />
             {/* mesa e posição em texto simples (a caixinha em cada linha era ruído); o nome da mesa fica no title */}

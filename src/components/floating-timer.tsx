@@ -22,15 +22,13 @@ export function FloatingTimer() {
   const reader = path.startsWith("/ler/") || /^\/estudos\/(?!tarefas(\/|$))[^/]+/.test(path);
   // a sala de escrita tem o próprio cronômetro e não deve ter nada piscando na tela
   const salaEscrita = /^\/escrita\/[^/]+/.test(path);
-  // na Oração a tela é de recolhimento: a pílula só aparece com uma sessão em andamento
-  const oracao = path === "/lectio" || path.startsWith("/oracao");
   const active = t.running || t.seconds > 0;
   const clock = fmtClock(t.mode === "pomodoro" ? t.remaining : t.seconds);
 
   return (
     <>
       <PagesPrompt />
-      {!onTimerPage && !salaEscrita && !(oracao && !active) && (
+      {!onTimerPage && !salaEscrita && (
         <div className="fixed right-4 z-[60] flex flex-col items-end gap-2" style={{ bottom: `calc(${reader ? 48 : 16}px + env(safe-area-inset-bottom))` }}>
           {open && (
             <div className="card shadow-2xl p-4 w-[min(340px,calc(100vw-2rem))] max-h-[75vh] overflow-y-auto">

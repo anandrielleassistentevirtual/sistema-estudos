@@ -112,6 +112,7 @@ export function Painel() {
         valor={conh.comecados && conh.total !== null ? `${Math.round(conh.total * 100)}%` : null}
         nota={conh.comecados && conh.total !== null
           ? <>domínio médio · {faixaDe(conh.total).nome} · {conh.comecados} {conh.comecados === 1 ? "começado" : "começados"}</>
+          : conh.comecados ? <>domínio médio · {conh.comecados} {conh.comecados === 1 ? "começado" : "começados"}</>
           : "começa quando você ler"}>
         {/* as três partes do domínio lado a lado: nome em cima, valor embaixo (duas linhas, como os outros rodapés).
             Distribuídas na largura (até 16rem), para "compreensão" caber inteira também na coluna de 1280px */}

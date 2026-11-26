@@ -234,7 +234,7 @@ export default function Estante() {
                     </div>
                     {/* cada linha mostra o código fino (028, 371.3…), já que a prateleira é a classe */}
                     <div className="card divide-y divide-line overflow-hidden">
-                      {lista.map((b) => <LivroLinha key={b.id} livro={b} />)}
+                      {lista.map((b) => <LivroLinha key={b.id} livro={b} mostrarPasta={b.folder_id !== fid || !!f?.code} />)}
                     </div>
                   </section>
                 );
