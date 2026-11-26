@@ -228,7 +228,7 @@ export function QuadroSonhos({ antes }: { antes?: React.ReactNode } = {}) {
       <div ref={tela}
         onDragOver={(e) => { e.preventDefault(); setArrastando(true); }} onDragLeave={() => setArrastando(false)}
         onDrop={(e) => { e.preventDefault(); setArrastando(false); const fs = [...e.dataTransfer.files].filter((f) => f.type.startsWith("image/")); if (fs.length) void adicionar(fs); }}
-        className={`relative isolate overflow-hidden rounded-2xl bg-[#070708] ${arrastando ? "ring-2 ring-[var(--focus)]" : ""}`}
+        className={`relative isolate overflow-hidden rounded-2xl bg-[var(--sonhos-fundo)] ${arrastando ? "ring-2 ring-[var(--focus)]" : ""}`}
         style={{ height: comImagem.length && !editar ? altura || 420 : undefined }}>
         {comImagem.length === 0 ? (
           <button onClick={() => arquivo.current?.click()} className="relative w-full h-[360px] grid place-items-center group" aria-label="Adicionar imagens">
@@ -249,7 +249,7 @@ export function QuadroSonhos({ antes }: { antes?: React.ReactNode } = {}) {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={imagens[s.id]} alt={s.titulo || "Sonho"} className="w-full h-full object-cover block" />
                 {destaque?.id === s.id && <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 text-white text-[10px] px-1.5 py-0.5 inline-flex items-center gap-1"><Crosshair size={10} /> destaque</span>}
-                {s.realizado_em && <span className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "#d6b25e" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
+                {s.realizado_em && <span className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "var(--sonhos-selo)" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
                 {controles(s)}
               </figure>
             ))}
@@ -267,7 +267,7 @@ export function QuadroSonhos({ antes }: { antes?: React.ReactNode } = {}) {
                     // object-position um pouco acima do meio: se algo precisar ser cortado, o rosto fica
                     className="w-full h-full object-cover [object-position:50%_30%] block transition-[filter,transform] duration-500 group-hover:[filter:none] group-hover:scale-[1.02]"
                     style={{ filter: tom(s, ehDestaque) }} />
-                  {s.realizado_em && <span className="absolute bottom-2 left-2 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "#d6b25e" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
+                  {s.realizado_em && <span className="absolute bottom-2 left-2 w-5 h-5 rounded-full grid place-items-center text-black" style={{ background: "var(--sonhos-selo)" }} title="Realizado"><Check size={12} strokeWidth={3} /></span>}
                   {controles(s)}
                 </figure>
               );

@@ -43,6 +43,13 @@ export function DetalheDaMeta({ meta, cor, area, resumo, comecaEm, hoje, ankiDia
     : meta.tipo === "anki" ? (meta.medida === "revisoes" ? "revisões" : "cartões novos")
     : meta.tipo === "contagem" ? meta.unidade || "itens" : "min";
 
+  // Esc fecha, como nas outras janelas do sistema
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", tecla);
+    return () => document.removeEventListener("keydown", tecla);
+  }, [onClose]);
+
   useEffect(() => {
     const sb = supabase();
     const m = new Map<string, number>();

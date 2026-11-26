@@ -151,20 +151,21 @@ export default function Dashboard() {
       <ConfissaoAviso />
       {/* "estou indo bem?", área por área: tempo (o herói, e a média por dia), constância (dias e sequência),
           leitura (e o ritmo), escrita e idiomas. As setas comparam com o período anterior equivalente (dito na manchete). */}
+      {/* a unidade ao lado do número vai com leading-none: senão a linha cresce e a nota desce 2px em relação ao Tempo */}
       <Faixa colunas={5}>
         <Indicador label="Tempo de estudo" value={fmtDuration(s.tempo)} delta={<Variacao atual={s.tempo} base={s.tempoAnt} />}
           detalhe={`${fmtDuration(s.media)} por dia`}
           explica={`Timer, leitura no leitor e tempo no Anki dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtDuration(s.tempoAnt)} (${fmtDuration(s.mediaAnt)} por dia).`} />
-        <Indicador label="Constância" value={<>{s.diasAtivos}<span className="text-sm font-normal text-muted"> de {s.dias} dias</span></>}
+        <Indicador label="Constância" value={<>{s.diasAtivos}<span className="text-sm font-normal text-muted leading-none"> de {s.dias} dias</span></>}
           detalhe={`sequência de ${s.streak} ${s.streak === 1 ? "dia" : "dias"}`}
           explica="Dias do período com algum estudo, leitura, revisão ou escrita (contando a partir do seu primeiro registro). A sequência é de dias seguidos até hoje." />
-        <Indicador label="Leitura" cor={COR_AREA.leitura} value={<>{nf.format(s.lidas)}<span className="text-sm font-normal text-muted"> pal.</span></>}
+        <Indicador label="Leitura" cor={COR_AREA.leitura} value={<>{nf.format(s.lidas)}<span className="text-sm font-normal text-muted leading-none"> pal.</span></>}
           delta={<Variacao atual={s.lidas} base={s.lidasAnt} />} detalhe={s.ppm ? `${s.ppm} ppm` : "—"}
           explica={`Palavras lidas no leitor (livros e aulas) — ${periodo.nome.toLowerCase()}, a ${s.ppm || "—"} palavras por minuto. Período anterior: ${nf.format(s.lidasAnt)} palavras, ${s.ppmAnt || "—"} ppm.`} />
-        <Indicador label="Escrita" cor={COR_AREA.escrita} value={<>{nf.format(s.escritas)}<span className="text-sm font-normal text-muted"> pal.</span></>}
+        <Indicador label="Escrita" cor={COR_AREA.escrita} value={<>{nf.format(s.escritas)}<span className="text-sm font-normal text-muted leading-none"> pal.</span></>}
           delta={<Variacao atual={s.escritas} base={s.escritasAnt} />}
           explica={`Palavras escritas na sala de escrita — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.escritasAnt)}.`} />
-        <Indicador label="Idiomas" cor={COR_AREA.idiomas} value={<>{nf.format(s.anki)}<span className="text-sm font-normal text-muted"> revisões</span></>}
+        <Indicador label="Idiomas" cor={COR_AREA.idiomas} value={<>{nf.format(s.anki)}<span className="text-sm font-normal text-muted leading-none"> revisões</span></>}
           delta={<Variacao atual={s.anki} base={s.ankiAnt} />}
           explica={`Revisões no Anki, nos baralhos dos seus idiomas — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(s.ankiAnt)}.`} />
       </Faixa>

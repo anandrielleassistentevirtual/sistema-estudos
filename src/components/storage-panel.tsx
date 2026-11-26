@@ -118,7 +118,8 @@ export function StoragePanel() {
             rotulo="Seus dados" limite="500 MB"
             valor={uso ? mb(uso.dados ?? uso.banco) : semNumero}
             frac={fracDados} fixo={fracFixo} cor={corDoUso(fracDados + fracFixo)}
-            dica={uso?.dados !== undefined && `+ ${mb(uso.banco - uso.dados)} fixos do Supabase (não crescem com o uso)`}
+            // carregando, a linha da dica fica reservada para os cartões não crescerem quando os números chegam
+            dica={uso === undefined ? "\u00a0" : uso?.dados !== undefined && `+ ${mb(uso.banco - uso.dados)} fixos do Supabase (não crescem com o uso)`}
           />
           <Medidor
             rotulo="Arquivos" limite="1 GB"

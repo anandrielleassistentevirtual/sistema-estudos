@@ -120,7 +120,8 @@ export function Secao({ titulo, hint, acoes, children }: { titulo: React.ReactNo
   return (
     <section className="mt-6 md:mt-8 first:mt-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-3">
-        <div className="min-w-0">
+        {/* a dica quebra antes de as ações descerem: elas só vão para a linha de baixo se o título ficaria com menos de 10rem */}
+        <div className="min-w-0 flex-1 basis-40">
           <h2 className="card-title">{titulo}</h2>
           {hint && <p className="text-xs text-faint mt-0.5">{hint}</p>}
         </div>

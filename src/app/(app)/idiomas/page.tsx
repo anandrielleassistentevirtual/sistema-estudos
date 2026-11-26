@@ -212,7 +212,7 @@ export default function Idiomas() {
       tabs={
         <TabNav rotulo="Idiomas" abas={[
           ...(langs ?? []).map((l) => ({ id: l.id, label: l.name, icone: <Bandeira codigo={l.bandeira} tamanho={14} />, ativa: l.id === selId, onClick: () => setSelId(l.id) })),
-          { id: "novo", label: "Idioma", icone: <Plus size={14} />, fantasma: true, ativa: false, onClick: () => setModal("idioma") },
+          { id: "novo", label: "Idioma", icone: <Plus size={14} />, fantasma: true, ativa: false, title: "Cadastrar idioma", onClick: () => setModal("idioma") },
         ]} />
       }
       subtitle={sel && <>{sel.name} · <span className="text-ink">{periodo.nome}</span>, comparado com {comparadoCom}</>}
@@ -255,11 +255,17 @@ export default function Idiomas() {
               explica={`Revisões no Anki nos baralhos deste idioma — ${periodo.nome.toLowerCase()}. Período anterior: ${nf.format(revA)}.`} />
             <Indicador label="Cartões criados" value={nf.format(criadosP)} delta={<Variacao atual={criadosP} base={criadosA} />}
               explica={`Cartões criados — ${periodo.nome.toLowerCase()}${notasP && notasP !== criadosP ? `, em ${nf.format(notasP)} notas` : ""}. Período anterior: ${nf.format(criadosA)}.`} />
-            {/* a conta da fila à vista: as revisões (a coluna "revisões" dos baralhos) mais os cartões em aprendizado;
-                curta para caber no celular, e por extenso no title */}
+            {/* a conta da fila à vista: as revisões (a coluna "revisões" dos baralhos) mais os cartões em aprendizado.
+                Por extenso a partir do xl; na célula estreita (celular, tablet), sem a palavra "revisões". O detalhe do
+                Indicador é só texto, então a versão que muda com a largura vai no lugar do delta (a fila não se compara) */}
             <Indicador label="Fila de hoje" value={baralhos ? nf.format(paraHoje) : "—"}
-              detalhe={!baralhos ? "conecte o AnkiWeb" : !temAnki ? "nenhum baralho ligado"
-                : aprendendoHoje ? `${nf.format(revisarHoje)} + ${nf.format(aprendendoHoje)} aprendendo` : `${nf.format(revisarHoje)} revisões`}
+              delta={baralhos && temAnki && aprendendoHoje > 0 && (
+                <>
+                  <span className="xl:hidden">{nf.format(revisarHoje)} + {nf.format(aprendendoHoje)} aprendendo</span>
+                  <span className="max-xl:hidden">{nf.format(revisarHoje)} revisões + {nf.format(aprendendoHoje)} aprendendo</span>
+                </>
+              )}
+              detalhe={!baralhos ? "conecte o AnkiWeb" : !temAnki ? "nenhum baralho ligado" : aprendendoHoje ? undefined : `${nf.format(revisarHoje)} revisões`}
               explica={`O que o Anki pede hoje nos baralhos deste idioma${temAnki && baralhos ? `: ${nf.format(revisarHoje)} revisões + ${nf.format(aprendendoHoje)} aprendendo` : ""} (não depende do período).`} />
           </Faixa>
 
@@ -325,7 +331,7 @@ export default function Idiomas() {
       <div className="flex flex-wrap items-center gap-2 mt-3 md:mt-4">
         {sel && <ListeningPainel idioma={sel.name} pequeno className="!rounded-full open:!rounded-xl open:basis-full" />}
         <AnkiNoComputador conectado={noComputador} setConectado={setNoComputador} pequeno className="!rounded-full open:!rounded-xl open:basis-full" />
-        {!sel && conta && <div className="ml-auto"><AnkiWebBarra compacta conta={conta} onMudou={load} /></div>}
+        {!sel && conta && <div className="ml-auto"><AnkiWebBarra conta={conta} onMudou={load} /></div>}
       </div>
 
       {(modal === "idioma" || (modal && typeof modal === "object")) && (
@@ -357,7 +363,7 @@ function CartaoAnki({ idioma, temAnki, conta, tabela, periodo, revisoes, criados
   const [ver, setVer] = useState<"revisoes" | "criados">("revisoes");
   // a conta, Atualizar e desligar: sempre que houver AnkiWeb, mesmo sem baralhos ligados
   const rodape = conta && (
-    <div className="mt-2 pt-2 border-t border-line"><AnkiWebBarra compacta conta={conta} onMudou={onMudou} /></div>
+    <div className="mt-2 pt-2 border-t border-line"><AnkiWebBarra conta={conta} onMudou={onMudou} /></div>
   );
 
   if (!temAnki) {
@@ -380,6 +386,9 @@ function CartaoAnki({ idioma, temAnki, conta, tabela, periodo, revisoes, criados
   }
 
   const comLista = conta !== null && tabela.length > 0;
+  // na semana, a linha tem a altura que sobra na tela e a lista rola por dentro. Com mais de uma semana, o calendário
+  // já faz a linha crescer (a página rola de qualquer jeito): aí a lista mostra os baralhos todos
+  const listaRola = semanasDoPeriodo(periodo) <= 1;
   return (
     <section className="card p-4 min-w-0 flex flex-col">
       {/* seg-md: a mesma altura do botão "Adicionar" do MAR, ao lado (os dois títulos da linha ficam na mesma altura) */}
@@ -400,11 +409,12 @@ function CartaoAnki({ idioma, temAnki, conta, tabela, periodo, revisoes, criados
         <div className="mt-3 pt-3 border-t border-line grow"><Conectar embutido onConectado={onMudou} /></div>
       )}
       {comLista && (
-        // a lista rola por dentro no computador (não empurra a altura da linha)
+        // no computador, na semana, a lista rola por dentro (não empurra a altura da linha); com o calendário maior,
+        // fica inteira, com um teto para uma coleção de muitos subbaralhos
         <div className="mt-3 pt-3 border-t border-line flex flex-col xl:grow xl:min-h-[6.5rem]">
           <div className="flex justify-between gap-3 px-1 mb-0.5 text-[11px] text-faint"><span>Baralho</span><span>revisões</span></div>
-          <div className="xl:relative xl:grow">
-            <ul className="divide-y divide-line -mx-1 xl:absolute xl:inset-0 xl:overflow-y-auto">
+          <div className={`xl:grow ${listaRola ? "xl:relative" : ""}`}>
+            <ul className={`divide-y divide-line -mx-1 xl:overflow-y-auto ${listaRola ? "xl:absolute xl:inset-0" : "xl:max-h-[20rem]"}`}>
               {tabela.map((d) => {
                 const nivel = d.nome.split("::").length - 1;
                 const nome = d.nome.split("::").pop()!;

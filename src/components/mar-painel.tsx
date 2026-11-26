@@ -478,13 +478,14 @@ export function MarPainel({
           <Rotulo>Média por dia</Rotulo>
           <Valor>{duracao(ind.mediaP)}</Valor>
           <Trilho><Barrinhas ind={ind} /></Trilho>
-          {/* duas linhas fixas: o total com a comparação, e os dias (na meta ou com MAR) */}
+          {/* duas linhas: o total com a comparação, e os dias (na meta ou com MAR). Na célula estreita
+              (celular pequeno, tablet, período longo) cada uma quebra em vez de cortar o número */}
           <div className="ind-nota mt-1.5 leading-snug min-w-0">
-            <div className="truncate">
+            <div className="line-clamp-2">
               total {duracao(ind.totalP)}
               {ind.totalA > 0 && <> · <Variacao atual={ind.totalP} base={ind.totalA} /></>}
             </div>
-            <div className="truncate">{diasTxt}</div>
+            <div className="line-clamp-2">{diasTxt}</div>
           </div>
         </div>
 
@@ -510,7 +511,9 @@ export function MarPainel({
             </button>
           ))}
         </div>
-        <div className="w-full sm:w-auto sm:flex-1 min-w-0 flex items-center justify-end gap-x-3 min-h-7">
+        {/* sem a faixa, "sem boia · Registros" desce para a linha de baixo quando não cabe ao lado das abas
+            (cartão estreito, ~768px), em vez de passar da borda; a faixa encolhe e corta o texto (min-w-0) */}
+        <div className={`w-full sm:w-auto sm:flex-1 min-w-0 ${faixa ? "" : "sm:min-w-max"} flex items-center justify-end gap-x-3 min-h-7`}>
           {faixa ? (
             <FaixaMar f={faixa} ocupado={!!faixa.t && ocupados.has(faixa.t.id)} onDesfazer={() => void faixaDesfazer()}
               onSomarMesmo={() => void faixaSomarMesmo()} onTentar={faixaTentar} onFechar={() => setFaixa(null)} />

@@ -377,9 +377,11 @@ export default function Estudos() {
               <>
                 <div className="mt-2.5 flex items-center gap-3">
                   <button onClick={() => abrir(aSeguir)} className="group min-w-0 flex-1 text-left" title="Abrir a aula">
-                    <span className="block truncate text-sm font-medium group-hover:underline underline-offset-2">{aSeguir.title}</span>
-                    <span className="block truncate ind-nota mt-1 tabular-nums">
-                      {[aSeguir.course, aSeguir.palavras ? `≈ ${tempo(aSeguir.palavras)}` : null].filter(Boolean).join(" · ")}
+                    <span className="block truncate text-sm font-medium group-hover:underline underline-offset-2" title={aSeguir.title}>{aSeguir.title}</span>
+                    {/* o caminho encurta com "…" e o tempo da aula fica sempre à vista */}
+                    <span className="flex gap-1 ind-nota mt-1 tabular-nums">
+                      {aSeguir.course && <span className="truncate" title={aSeguir.course}>{aSeguir.course}</span>}
+                      {aSeguir.palavras ? <span className="shrink-0">{aSeguir.course ? "· " : ""}≈ {tempo(aSeguir.palavras)}</span> : null}
                     </span>
                   </button>
                   <button className="btn py-1 text-xs shrink-0" onClick={() => abrir(aSeguir)}><BookOpen size={13} /> Começar</button>
@@ -747,7 +749,8 @@ function StatusAnel({ aula, numero, onChange }: { aula: Aula; numero: string; on
   const rotulo = SITUACOES_AULA.find((o) => o.value === s)?.label ?? s;
   const titulo = `${rotulo}${s === "lendo" ? ` · ${Math.round((aula.progresso ?? 0) * 100)}%` : ""} — mudar o status`;
   return (
-    <span className="relative shrink-0 rounded-full focus-within:ring-2 focus-within:ring-accent/40">
+    // grid: sem a linha de texto em volta do anel (inline), ele fica com 30px e centrado na linha
+    <span className="relative grid shrink-0 rounded-full focus-within:ring-2 focus-within:ring-accent/40">
       <Anel valor={feita ? 1 : s === "lendo" ? aula.progresso ?? 0 : 0} cor={feita ? "var(--good)" : "var(--area-estudos)"} tamanho={30} espessura={2.5}>
         {/* em leitura o número também fica violeta: com 0% o traço ainda não aparece */}
         {feita ? <Check size={14} strokeWidth={2.5} className="text-good" />

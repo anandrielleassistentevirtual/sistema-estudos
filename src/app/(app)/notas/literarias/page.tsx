@@ -198,22 +198,31 @@ export default function Literarias() {
         <span className="min-w-0 flex-1">
           <span className="font-medium leading-snug line-clamp-2 sm:line-clamp-1 break-words" title={b.title}>{b.title}</span>
           <span className="mt-1 flex items-center gap-x-1.5 text-xs text-muted min-w-0">
-            {/* o autor vem antes e corta por último (até 55% da linha); a pasta ocupa o resto */}
-            {b.author && <><span className="truncate shrink-0 max-w-[min(14rem,55%)]" title={b.author}>{b.author}</span><span className="text-faint shrink-0">·</span></>}
+            {/* no PC o autor vai até 55% da linha e a pasta corta antes dele; no celular a pasta é só o código
+                (como na Biblioteca), para o autor caber inteiro */}
+            {b.author && <><span className="truncate min-w-0 sm:shrink-0 sm:max-w-[min(14rem,55%)]" title={b.author}>{b.author}</span><span className="text-faint shrink-0">·</span></>}
             {f ? (
-              <span className="truncate min-w-0" title={folderLabel(f)}>{f.code && <span className="font-mono text-[11px] text-faint">{f.code}</span>} {f.name}</span>
-            ) : <span className="truncate">Sem pasta</span>}
+              <span className={`truncate sm:shrink sm:min-w-0 ${f.code ? "shrink-0" : "min-w-0"}`} title={folderLabel(f)}>
+                {f.code && <span className="font-mono text-[11px] text-faint">{f.code}</span>}
+                <span className={f.code ? "hidden sm:inline" : ""}>{f.code ? " " : ""}{f.name}</span>
+              </span>
+            ) : <span className="truncate shrink-0">Sem pasta</span>}
           </span>
         </span>
-        {p > 0 && <span className="inline-flex items-center gap-1 text-[11px] text-muted shrink-0" title={`${p} na Inbox`}><Inbox size={12} /> {p}</span>}
-        {n > 0 && <span className="text-xs text-muted shrink-0 text-right"><b className="tabular-nums font-medium text-ink">{n}</b> {n === 1 ? "anotação" : "anotações"}</span>}
+        {p > 0 && <span className="inline-flex items-center gap-1 text-[11px] text-muted tabular-nums shrink-0" title={`${p} na Inbox`}><Inbox size={12} /> {p}</span>}
+        {/* largura fixa no PC: os números e o selo da Inbox ficam na mesma coluna em todas as linhas
+            (no celular a largura vai para o título) */}
+        {n > 0 && <span className="text-xs text-muted shrink-0 sm:min-w-[5rem]"><b className="tabular-nums font-medium text-ink">{n}</b> {n === 1 ? "anotação" : "anotações"}</span>}
       </button>
     );
   }
 
   return (
     <Page tabs={<NotasTabs />} title="Notas"
-      subtitle={pronto ? `${plural(done.length, "anotação", "anotações")} em ${doneByBook.size} de ${plural(books.length, "livro", "livros")}${pendentes ? ` · ${pendentes} na Inbox` : ""}` : undefined}
+      // sem nenhuma anotação o "0 em 0 de N" não diz nada: o <Empty> explica e a manchete fica só com a Inbox
+      subtitle={!pronto ? undefined : done.length
+        ? `${plural(done.length, "anotação", "anotações")} em ${doneByBook.size} de ${plural(books.length, "livro", "livros")}${pendentes ? ` · ${pendentes} na Inbox` : ""}`
+        : pendentes ? `${plural(pendentes, "nota", "notas")} na Inbox` : undefined}
       ajuda="Notas literárias organizadas nas mesmas pastas da Biblioteca: cada livro reúne todas as suas anotações concluídas. Para criar pastas, use a Biblioteca; elas aparecem aqui sozinhas.">
       {/* índice à esquerda a partir de lg; antes disso a árvore abre pelo seletor "Pasta:", como na Estante */}
       <div className="grade-indice">

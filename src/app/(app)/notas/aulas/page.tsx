@@ -102,7 +102,7 @@ export default function AnotacoesDasAulas() {
         // o mesmo esqueleto do Diário: a busca, a vista e o índice à esquerda, as anotações à direita
         <div className="grade-indice">
           <aside className="lg:sticky lg:top-4 h-fit space-y-2 min-w-0">
-            <label className="input flex items-center gap-2">
+            <label className="input flex items-center gap-2" title="Buscar nas anotações, aulas, cursos e professores">
               <Search size={15} className="text-faint shrink-0" />
               <input className="bg-transparent outline-none flex-1 min-w-0" placeholder="Buscar nas anotações e aulas" value={q} onChange={(e) => setQ(e.target.value)} />
               {q && <button onClick={() => setQ("")} className="text-faint hover:text-ink" title="Limpar a busca"><X size={14} /></button>}
@@ -115,7 +115,7 @@ export default function AnotacoesDasAulas() {
             {/* no celular, uma faixa de etiquetas que rola para o lado (só quando há mais de um curso) */}
             {indice.length > 0 && (
               <nav aria-label="Cursos"
-                className={`${indice.length > 1 ? "flex" : "hidden"} gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 lg:block lg:overflow-visible lg:rounded-xl lg:border lg:border-line lg:bg-surface lg:p-2`}>
+                className={`${indice.length > 1 ? "flex" : "hidden"} gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 lg:block lg:overflow-visible lg:rounded-xl lg:border lg:border-line lg:bg-surface lg:shadow-(--shadow) lg:p-2`}>
                 {indice.map((c) => (
                   <a key={c.curso} href={`#${c.ancora}`} title={c.curso}
                     className="shrink-0 flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:text-ink hover:bg-surface-2 lg:rounded-md lg:border-0 lg:px-2 lg:text-ink">

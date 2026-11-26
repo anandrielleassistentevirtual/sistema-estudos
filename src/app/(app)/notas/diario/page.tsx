@@ -104,7 +104,7 @@ export default function Diario() {
             {/* o índice dos Evangelhos: no celular, uma faixa de etiquetas que rola para o lado (só quando há mais de um) */}
             {livros.length > 0 && (
               <nav aria-label="Evangelhos"
-                className={`${livros.length > 1 ? "flex" : "hidden"} gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 lg:block lg:overflow-visible lg:rounded-xl lg:border lg:border-line lg:bg-surface lg:p-2`}>
+                className={`${livros.length > 1 ? "flex" : "hidden"} gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 lg:block lg:overflow-visible lg:rounded-xl lg:border lg:border-line lg:bg-surface lg:shadow-(--shadow) lg:p-2`}>
                 {livros.map((l) => (
                   <a key={l.livro} href={`#ev-${l.livro}`}
                     className="shrink-0 flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:text-ink hover:bg-surface-2 lg:rounded-md lg:border-0 lg:px-2 lg:text-ink">

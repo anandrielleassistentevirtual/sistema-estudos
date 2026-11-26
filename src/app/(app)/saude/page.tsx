@@ -61,6 +61,11 @@ export default function SaudePage() {
   const acordar = horaMediaAcordar(atual.map((d) => d.acordou).filter((x): x is string => !!x));
   const temFases = atual.some((d) => d.profundo_min != null);
   const fundoRem = Math.round(media(atual.filter((d) => d.sono_min && d.profundo_min != null).map((d) => ((d.profundo_min ?? 0) + (d.rem_min ?? 0)) / d.sono_min!)) * 100);
+  // as fases da última noite: as três do relógio juntas; "acordado" pode vir mesmo sem elas
+  const fases = (ultima ? [
+    ...(ultima.profundo_min != null ? [["profundo", ultima.profundo_min], ["REM", ultima.rem_min], ["essencial", ultima.essencial_min]] : []),
+    ...(ultima.acordado_min ? [["acordado", ultima.acordado_min]] : []),
+  ] : []) as [string, number | null][];
 
   // barras: por dia (até ~5 semanas), por semana (até ~6 meses) ou por mês — média por dia em cada barra
   const porQue = periodo.dias <= 35 ? "dia" : periodo.dias <= 190 ? "semana" : "mês";
@@ -156,7 +161,7 @@ export default function SaudePage() {
                   delta={<Variacao atual={mediaPassos} base={mediaPassosAnt} vs={periodo.vs} />}
                   explica={`Média de passos por dia — ${periodo.nome.toLowerCase()} (dias completos). Período anterior: ${nf.format(mediaPassosAnt)}.`} />
                 <Indicador label="Dias na meta" cor={COR_PASSOS}
-                  value={pAtual.length ? <>{naMetaPassos}<span className="text-sm font-normal text-muted"> de {pAtual.length}</span></> : "—"}
+                  value={pAtual.length ? <>{naMetaPassos}<span className="text-sm font-normal text-muted leading-none"> de {pAtual.length}</span></> : "—"}
                   detalhe={`meta ${nf.format(metas.passos)}`} explica="Dias completos do período (hoje ainda está contando) com a meta de passos cumprida." />
               </Faixa>
               <section className="card p-4 min-w-0 flex flex-col flex-1">
@@ -174,7 +179,7 @@ export default function SaudePage() {
                   delta={<Variacao atual={mediaSono} base={mediaSonoAnt} vs={periodo.vs} />}
                   explica={`Tempo dormindo por noite, em média — ${periodo.nome.toLowerCase()}. Período anterior: ${fmtSono(mediaSonoAnt || null)}.${temFases ? ` Sono profundo + REM: ${fundoRem}% do sono.` : ""}`} />
                 <Indicador label="Noites na meta" cor={COR_SONO}
-                  value={sAtual.length ? <>{naMetaSono}<span className="text-sm font-normal text-muted"> de {sAtual.length}</span></> : "—"}
+                  value={sAtual.length ? <>{naMetaSono}<span className="text-sm font-normal text-muted leading-none"> de {sAtual.length}</span></> : "—"}
                   detalhe={`meta ${fmtSono(metas.sonoMin)}`} explica="Noites do período com a meta de sono cumprida." />
               </Faixa>
               <section className="card p-4 min-w-0 flex flex-col flex-1">
@@ -196,7 +201,7 @@ export default function SaudePage() {
                 <p className="text-sm text-muted">Com mais algumas noites registradas, aparece aqui quanto você estuda depois de dormir pouco e depois de dormir bem.</p>
               ) : (
                 <>
-                  <p className="text-xs text-faint mb-2.5" title="Tempo médio de estudo no dia seguinte a cada noite, pelas horas dormidas (todo o histórico)">
+                  <p className="text-xs text-faint mb-2.5" title="Tempo médio de estudo no dia seguinte a cada noite, pelas horas dormidas (todas as noites registradas, não só as do período)">
                     {campea ? <>Você estuda mais depois de noites de <span className="text-ink font-medium">{campea.nome}</span>.</> : "estudo no dia seguinte, por horas dormidas"}
                   </p>
                   <ul className="space-y-2">
@@ -244,12 +249,10 @@ export default function SaudePage() {
                     <span className="font-medium">{ultima.acordou ? fmtHora(minutoLocal(ultima.acordou)) : "—"}</span>
                     <span>{fmtHora(acordar)}</span>
                   </div>
-                  {ultima.profundo_min != null && (
+                  {fases.length > 0 && (
                     // cada fase inteira numa linha: no celular a quebra cai nos pontos, não no meio de "acordado 0h20"
                     <p className="text-xs text-faint mt-3 tabular-nums flex flex-wrap gap-x-1">
-                      {([["profundo", ultima.profundo_min], ["REM", ultima.rem_min], ["essencial", ultima.essencial_min],
-                        ...(ultima.acordado_min ? [["acordado", ultima.acordado_min]] : [])] as [string, number | null][])
-                        .map(([nome, v], i) => <span key={nome} className="whitespace-nowrap">{i > 0 && "· "}{nome} {fmtSono(v)}</span>)}
+                      {fases.map(([nome, v], i) => <span key={nome} className="whitespace-nowrap">{i > 0 && "· "}{nome} {fmtSono(v)}</span>)}
                     </p>
                   )}
                 </>
@@ -285,9 +288,9 @@ function LinhaDoEnvio({ chave, onAbrir }: { chave: ChaveSaude | null; onAbrir: (
   return (
     <span title={atrasado && chave?.ultimo_uso ? AVISO_ATRASO : undefined}>
       <span className="dot mr-1.5 align-[0.05em]" style={{ background: !chave ? "var(--faint)" : atrasado ? "var(--warn)" : "var(--good)" }} aria-hidden />
-      {!chave ? "iPhone não conectado" : chave.ultimo_uso ? `último envio do iPhone: ${quando(chave.ultimo_uso)}` : "chave criada; o atalho ainda não mandou nada"}
-      {" · "}
-      <button className="underline underline-offset-2 hover:text-ink" onClick={onAbrir}>{chave ? "passo a passo" : "Conectar o iPhone"}</button>
+      {/* no celular sai "do iPhone" para a linha caber inteira; o ponto e o link quebram juntos, nunca um "·" sozinho no fim */}
+      {!chave ? "iPhone não conectado" : chave.ultimo_uso ? <>último envio<span className="max-sm:hidden"> do iPhone</span>: {quando(chave.ultimo_uso)}</> : "chave criada; o atalho ainda não mandou nada"}{" "}
+      <span className="whitespace-nowrap">· <button className="underline underline-offset-2 hover:text-ink" onClick={onAbrir}>{chave ? "passo a passo" : "Conectar o iPhone"}</button></span>
     </span>
   );
 }

@@ -21,6 +21,8 @@ export type Aba =
     onClick: () => void;
     /** aba ainda sem conteúdo (ex.: idioma sem cartões): em cinza */
     fantasma?: boolean;
+    /** o que o botão faz, quando o rótulo é curto (ex.: "+ Idioma" cadastra um idioma) */
+    title?: string;
   };
 
 /**
@@ -43,7 +45,7 @@ export function TabNav({ abas, className = "", rotulo }: { abas: Aba[]; classNam
       {abas.map((a) => {
         if ("id" in a) {
           return (
-            <button key={a.id} type="button" onClick={a.onClick} aria-current={a.ativa ? "page" : undefined} className={`tab ${a.fantasma && !a.ativa ? "text-faint" : ""}`}>
+            <button key={a.id} type="button" onClick={a.onClick} title={a.title} aria-current={a.ativa ? "page" : undefined} className={`tab ${a.fantasma && !a.ativa ? "text-faint" : ""}`}>
               {a.icone}{a.label}
             </button>
           );

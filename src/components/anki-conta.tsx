@@ -19,10 +19,10 @@ export function haQuanto(iso: string | null) {
 
 
 /**
- * Linha do AnkiWeb: de quando são os números e Atualizar. A `compacta` (rodapé do cartão Anki) junta tudo do AnkiWeb
- * num lugar só: "atualizado há…", o botão de atualizar, as mensagens, a conta e desligar.
+ * Linha do AnkiWeb (rodapé do cartão Anki): tudo do AnkiWeb num lugar só — "atualizado há…", o botão de atualizar,
+ * as mensagens, a conta e desligar.
  */
-export function AnkiWebBarra({ conta, onMudou, compacta }: { conta: ContaAnki; onMudou: () => Promise<void> | void; compacta?: boolean }) {
+export function AnkiWebBarra({ conta, onMudou }: { conta: ContaAnki; onMudou: () => Promise<void> | void }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ texto: string; erro?: boolean } | null>(null);
   async function atualizar() {
@@ -41,32 +41,21 @@ export function AnkiWebBarra({ conta, onMudou, compacta }: { conta: ContaAnki; o
   }
   const aviso = msg ? <span className={msg.erro ? "text-critical" : ""}>{msg.texto}</span>
     : conta.erro ? <span className="text-critical">Última tentativa: {conta.erro}</span> : null;
-  if (compacta) {
-    return (
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-faint">
-        <span className="inline-flex items-center gap-1.5" title="Os números do Anki vêm do AnkiWeb">
-          <Cloud size={12} className="shrink-0" /> atualizado {haQuanto(conta.sincronizado_em)}
-        </span>
-        <button type="button" className="p-1 -m-0.5 rounded-md text-muted hover:text-ink hover:bg-sel disabled:opacity-60"
-          onClick={() => void atualizar()} disabled={busy} title="Atualizar com o AnkiWeb" aria-label="Atualizar com o AnkiWeb">
-          <RefreshCw size={12} className={busy ? "animate-spin" : ""} />
-        </button>
-        {aviso}
-        {/* a conta à direita; um e-mail comprido é cortado (inteiro no title) */}
-        <span className="ml-auto inline-flex items-center gap-1 min-w-0 max-w-full">
-          <span className="truncate" title={conta.usuario}>{conta.usuario}</span> ·
-          <button type="button" className="underline underline-offset-2 hover:text-ink" onClick={() => void desligar()}>desligar</button>
-        </span>
-      </div>
-    );
-  }
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-      <span className="inline-flex items-center gap-1.5"><Cloud size={13} /> Anki: números do AnkiWeb, atualizados {haQuanto(conta.sincronizado_em)}</span>
-      <button className="btn text-xs py-0.5" onClick={() => void atualizar()} disabled={busy}>
-        <RefreshCw size={12} className={busy ? "animate-spin" : ""} /> {busy ? "Atualizando…" : "Atualizar"}
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-faint">
+      <span className="inline-flex items-center gap-1.5" title="Os números do Anki vêm do AnkiWeb">
+        <Cloud size={12} className="shrink-0" /> atualizado {haQuanto(conta.sincronizado_em)}
+      </span>
+      <button type="button" className="p-1 -m-0.5 rounded-md text-muted hover:text-ink hover:bg-sel disabled:opacity-60"
+        onClick={() => void atualizar()} disabled={busy} title="Atualizar com o AnkiWeb" aria-label="Atualizar com o AnkiWeb">
+        <RefreshCw size={12} className={busy ? "animate-spin" : ""} />
       </button>
       {aviso}
+      {/* a conta à direita; um e-mail comprido é cortado (inteiro no title) */}
+      <span className="ml-auto inline-flex items-center gap-1 min-w-0 max-w-full">
+        <span className="truncate" title={conta.usuario}>{conta.usuario}</span> ·
+        <button type="button" className="underline underline-offset-2 hover:text-ink" onClick={() => void desligar()}>desligar</button>
+      </span>
     </div>
   );
 }

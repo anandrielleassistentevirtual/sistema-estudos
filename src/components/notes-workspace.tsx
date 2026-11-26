@@ -233,7 +233,7 @@ export function NotesWorkspace({ kind, tabs }: { kind: Kind; tabs?: React.ReactN
     {/* a lista começa na mesma borda das abas (o recuo é o da moldura: 16px no celular, 32px no computador) */}
     <div className={`grid grid-cols-1 flex-1 min-h-0 ${listHidden ? "" : "md:grid-cols-[320px_1fr]"}`}>
       <aside className={`md:border-r border-line flex-col min-h-0 bg-bg ${naNota ? "hidden" : "flex"} ${listHidden ? "md:hidden" : "md:flex"}`}>
-        <div className="py-3 pr-3 pl-4 md:pl-8 space-y-2 border-b border-line">
+        <div className="py-3 px-4 md:pr-3 md:pl-8 space-y-2 border-b border-line">
           <div className="flex items-center justify-between gap-2">
             <h1 className="font-medium flex items-center gap-1 min-w-0 whitespace-nowrap">
               <button className="hidden md:block p-1 -ml-1 text-faint hover:text-ink rounded-md hover:bg-surface-2" title="Recolher a lista (Ctrl + \)" onClick={() => setListHidden(true)}>

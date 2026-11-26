@@ -74,6 +74,9 @@
   --area-sono: #5b63d3;
   /* rubricas da Lectio (℣, ℟ e números dos versículos), em vermelho como nos missais */
   --rubrica: #b3261e;
+  /* Quadro dos sonhos: o fundo do mosaico é quase preto nos dois temas (as fotos é que dão a cor) e o selo de "realizado" é dourado */
+  --sonhos-fundo: #070708;
+  --sonhos-selo: #d6b25e;
 }
 
 @media (prefers-color-scheme: dark) {
