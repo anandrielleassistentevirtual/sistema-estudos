@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { countWords } from "@/lib/text";
 import { repararCapitulo } from "./epub-reparo";
+import { coresDoFoco, cssDoFoco, ligarFocoFrase, modoEfetivo, temMouse } from "./foco-trecho";
 import { aoDesfazerSelecao, FONTS, HL_COLORS, ReaderHandle, ReaderProps, THEMES, semVariaveis, themeColors } from "./types";
 
 type Pos = { index: number; page: number; total: number };
@@ -14,6 +15,8 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
   const sectionWords = useRef<number[] | null>(null);
   const pos = useRef<Pos | null>(null);
   const drawn = useRef<Set<string>>(new Set());
+  /** capítulos abertos (iframes) e o desligar do realce da frase em cada um */
+  const docsFoco = useRef<Map<Document, (() => void) | null>>(new Map());
   const cb = useRef(props);
   cb.current = props;
 
@@ -129,6 +132,15 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
           doc.addEventListener("mousemove", mover);
           doc.addEventListener("mouseleave", sair);
           contents.on?.("destroy", () => { doc.removeEventListener("mousemove", mover); doc.removeEventListener("mouseleave", sair); sair(); });
+        } catch {}
+      });
+      // foco no trecho: cada capítulo (iframe) recebe o estilo e, no modo frase, o realce da frase sob o mouse
+      r.hooks.content.register((contents: any) => {
+        try {
+          const doc: Document = contents.document;
+          docsFoco.current.set(doc, null);
+          aplicarFoco(doc);
+          contents.on?.("destroy", () => { docsFoco.current.get(doc)?.(); docsFoco.current.delete(doc); });
         } catch {}
       });
       // cada capítulo é um iframe: desfazer a seleção lá dentro também fecha a barra de anotação
@@ -280,8 +292,21 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
       "figcaption, .caption": { "font-size": "0.85em !important", opacity: "0.75", "text-align": "center !important", "text-indent": "0 !important" },
     });
   }
+  /** o foco no trecho num capítulo: o estilo (cores do tema) e o modo; no modo frase, liga o realce da frase */
+  function aplicarFoco(doc: Document) {
+    const p = cb.current.prefs;
+    const modo = temMouse() ? modoEfetivo(p.foco, doc.defaultView) : "off";
+    const t = themeColors(p.theme);
+    let st = doc.getElementById("foco-trecho") as HTMLStyleElement | null;
+    if (!st) { st = doc.createElement("style"); st.id = "foco-trecho"; doc.head?.appendChild(st); }
+    st.textContent = modo === "off" ? "" : cssDoFoco("body", { fg: t.fg, ...coresDoFoco(t.bg, p.theme === "escuro") }, "p, li, h1, h2, h3, h4, h5, h6, figure, pre, dd, dt", true);
+    if (doc.body) doc.body.dataset.foco = modo;
+    docsFoco.current.get(doc)?.();
+    docsFoco.current.set(doc, modo === "frase" ? ligarFocoFrase(doc, () => doc.body) : null);
+  }
   useEffect(() => {
     applyPrefs();
+    for (const d of docsFoco.current.keys()) { try { aplicarFoco(d); } catch {} }
     // a coluna muda de largura com o zoom: o leitor refaz as páginas
     try { rendition.current?.resize?.(); } catch {}
   }, [props.prefs]); // eslint-disable-line react-hooks/exhaustive-deps

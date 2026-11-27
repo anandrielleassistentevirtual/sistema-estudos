@@ -1,4 +1,5 @@
 "use client";
+import { MODOS_FOCO } from "./foco-trecho";
 import { DEFAULT_PREFS, FONTS, THEMES, type ReaderFont, type ReaderPrefs } from "./types";
 
 /** Painel "Aa" do leitor (livros e aulas): tema, fonte, tamanho, entrelinha e alinhamento. */
@@ -60,7 +61,23 @@ export function PrefsPanel({ prefs, setPrefs }: { prefs: ReaderPrefs; setPrefs: 
                 <button className={`btn justify-center text-xs ${!prefs.justify ? "border-muted" : ""}`} onClick={() => setPrefs({ ...prefs, justify: false })}>À esquerda</button>
               </div>
             </div>
-            <button className="text-xs text-accent" onClick={() => setPrefs({ ...DEFAULT_PREFS, theme: prefs.theme })}>
+            <div>
+              <div className="label mb-2">Foco no trecho</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {MODOS_FOCO.map((m) => (
+                  <button key={m.id} onClick={() => setPrefs({ ...prefs, foco: m.id })}
+                    className={`btn justify-center text-xs px-1 ${(prefs.foco ?? "off") === m.id ? "border-muted" : ""}`}>{m.nome}</button>
+                ))}
+              </div>
+              <p className="text-xs text-muted mt-1.5 leading-snug">
+                {(prefs.foco ?? "off") === "off"
+                  ? "O texto fica nublado e o trecho sob o mouse, nítido e em relevo."
+                  : prefs.foco === "frase"
+                    ? "O parágrafo sob o mouse fica nítido e em relevo; nele, a frase sob o mouse em tom cheio."
+                    : "O parágrafo sob o mouse fica nítido e em relevo; o resto, nublado."}
+              </p>
+            </div>
+            <button className="text-xs text-accent" onClick={() => setPrefs({ ...DEFAULT_PREFS, theme: prefs.theme, foco: prefs.foco })}>
               Voltar ao padrão (Times 12, justificado, 1,5)
             </button>
             <p className="text-xs text-muted">Use ← e → do teclado ou toque nas bordas para virar a página.</p>

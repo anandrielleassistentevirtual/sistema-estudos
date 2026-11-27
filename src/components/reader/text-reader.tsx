@@ -6,6 +6,7 @@ import { aoDesfazerSelecao, FONTS, HL_COLORS, ReaderHandle, ReaderProps, themeCo
 import { paginar } from "./paginar";
 import { chamadasTxt, extrairNotas, prepararMd } from "./notas-do-livro";
 import { aplicarLigacoes, ligarNotas } from "./notas-auto";
+import { coresDoFoco, cssDoFoco, ligarFocoFrase, modoEfetivo, temMouse } from "./foco-trecho";
 import { chaveTermo, formasDosTermos, marcarTermos, prepararTermos, separarGlossario, termoDoHref } from "./glossario";
 
 /** Leitor paginado para TXT e Markdown: páginas de ~320 palavras, quebrando em parágrafos. */
@@ -13,6 +14,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
   const [text, setText] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const box = useRef<HTMLDivElement>(null);
+  const artigo = useRef<HTMLElement>(null);
   const cb = useRef(props);
   cb.current = props;
 
@@ -91,6 +93,11 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     document.addEventListener("keyup", k);
     return () => document.removeEventListener("keyup", k);
   });
+
+  // foco no trecho: o modo que vale aqui (frase sem suporte do navegador → parágrafo; sem mouse → desligado)
+  const [modoFoco, setModoFoco] = useState<"off" | "paragrafo" | "frase">("off");
+  useEffect(() => { setModoFoco(temMouse() ? modoEfetivo(props.prefs.foco) : "off"); }, [props.prefs.foco]);
+  useEffect(() => (modoFoco === "frase" ? ligarFocoFrase(document, () => artigo.current) : undefined), [modoFoco, page]);
 
   // seleção desfeita (clique fora do trecho, toque, tecla): a barra de anotação some
   useEffect(() => aoDesfazerSelecao(document, () => cb.current.onSelect(null)), []);
@@ -186,7 +193,8 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
       onMouseMove={hover} onMouseLeave={() => { sobre.current = ""; cb.current.onNotaHover?.(null); notaSobre.current = ""; cb.current.onNotaLivro?.(null); }}
       onScroll={() => { if (sobre.current) { sobre.current = ""; cb.current.onNotaHover?.(null); } if (notaSobre.current) { notaSobre.current = ""; cb.current.onNotaLivro?.(null); } }}
       onClick={(e) => { if ((e.target as Element).closest?.("[data-nota],[data-termo]")) { notaDoLivro(e.target, true); return; } const m = (e.target as Element).closest?.("mark[data-anns]") as HTMLElement | null; const id = m?.dataset.anns?.split(",")[0]; if (id && !window.getSelection()?.toString().trim()) cb.current.onAnnotationClick(id); }}>
-      <article
+      {modoFoco !== "off" && <style>{cssDoFoco(".reading-page", { fg: t.fg, ...coresDoFoco(t.bg, props.prefs.theme === "escuro") }, ":scope > :not(.leitor-nav):not(ul):not(ol), :scope > :is(ul, ol) > li")}</style>}
+      <article ref={artigo} data-foco={modoFoco}
         className="reading-page prose-notes mx-auto max-w-[68ch] px-6 pt-10 pb-28" /* espaço no fim: Anterior/Próxima ficam acima do Menu e do cronômetro */
         style={{
           fontSize: `${props.prefs.sizePt}pt`,
@@ -198,7 +206,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
       >
         {corpo}
         {current && (
-          <div className="flex justify-between items-center mt-10 text-sm opacity-70 font-sans">
+          <div className="leitor-nav flex justify-between items-center mt-10 text-sm opacity-70 font-sans">
             <button className="rounded-lg border border-current/20 px-3 py-1.5 hover:bg-current/5 disabled:opacity-40" onClick={() => go(page - 1)} disabled={page === 0}>← Anterior</button>
             <span>{page + 1} / {pages.length}</span>
             <button className="rounded-lg border border-current/20 px-3 py-1.5 hover:bg-current/5 disabled:opacity-40" onClick={() => go(page + 1)} disabled={page >= pages.length - 1}>Próxima →</button>

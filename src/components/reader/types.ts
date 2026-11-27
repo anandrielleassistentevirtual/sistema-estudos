@@ -12,9 +12,11 @@ export interface ReaderPrefs {
   sizePt: number; // tamanho em pontos (12 = padrão de documento)
   justify: boolean;
   lineHeight: number; // 1, 1.15, 1.5, 2
+  /** foco no trecho: o texto nublado e o trecho sob o mouse nítido, em relevo */
+  foco?: "off" | "paragrafo" | "frase";
 }
 
-export const DEFAULT_PREFS: ReaderPrefs = { theme: "auto", font: "times", sizePt: 12, justify: true, lineHeight: 1.5 };
+export const DEFAULT_PREFS: ReaderPrefs = { theme: "auto", font: "times", sizePt: 12, justify: true, lineHeight: 1.5, foco: "off" };
 
 export const FONTS: Record<ReaderFont, { label: string; css: string }> = {
   times: { label: "Times New Roman", css: '"Times New Roman", var(--font-tinos), Tinos, Times, "Liberation Serif", serif' },
