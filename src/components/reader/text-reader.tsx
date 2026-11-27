@@ -6,7 +6,7 @@ import { aoDesfazerSelecao, FONTS, HL_COLORS, ReaderHandle, ReaderProps, themeCo
 import { paginar } from "./paginar";
 import { chamadasTxt, extrairNotas, prepararMd } from "./notas-do-livro";
 import { aplicarLigacoes, ligarNotas } from "./notas-auto";
-import { coresDoFoco, cssDoFoco, ligarFocoFrase, modoEfetivo, temMouse } from "./foco-trecho";
+import { coresDoFoco, cssDoFoco, frasesHtml, rehypeFrases, temMouse } from "./foco-trecho";
 import { chaveTermo, formasDosTermos, marcarTermos, prepararTermos, separarGlossario, termoDoHref } from "./glossario";
 
 /** Leitor paginado para TXT e Markdown: páginas de ~320 palavras, quebrando em parágrafos. */
@@ -94,15 +94,21 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
     return () => document.removeEventListener("keyup", k);
   });
 
-  // foco no trecho: o modo que vale aqui (frase sem suporte do navegador → parágrafo; sem mouse → desligado)
+  // foco no trecho: o modo que vale aqui (sem mouse → desligado)
   const [modoFoco, setModoFoco] = useState<"off" | "paragrafo" | "frase">("off");
-  useEffect(() => { setModoFoco(temMouse() ? modoEfetivo(props.prefs.foco) : "off"); }, [props.prefs.foco]);
-  const temaFoco = props.prefs.theme;
+  // (aqui a frase é feita com trechos e CSS comum: funciona em qualquer navegador)
+  useEffect(() => { setModoFoco(temMouse() ? props.prefs.foco ?? "off" : "off"); }, [props.prefs.foco]);
+  // foco na frase: enquanto há texto selecionado (para levar às anotações), tudo fica legível
   useEffect(() => {
     if (modoFoco !== "frase") return;
-    const t0 = themeColors(temaFoco);
-    return ligarFocoFrase(document, () => artigo.current, coresDoFoco(t0.bg, temaFoco === "escuro"));
-  }, [modoFoco, page, temaFoco]);
+    const sel = () => {
+      const a = artigo.current;
+      const s = document.getSelection();
+      if (a) a.dataset.selecao = s && !s.isCollapsed && a.contains(s.anchorNode) ? "1" : "";
+    };
+    document.addEventListener("selectionchange", sel);
+    return () => document.removeEventListener("selectionchange", sel);
+  }, [modoFoco]);
 
   // seleção desfeita (clique fora do trecho, toque, tecla): a barra de anotação some
   useEffect(() => aoDesfazerSelecao(document, () => cb.current.onSelect(null)), []);
@@ -132,7 +138,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
 !current ? (
           <p className="opacity-60">Carregando…</p>
         ) : props.format === "md" ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={modoFoco === "frase" ? [rehypeFrases] : []} components={{
             a: ({ href, children, node: _n, ...p }) => (href?.startsWith("#nota-")
               ? <sup className="nota-ref" data-nota={decodeURIComponent(href.slice(6))} role="button" tabIndex={0}>{children}</sup>
               : href?.startsWith("#termo-")
@@ -146,10 +152,10 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
               const Tag = (["h1", "h2", "h3"] as const)[h[1].length - 1];
               return <Tag key={i} style={{ textAlign: "left" }}>{h[2]}</Tag>;
             }
-            return <p key={i} dangerouslySetInnerHTML={{ __html: chamadasTxt(highlight(escape(aplicarLigacoes(p, ligacoes)), marks.map((m) => ({ ...m, quote: escape(m.quote) })))) }} />;
+            return <p key={i} dangerouslySetInnerHTML={{ __html: chamadasTxt(highlight((modoFoco === "frase" ? frasesHtml : (x: string) => x)(escape(aplicarLigacoes(p, ligacoes))), marks.map((m) => ({ ...m, quote: escape(m.quote) })))) }} />;
           })
         )
-  ), [current, marks, props.format, ligacoes, verbetes, formas]); // eslint-disable-line react-hooks/exhaustive-deps
+  ), [current, marks, props.format, ligacoes, verbetes, formas, modoFoco]); // eslint-disable-line react-hooks/exhaustive-deps
   const sobre = useRef("");
   /** o mouse sobre uma marca: as notas dela e das marcas por fora (trechos que se sobrepõem) */
   const notaSobre = useRef("");
@@ -198,7 +204,7 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
       onMouseMove={hover} onMouseLeave={() => { sobre.current = ""; cb.current.onNotaHover?.(null); notaSobre.current = ""; cb.current.onNotaLivro?.(null); }}
       onScroll={() => { if (sobre.current) { sobre.current = ""; cb.current.onNotaHover?.(null); } if (notaSobre.current) { notaSobre.current = ""; cb.current.onNotaLivro?.(null); } }}
       onClick={(e) => { if ((e.target as Element).closest?.("[data-nota],[data-termo]")) { notaDoLivro(e.target, true); return; } const m = (e.target as Element).closest?.("mark[data-anns]") as HTMLElement | null; const id = m?.dataset.anns?.split(",")[0]; if (id && !window.getSelection()?.toString().trim()) cb.current.onAnnotationClick(id); }}>
-      {modoFoco !== "off" && <style>{cssDoFoco(".reading-page", { fg: t.fg, ...coresDoFoco(t.bg, props.prefs.theme === "escuro") }, ":scope > :not(.leitor-nav):not(ul):not(ol), :scope > :is(ul, ol) > li")}</style>}
+      {modoFoco !== "off" && <style>{cssDoFoco(".reading-page", { fg: t.fg, bg: t.bg, ...coresDoFoco(t.bg, props.prefs.theme === "escuro") }, ":scope > :not(.leitor-nav):not(ul):not(ol), :scope > :is(ul, ol) > li")}</style>}
       <article ref={artigo} data-foco={modoFoco}
         className="reading-page prose-notes mx-auto max-w-[68ch] px-6 pt-10 pb-28" /* espaço no fim: Anterior/Próxima ficam acima do Menu e do cronômetro */
         style={{
