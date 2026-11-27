@@ -73,7 +73,7 @@ export function PrefsPanel({ prefs, setPrefs }: { prefs: ReaderPrefs; setPrefs: 
                 {(prefs.foco ?? "off") === "off"
                   ? "O texto fica nublado e o trecho sob o mouse, nítido e em relevo."
                   : prefs.foco === "frase"
-                    ? "O parágrafo sob o mouse fica nítido e em relevo; nele, a frase sob o mouse em tom cheio."
+                    ? "Todo o texto nublado; só a frase sob o mouse fica nítida."
                     : "O parágrafo sob o mouse fica nítido e em relevo; o resto, nublado."}
               </p>
             </div>

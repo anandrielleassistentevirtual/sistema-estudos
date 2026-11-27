@@ -1,7 +1,7 @@
 /**
  * Foco no trecho: o texto fica nublado (desfocado) e o trecho sob o mouse fica nítido, em relevo.
  *   "paragrafo" — o parágrafo (ou item, citação, título) sob o mouse fica nítido, sobe um pouco, com fundo de papel e sombra;
- *   "frase"     — o mesmo, e dentro dele só a frase sob o mouse fica em tom cheio (com um realce leve).
+ *   "frase"     — todo o texto nublado (o parágrafo também, sem relevo); só a frase sob o mouse fica nítida.
  * Só com mouse (em tela de toque não há "passar por cima": lá o texto fica normal).
  *
  * A frase usa o CSS Custom Highlight API (::highlight): nada é inserido no texto, então destaques, notas,
@@ -143,31 +143,33 @@ export function ligarFocoFrase(doc: Document, raiz: () => Element | null): () =>
 
 /**
  * O CSS do foco, para um documento cujo elemento `raiz` (seletor) leva data-foco="paragrafo|frase".
- * O texto fica nublado (desfocado e um pouco apagado); o parágrafo sob o mouse fica nítido e em relevo.
- * Na frase, dentro do parágrafo nítido só a frase sob o mouse fica em tom cheio.
- * `blocos` = os filhos da raiz que sobem (ex.: ":scope > :not(.leitor-nav)").
+ *   parágrafo — o texto nublado (desfocado e um pouco apagado); o parágrafo sob o mouse fica nítido e em relevo;
+ *   frase     — todo o texto nublado, inclusive o parágrafo sob o mouse (sem relevo); só a frase sob o mouse fica
+ *               nítida. O desfoque aqui é o do próprio texto (letra transparente + sombra borrada), porque um filtro
+ *               valeria para o parágrafo inteiro — e o realce da frase devolve a letra nítida só a ela.
+ * `blocos` = os filhos da raiz que sobem no modo parágrafo (ex.: ":scope > :not(.leitor-nav)").
  */
 export function cssDoFoco(raiz: string, cores: { fg: string; relevo: string; sombra: string; realce: string }, blocos = ":scope > *", importante = false): string {
   const imp = importante ? " !important" : "";
-  const R = `${raiz}:is([data-foco="paragrafo"], [data-foco="frase"])`, F = `${raiz}[data-foco="frase"]`;
+  const P = `${raiz}[data-foco="paragrafo"]`, F = `${raiz}[data-foco="frase"]`;
   const filhos = blocos.split(",").map((b) => b.replace(":scope", "").trim() || "> *");
   const sel = (base: string, suf = "") => filhos.map((b) => `${base} ${b}${suf}`).join(", ");
+  const nublado = `0 0 .34em color-mix(in srgb, ${cores.fg} 62%, transparent)`;
   return `
 @media (hover: hover) and (pointer: fine) {
-  ${sel(R)} {
+  ${sel(P)} {
     filter: blur(2.6px); opacity: .5${imp}; border-radius: 6px; position: relative;
     /* ao sair de um parágrafo, espera um instante antes de nublar (o vão entre parágrafos não pisca) */
     transition: filter .3s ease .12s, opacity .3s ease .12s, transform .25s ease, box-shadow .25s ease, background-color .25s ease;
   }
-  ${sel(R, ":hover")} {
+  ${sel(P, ":hover")} {
     filter: none; opacity: 1${imp}; transition-delay: 0s;
     background-color: ${cores.relevo}${imp};
     box-shadow: 0 0 0 .6em ${cores.relevo}, 0 .8em 1.8em .5em ${cores.sombra};
     transform: translateY(-2px); z-index: 1;
   }
-  ${sel(F, ":hover")} :is(span, em, strong, i, b, a, sup, small, mark), ${sel(F, ":hover")} {
-    color: color-mix(in srgb, ${cores.fg} 38%, transparent)${imp};
-  }
-  ::highlight(${NOME}) { color: ${cores.fg}; background-color: ${cores.realce}; }
+  ${F}, ${F} * { color: transparent !important; text-shadow: ${nublado} !important; }
+  ${F} ::selection { color: ${cores.fg} !important; text-shadow: none !important; }
+  ::highlight(${NOME}) { color: ${cores.fg}; text-shadow: none; background-color: ${cores.realce}; }
 }`;
 }
