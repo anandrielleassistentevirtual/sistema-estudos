@@ -39,9 +39,12 @@ export function coresDoFoco(bg: string, escuro: boolean) {
     relevo: escuro ? `color-mix(in srgb, ${bg} 90%, white)` : `color-mix(in srgb, ${bg} 40%, white)`,
     sombra: escuro ? "rgba(0,0,0,0.55)" : "rgba(60,45,20,0.16)",
     realce: escuro ? "rgba(255,255,255,0.07)" : "rgba(255,214,102,0.22)",
-    /** a pílula sob a frase: por cima do texto, misturada (multiplica no claro, clareia no escuro) — a letra fica intacta */
-    pilula: escuro ? "rgba(255,255,255,0.085)" : "rgba(255,200,80,0.30)",
-    mistura: (escuro ? "screen" : "multiply") as "screen" | "multiply",
+    /** a pílula em volta da frase: a cor da própria página (sem tinta), só um contorno fino e uma sombra leve de relevo */
+    pilula: "transparent",
+    contorno: escuro
+      ? "0 0 0 1px rgba(255,255,255,0.10), 0 6px 18px -6px rgba(0,0,0,0.65)"
+      : "0 0 0 1px rgba(0,0,0,0.07), 0 6px 16px -8px rgba(0,0,0,0.22)",
+    mistura: "normal",
   };
 }
 
@@ -79,11 +82,11 @@ function caretEm(doc: Document, x: number, y: number): { no: Node; off: number }
 }
 
 /**
- * A camada das pílulas: um fundo de cantos arredondados em cada linha da frase, que desliza e muda de tamanho de uma
- * frase para a outra. Fica por cima do texto (fixa na janela, sem receber cliques) e se mistura com ele, então a letra,
- * a seleção e os cliques não mudam.
+ * A camada das pílulas: em cada linha da frase, uma pílula de cantos arredondados (na cor da página, com contorno fino
+ * e sombra leve), que desliza e muda de tamanho de uma frase para a outra. Fica por cima do texto (fixa na janela,
+ * transparente por dentro, sem receber cliques), então a letra, a seleção e os cliques não mudam.
  */
-function camadaDePilulas(doc: Document, cor: string, mistura: string) {
+function camadaDePilulas(doc: Document, cor: string, mistura: string, contorno = "none") {
   const camada = doc.createElement("div");
   camada.setAttribute("aria-hidden", "true");
   camada.style.cssText = `position:fixed;inset:0;pointer-events:none;z-index:66;mix-blend-mode:${mistura};`;
@@ -93,7 +96,7 @@ function camadaDePilulas(doc: Document, cor: string, mistura: string) {
   const pilula = (i: number) => {
     if (pilulas[i]) return pilulas[i];
     const d = doc.createElement("div");
-    d.style.cssText = `position:absolute;left:0;top:0;border-radius:8px;background:${cor};opacity:0;will-change:transform,width,height;`
+    d.style.cssText = `position:absolute;left:0;top:0;border-radius:8px;background:${cor};box-shadow:${contorno};opacity:0;will-change:transform,width,height;`
       + "transition:transform .22s cubic-bezier(.2,.7,.2,1),width .22s cubic-bezier(.2,.7,.2,1),height .22s ease,opacity .25s ease;";
     camada.appendChild(d);
     return (pilulas[i] = d);
@@ -131,12 +134,12 @@ function camadaDePilulas(doc: Document, cor: string, mistura: string) {
  * Liga o realce da frase sob o mouse em `doc` (a página, ou o iframe de um capítulo do EPUB), dentro de `raiz`.
  * Devolve a função que desliga.
  */
-export function ligarFocoFrase(doc: Document, raiz: () => Element | null, cores?: { pilula: string; mistura: string }): () => void {
+export function ligarFocoFrase(doc: Document, raiz: () => Element | null, cores?: { pilula: string; mistura: string; contorno?: string }): () => void {
   const win = doc.defaultView as (Window & { Highlight: new (...r: Range[]) => unknown; CSS: { highlights: Map<string, unknown> } }) | null;
   if (!win || !suportaFrase(win)) return () => {};
   let quadro = 0;
   let atual: { bloco: Element; ini: number; fim: number; range: Range } | null = null;
-  const pilulas = cores && doc.body ? camadaDePilulas(doc, cores.pilula, cores.mistura) : null;
+  const pilulas = cores && doc.body ? camadaDePilulas(doc, cores.pilula, cores.mistura, cores.contorno) : null;
   const limpar = () => { atual = null; win.CSS.highlights.delete(NOME); pilulas?.desenhar(null); };
   // rolar a página ou mudar o tamanho da janela: as pílulas acompanham a frase
   const redesenhar = () => { if (atual) pilulas?.desenhar(atual.range); };
