@@ -302,7 +302,7 @@ export const EpubReader = forwardRef<ReaderHandle, ReaderProps>(function EpubRea
     st.textContent = modo === "off" ? "" : cssDoFoco("body", { fg: t.fg, ...coresDoFoco(t.bg, p.theme === "escuro") }, "p, li, h1, h2, h3, h4, h5, h6, figure, pre, dd, dt", true);
     if (doc.body) doc.body.dataset.foco = modo;
     docsFoco.current.get(doc)?.();
-    docsFoco.current.set(doc, modo === "frase" ? ligarFocoFrase(doc, () => doc.body) : null);
+    docsFoco.current.set(doc, modo === "frase" ? ligarFocoFrase(doc, () => doc.body, coresDoFoco(t.bg, p.theme === "escuro")) : null);
   }
   useEffect(() => {
     applyPrefs();

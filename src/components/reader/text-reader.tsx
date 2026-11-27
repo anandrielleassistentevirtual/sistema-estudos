@@ -97,7 +97,12 @@ export const TextReader = forwardRef<ReaderHandle, ReaderProps>(function TextRea
   // foco no trecho: o modo que vale aqui (frase sem suporte do navegador → parágrafo; sem mouse → desligado)
   const [modoFoco, setModoFoco] = useState<"off" | "paragrafo" | "frase">("off");
   useEffect(() => { setModoFoco(temMouse() ? modoEfetivo(props.prefs.foco) : "off"); }, [props.prefs.foco]);
-  useEffect(() => (modoFoco === "frase" ? ligarFocoFrase(document, () => artigo.current) : undefined), [modoFoco, page]);
+  const temaFoco = props.prefs.theme;
+  useEffect(() => {
+    if (modoFoco !== "frase") return;
+    const t0 = themeColors(temaFoco);
+    return ligarFocoFrase(document, () => artigo.current, coresDoFoco(t0.bg, temaFoco === "escuro"));
+  }, [modoFoco, page, temaFoco]);
 
   // seleção desfeita (clique fora do trecho, toque, tecla): a barra de anotação some
   useEffect(() => aoDesfazerSelecao(document, () => cb.current.onSelect(null)), []);

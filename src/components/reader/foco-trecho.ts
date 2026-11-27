@@ -39,6 +39,9 @@ export function coresDoFoco(bg: string, escuro: boolean) {
     relevo: escuro ? `color-mix(in srgb, ${bg} 90%, white)` : `color-mix(in srgb, ${bg} 40%, white)`,
     sombra: escuro ? "rgba(0,0,0,0.55)" : "rgba(60,45,20,0.16)",
     realce: escuro ? "rgba(255,255,255,0.07)" : "rgba(255,214,102,0.22)",
+    /** a pílula sob a frase: por cima do texto, misturada (multiplica no claro, clareia no escuro) — a letra fica intacta */
+    pilula: escuro ? "rgba(255,255,255,0.085)" : "rgba(255,200,80,0.30)",
+    mistura: (escuro ? "screen" : "multiply") as "screen" | "multiply",
   };
 }
 
@@ -76,15 +79,67 @@ function caretEm(doc: Document, x: number, y: number): { no: Node; off: number }
 }
 
 /**
+ * A camada das pílulas: um fundo de cantos arredondados em cada linha da frase, que desliza e muda de tamanho de uma
+ * frase para a outra. Fica por cima do texto (fixa na janela, sem receber cliques) e se mistura com ele, então a letra,
+ * a seleção e os cliques não mudam.
+ */
+function camadaDePilulas(doc: Document, cor: string, mistura: string) {
+  const camada = doc.createElement("div");
+  camada.setAttribute("aria-hidden", "true");
+  camada.style.cssText = `position:fixed;inset:0;pointer-events:none;z-index:66;mix-blend-mode:${mistura};`;
+  doc.body.appendChild(camada);
+  const pilulas: HTMLDivElement[] = [];
+  let visivel = false;
+  const pilula = (i: number) => {
+    if (pilulas[i]) return pilulas[i];
+    const d = doc.createElement("div");
+    d.style.cssText = `position:absolute;left:0;top:0;border-radius:8px;background:${cor};opacity:0;will-change:transform,width,height;`
+      + "transition:transform .22s cubic-bezier(.2,.7,.2,1),width .22s cubic-bezier(.2,.7,.2,1),height .22s ease,opacity .25s ease;";
+    camada.appendChild(d);
+    return (pilulas[i] = d);
+  };
+  return {
+    desenhar(range: Range | null) {
+      if (!range) { for (const p of pilulas) p.style.opacity = "0"; visivel = false; return; }
+      // as caixas da frase, juntas por linha
+      const linhas: { l: number; r: number; t: number; b: number }[] = [];
+      for (const q of Array.from(range.getClientRects())) {
+        if (q.width < 1 || q.height < 1) continue;
+        const ln = linhas.find((x) => Math.abs((x.t + x.b) / 2 - (q.top + q.bottom) / 2) < q.height * 0.5);
+        if (ln) { ln.l = Math.min(ln.l, q.left); ln.r = Math.max(ln.r, q.right); ln.t = Math.min(ln.t, q.top); ln.b = Math.max(ln.b, q.bottom); }
+        else linhas.push({ l: q.left, r: q.right, t: q.top, b: q.bottom });
+      }
+      const px = 5, py = 1.5;
+      linhas.forEach((ln, i) => {
+        const d = pilula(i);
+        const primeira = !visivel || d.style.opacity === "0";
+        if (primeira) d.style.transition = "opacity .25s ease"; // aparece no lugar, sem vir deslizando do canto
+        d.style.transform = `translate(${ln.l - px}px, ${ln.t - py}px)`;
+        d.style.width = `${ln.r - ln.l + px * 2}px`;
+        d.style.height = `${ln.b - ln.t + py * 2}px`;
+        d.style.opacity = "1";
+        if (primeira) requestAnimationFrame(() => { d.style.transition = "transform .22s cubic-bezier(.2,.7,.2,1),width .22s cubic-bezier(.2,.7,.2,1),height .22s ease,opacity .25s ease"; });
+      });
+      for (let i = linhas.length; i < pilulas.length; i++) pilulas[i].style.opacity = "0";
+      visivel = linhas.length > 0;
+    },
+    remover() { camada.remove(); },
+  };
+}
+
+/**
  * Liga o realce da frase sob o mouse em `doc` (a página, ou o iframe de um capítulo do EPUB), dentro de `raiz`.
  * Devolve a função que desliga.
  */
-export function ligarFocoFrase(doc: Document, raiz: () => Element | null): () => void {
+export function ligarFocoFrase(doc: Document, raiz: () => Element | null, cores?: { pilula: string; mistura: string }): () => void {
   const win = doc.defaultView as (Window & { Highlight: new (...r: Range[]) => unknown; CSS: { highlights: Map<string, unknown> } }) | null;
   if (!win || !suportaFrase(win)) return () => {};
   let quadro = 0;
-  let atual: { bloco: Element; ini: number; fim: number } | null = null;
-  const limpar = () => { atual = null; win.CSS.highlights.delete(NOME); };
+  let atual: { bloco: Element; ini: number; fim: number; range: Range } | null = null;
+  const pilulas = cores && doc.body ? camadaDePilulas(doc, cores.pilula, cores.mistura) : null;
+  const limpar = () => { atual = null; win.CSS.highlights.delete(NOME); pilulas?.desenhar(null); };
+  // rolar a página ou mudar o tamanho da janela: as pílulas acompanham a frase
+  const redesenhar = () => { if (atual) pilulas?.desenhar(atual.range); };
 
   const mover = (e: MouseEvent) => {
     if (e.buttons) return; // selecionando texto: não mexe
@@ -121,8 +176,9 @@ export function ligarFocoFrase(doc: Document, raiz: () => Element | null): () =>
         if (comecou && fim <= acc + len) { range.setEnd(n, fim - acc); break; }
         acc += len;
       }
-      atual = { bloco, ini, fim };
+      atual = { bloco, ini, fim, range };
       win.CSS.highlights.set(NOME, new win.Highlight(range));
+      pilulas?.desenhar(range);
     });
   };
   const sair = (e: MouseEvent) => {
@@ -133,11 +189,16 @@ export function ligarFocoFrase(doc: Document, raiz: () => Element | null): () =>
   const alvo = raiz();
   doc.addEventListener("mousemove", mover);
   alvo?.addEventListener("mouseleave", sair as EventListener);
+  doc.addEventListener("scroll", redesenhar, true);
+  win.addEventListener("resize", redesenhar);
   return () => {
     doc.removeEventListener("mousemove", mover);
     alvo?.removeEventListener("mouseleave", sair as EventListener);
+    doc.removeEventListener("scroll", redesenhar, true);
+    win.removeEventListener("resize", redesenhar);
     if (quadro) win.cancelAnimationFrame(quadro);
     limpar();
+    pilulas?.remover();
   };
 }
 
@@ -154,7 +215,7 @@ export function cssDoFoco(raiz: string, cores: { fg: string; relevo: string; som
   const P = `${raiz}[data-foco="paragrafo"]`, F = `${raiz}[data-foco="frase"]`;
   const filhos = blocos.split(",").map((b) => b.replace(":scope", "").trim() || "> *");
   const sel = (base: string, suf = "") => filhos.map((b) => `${base} ${b}${suf}`).join(", ");
-  const nublado = `0 0 .34em color-mix(in srgb, ${cores.fg} 62%, transparent)`;
+  const nublado = `0 0 .3em color-mix(in srgb, ${cores.fg} 50%, transparent), 0 0 .08em color-mix(in srgb, ${cores.fg} 12%, transparent)`;
   return `
 @media (hover: hover) and (pointer: fine) {
   ${sel(P)} {
@@ -170,6 +231,6 @@ export function cssDoFoco(raiz: string, cores: { fg: string; relevo: string; som
   }
   ${F}, ${F} * { color: transparent !important; text-shadow: ${nublado} !important; }
   ${F} ::selection { color: ${cores.fg} !important; text-shadow: none !important; }
-  ::highlight(${NOME}) { color: ${cores.fg}; text-shadow: none; background-color: ${cores.realce}; }
+  ::highlight(${NOME}) { color: ${cores.fg}; text-shadow: none; }
 }`;
 }
